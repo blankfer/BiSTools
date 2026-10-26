@@ -279,7 +279,9 @@ end
 -- prompt. Plain frames only - nothing secure - so it may open in a fight.
 -- 1.43:1, the BiSTheme standard (Arn, 14 Oct: "make it the best way it'll fit in the imax 70mm aspect")
 RC.W, RC.H, RC.HEADER, RC.PAD = 460, 322, 16, 6
-RC.CARD_H, RC.STRIP_H, RC.ROW_H, RC.ROWS = 66, 28, 12, 10
+RC.CARD_H, RC.STRIP_H, RC.ROW_H, RC.ROWS = 240, 28, 12, 10
+-- the face in each card, and the icon when there is no body to show (26 Oct: faces first, the wall behind "details")
+RC.MODEL_H, RC.ICON = 182, 56
 RC.WHO_ROWS = 4
 -- the rivals & pals window, also 1.43:1
 RC.RW, RC.RH = 500, 350             -- 1.43:1, room for a rival's whole line
@@ -1905,13 +1907,20 @@ local function card(parent, w)
     if RC.last then RC.Paint(RC.last) end
   end)
   c:SetScript("OnEnter", function(self)
-    if not (self.a and self.a.player) then return end
-    self.edge:set("accent", 1)
+    if not self.a then return end
     if GameTooltip then
       GameTooltip:SetOwner(self, "ANCHOR_TOP")
-      local isRival = RC.db and RC.Rivals(RC.db)[self.a.title]
-      GameTooltip:AddLine(isRival and "Click: no longer a rival" or "Click: add to your rivals")
-      GameTooltip:AddLine("The PvP tracker watches for your rivals.", 1, 1, 1, true)
+      GameTooltip:AddLine(self.a.title)
+      -- the nicknames live here now: the card is a face, one name, what and how much (one bar, one label)
+      if self.a.nicks and #self.a.nicks > 0 then
+        GameTooltip:AddLine(table.concat(self.a.nicks, ", "), 0.7, 0.7, 0.7, true)
+      end
+      if self.a.player then
+        self.edge:set("accent", 1)
+        local isRival = RC.db and RC.Rivals(RC.db)[self.a.title]
+        GameTooltip:AddLine(isRival and "Click: no longer a rival" or "Click: add to your rivals")
+        GameTooltip:AddLine("The PvP tracker watches for your rivals.", 1, 1, 1, true)
+      end
       GameTooltip:Show()
     end
   end)
@@ -1920,18 +1929,75 @@ local function card(parent, w)
     if GameTooltip then GameTooltip:Hide() end
   end)
   c.role = F.fs(c, "", 8, "muted")     c.role:SetPoint("TOPLEFT", 5, -4)
-  c.name = F.fs(c, "", 10, "ink")      c.name:SetPoint("TOPLEFT", 5, -14)
-  c.nick = F.fs(c, "", 8, "muted")     c.nick:SetPoint("TOPLEFT", 5, -26)
+  -- THE FACE (Arn, 26 Oct: "instead of the wall of text, up to 3 3d models of the one that killed us and the assists,
+  -- under them what they killed us with and how much they hit us for"): the attacker in 3D; an icon when there is
+  -- no body to show (a player who already left)
+  c.model = CreateFrame("PlayerModel", nil, c)
+  c.model:SetSize(w - 10, RC.MODEL_H)
+  c.model:SetPoint("TOP", c, "TOP", 0, -14)
+  c.model:Hide()
+  c.icon = c:CreateTexture(nil, "ARTWORK")
+  c.icon:SetSize(RC.ICON, RC.ICON)
+  c.icon:SetPoint("CENTER", c.model, "CENTER")
+  c.icon:Hide()
+  local under = -(14 + RC.MODEL_H + 2)
+  c.name = F.fs(c, "", 10, "ink")      c.name:SetPoint("TOPLEFT", 5, under)
+  c.what = F.fs(c, "", 9, "ink")       c.what:SetPoint("TOPLEFT", 5, under - 13)
+  c.dmg = F.fs(c, "", 9, "ink2")       c.dmg:SetPoint("TOPLEFT", 5, under - 25)
   c.barBg = c:CreateTexture(nil, "ARTWORK")
-  c.barBg:SetPoint("TOPLEFT", 5, -38) c.barBg:SetSize(w - 10, 3)
+  c.barBg:SetPoint("TOPLEFT", 5, under - 37) c.barBg:SetSize(w - 10, 3)
   do local r, g, b = F.color("hair") c.barBg:SetColorTexture(r, g, b, 1) end
   c.bar = c:CreateTexture(nil, "OVERLAY")
   c.bar:SetPoint("TOPLEFT", c.barBg, "TOPLEFT") c.bar:SetHeight(3)
   do local r, g, b = F.color("warn") c.bar:SetColorTexture(r, g, b, 1) end
-  c.dmg = F.fs(c, "", 9, "ink2")       c.dmg:SetPoint("TOPLEFT", 5, -44)
-  c.what = F.fs(c, "", 8, "muted")     c.what:SetPoint("TOPLEFT", 5, -55)
   c.w = w
   return c
+end
+
+--- WHO IT WAS, in 3D. A player still about (a nameplate, your target, your group): their own body, gear and all
+--- (UnitTokenFromGUID - on the Forever census). A mob: its kind, by the npc id in its GUID, asked again once if the
+--- client had to fetch it (the ride card's way). Neither: their class's icon, or a skull - never a wrong face.
+RC.SKULL = "Interface\\TargetingFrame\\UI-TargetingFrame-Skull"
+RC.CLASSES = "Interface\\TargetingFrame\\UI-Classes-Circles"
+function RC.Face(c, a)
+  local m, icon = c.model, c.icon
+  local token
+  if a and a.player and UnitTokenFromGUID then
+    local ok, t = pcall(UnitTokenFromGUID, a.key)
+    if ok and type(t) == "string" and not hidden(t) then token = t end
+  end
+  local npc = a and not a.player and tonumber(a.kind)
+  if token then
+    m:Show() icon:Hide()
+    pcall(m.ClearModel, m)
+    pcall(m.SetUnit, m, token)
+    c.drawn = "unit"
+  elseif npc then
+    m:Show() icon:Hide()
+    pcall(m.ClearModel, m)
+    pcall(m.SetCreature, m, npc)
+    c.drawn = "creature"
+    if C_Timer and C_Timer.After then
+      C_Timer.After(0.6, function()
+        if c.a ~= a then return end
+        local ok, file = pcall(m.GetModelFileID, m)
+        if ok and type(file) == "number" and file > 0 then return end
+        pcall(m.SetCreature, m, npc)
+      end)
+    end
+  else
+    m:Hide() icon:Show()
+    local tc = a and a.class and CLASS_ICON_TCOORDS and CLASS_ICON_TCOORDS[a.class]
+    if tc then
+      icon:SetTexture(RC.CLASSES)
+      icon:SetTexCoord(tc[1], tc[2], tc[3], tc[4])
+    else
+      icon:SetTexture(RC.SKULL)
+      icon:SetTexCoord(0, 1, 0, 1)
+    end
+    c.drawn = "icon"
+  end
+  return c.drawn
 end
 
 local function paintCard(c, a, role, s, isKiller)
@@ -1949,15 +2015,15 @@ local function paintCard(c, a, role, s, isKiller)
     if cc then c.name:SetTextColor(cc.r, cc.g, cc.b, 1)
     else local F = K() local r, g, b = F.color("ink") c.name:SetTextColor(r, g, b, 1) end
   end
-  fitText(c.nick, table.concat(a.nicks, ", "), w)
+  RC.Face(c, a)
   local share = (a.whole and s.total > 0) and (a.total / s.total) or 0
   c.bar:SetWidth(math.max(1, w * share))
   c.dmg:SetText(a.whole and (tostring(a.total) .. pct(a.total, s.total)) or "?")
   local line
   if isKiller and s.blow then
     local b = s.blow
-    -- short: a card is a third of the window, and the hits list below already says "melee"
-    line = "killing blow " .. (b.amount and tostring(b.amount) or "?")
+    -- WHAT THEY KILLED YOU WITH (Arn, 26 Oct): the killing blow's own spell, its size, and what went over
+    line = tostring(b.spell or "?") .. " " .. (b.amount and tostring(b.amount) or "?")
     if b.overkill and b.overkill > 0 then line = line .. (" +%d"):format(b.overkill) end
   elseif a.top and a.topAmt then
     line = ("%s %d"):format(a.top, a.topAmt)              -- "Arcane Shot 288": how they did it
@@ -2018,27 +2084,35 @@ function RC.Build(db)
   f.moreBtn = F.HeaderButton(head, -17, "R", "Rivals & pals", "Their own window: rivals, pals, surname crowns.",
     function() RC.SetExpanded(db, not (RC.rwin and RC.rwin:IsShown())) end)
 
-  -- 1. THE THREE CARDS
+  -- TWO VIEWS (Arn, 26 Oct: "instead of the wall of text, up to 3 3d models"): the faces first; the rest - who hit
+  -- you, what kind, your health, the hits - behind "details" at the foot (db.detail), one click away
+  f.faces = CreateFrame("Frame", nil, f)
+  f.faces:SetAllPoints(f)
+  f.detail = CreateFrame("Frame", nil, f)
+  f.detail:SetAllPoints(f)
+  local d = f.detail
+
+  -- 1. THE THREE CARDS: a face each
   local top = RC.HEADER + P
   local cw = math.floor((W - P * 4) / 3)
-  f.left, f.mid, f.right = card(f, cw), card(f, cw), card(f, cw)
+  f.left, f.mid, f.right = card(f.faces, cw), card(f.faces, cw), card(f.faces, cw)
   f.left:SetPoint("TOPLEFT", f, "TOPLEFT", P, -top)
   f.mid:SetPoint("TOPLEFT", f.left, "TOPRIGHT", P, 0)
   f.right:SetPoint("TOPLEFT", f.mid, "TOPRIGHT", P, 0)
 
   -- 2. WHO HIT YOU (left half) and WHAT KIND (right half)
   local half = math.floor((W - P * 3) / 2)
-  local y2 = top + RC.CARD_H + 8
-  f.whoCap = F.fs(f, "who hit you", 8, "muted")  f.whoCap:SetPoint("TOPLEFT", f, "TOPLEFT", P, -y2)
-  f.kindCap = F.fs(f, "what kind", 8, "muted")   f.kindCap:SetPoint("TOPLEFT", f, "TOPLEFT", P * 2 + half, -y2)
+  local y2 = top                                -- the details view starts where the faces do
+  f.whoCap = F.fs(d, "who hit you", 8, "muted")  f.whoCap:SetPoint("TOPLEFT", f, "TOPLEFT", P, -y2)
+  f.kindCap = F.fs(d, "what kind", 8, "muted")   f.kindCap:SetPoint("TOPLEFT", f, "TOPLEFT", P * 2 + half, -y2)
   local function barRow(x, y, w)
     local r = {}
-    r.name = F.fs(f, "", 9, "ink")   r.name:SetPoint("TOPLEFT", f, "TOPLEFT", x, -y)
-    r.amt = F.fs(f, "", 8, "ink2")   r.amt:SetPoint("TOPRIGHT", f, "TOPLEFT", x + w, -y)
-    r.bg = f:CreateTexture(nil, "ARTWORK")
+    r.name = F.fs(d, "", 9, "ink")   r.name:SetPoint("TOPLEFT", f, "TOPLEFT", x, -y)
+    r.amt = F.fs(d, "", 8, "ink2")   r.amt:SetPoint("TOPRIGHT", f, "TOPLEFT", x + w, -y)
+    r.bg = d:CreateTexture(nil, "ARTWORK")
     r.bg:SetPoint("TOPLEFT", f, "TOPLEFT", x, -(y + 11)) r.bg:SetSize(w, 2)
     do local cr, cg, cb = F.color("hair") r.bg:SetColorTexture(cr, cg, cb, 1) end
-    r.bar = f:CreateTexture(nil, "OVERLAY")
+    r.bar = d:CreateTexture(nil, "OVERLAY")
     r.bar:SetPoint("TOPLEFT", r.bg, "TOPLEFT") r.bar:SetHeight(2)
     r.w = w
     return r
@@ -2052,19 +2126,19 @@ function RC.Build(db)
   f.cols = {}
   local colW = math.floor((W - P * 2) / 10)
   for i = 1, 10 do
-    local col = f:CreateTexture(nil, "ARTWORK")
+    local col = d:CreateTexture(nil, "ARTWORK")
     col:SetPoint("BOTTOMLEFT", f, "TOPLEFT", P + (i - 1) * colW, -(stripTop + RC.STRIP_H))
     col:SetSize(colW - 2, 1)
     f.cols[i] = col
   end
-  f.stripLeft = F.fs(f, "", 8, "muted")
+  f.stripLeft = F.fs(d, "", 8, "muted")
   f.stripLeft:SetPoint("TOPLEFT", f, "TOPLEFT", P, -(stripTop + RC.STRIP_H + 2))
-  f.stripRight = F.fs(f, "dead", 8, "warn")
+  f.stripRight = F.fs(d, "dead", 8, "warn")
   f.stripRight:SetPoint("TOPRIGHT", f, "TOPRIGHT", -P, -(stripTop + RC.STRIP_H + 2))
 
   -- 4. THE HITS, all ten, newest first, two columns of five
   local listTop = stripTop + RC.STRIP_H + 14
-  f.caption = F.fs(f, "", 8, "muted")
+  f.caption = F.fs(d, "", 8, "muted")
   f.caption:SetPoint("TOPLEFT", f, "TOPLEFT", P, -listTop)
   f.rows = {}
   for i = 1, RC.ROWS do
@@ -2072,17 +2146,27 @@ function RC.Build(db)
     local x = P + colI * (half + P)
     local y = -(listTop + 11 + ((i - 1) % (RC.ROWS / 2)) * RC.ROW_H)
     local r = {}
-    r.ago = F.fs(f, "", 9, "muted")   r.ago:SetPoint("TOPLEFT", f, "TOPLEFT", x, y)
-    r.who = F.fs(f, "", 9, "ink")     r.who:SetPoint("TOPLEFT", f, "TOPLEFT", x + 30, y)
-    r.what = F.fs(f, "", 9, "muted")  r.what:SetPoint("TOPLEFT", f, "TOPLEFT", x + 100, y)
-    r.amt = F.fs(f, "", 9, "ink2")    r.amt:SetPoint("TOPRIGHT", f, "TOPLEFT", x + half, y)
+    r.ago = F.fs(d, "", 9, "muted")   r.ago:SetPoint("TOPLEFT", f, "TOPLEFT", x, y)
+    r.who = F.fs(d, "", 9, "ink")     r.who:SetPoint("TOPLEFT", f, "TOPLEFT", x + 30, y)
+    r.what = F.fs(d, "", 9, "muted")  r.what:SetPoint("TOPLEFT", f, "TOPLEFT", x + 100, y)
+    r.amt = F.fs(d, "", 9, "ink2")    r.amt:SetPoint("TOPRIGHT", f, "TOPLEFT", x + half, y)
     f.rows[i] = r
   end
 
-  -- 5. THE TOTAL, and the two buttons
-  local footTop = listTop + 11 + (RC.ROWS / 2) * RC.ROW_H + 6
+  -- 5. THE TOTAL, and the buttons - at the foot, under either view
   f.foot = F.fs(f, "", 9, "ink2")
-  f.foot:SetPoint("TOPLEFT", f, "TOPLEFT", P, -footTop)
+  f.foot:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", P, P + 16)
+  -- DETAILS: the wall, one click away; the same button brings the faces back
+  local det = CreateFrame("Button", nil, f)
+  det:SetSize(60, 12)
+  det:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", P, P)
+  det.label = F.fs(det, "", 8, "accent")
+  det.label:SetPoint("LEFT", det, "LEFT", 0, 0)
+  det:SetScript("OnClick", function()
+    db.detail = not db.detail or nil
+    RC.PaintView(db)
+  end)
+  f.detailBtn = det
   -- "STOP SHOWING THIS" (Arn, 12 Oct): turns "open when you die" off and closes; with that already
   -- off it reads "show when I die"
   local stop = CreateFrame("Button", nil, f)
@@ -2143,10 +2227,22 @@ local function paintBar(r, name, class, amount, total, colour)
   r.bar:Show()
 end
 
+--- Faces or details (db.detail), and the switch's word for the other one.
+function RC.PaintView(db)
+  local f = RC.win
+  if not f then return end
+  local detail = db and db.detail == true
+  f.faces:SetShown(not detail)
+  f.detail:SetShown(detail)
+  f.detailBtn.label:SetText(detail and "< faces" or "details >")
+  return detail
+end
+
 function RC.Paint(s)
   local f = RC.win
   if not f then return end
   local F = K()
+  RC.PaintView(RC.db)
   if not s then                                  -- no death this session
     f.mid:Hide() f.left:Hide() f.right:Hide()
     for _, col in ipairs(f.cols) do col:Hide() end
