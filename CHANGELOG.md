@@ -1,3 +1,7 @@
+## Unreleased
+
+- **The death recap shows faces.** Instead of a wall of text, it opens on up to three 3D models: whoever killed you in the middle, the two biggest assists either side. Under each: what they hit you with (the killer: the killing blow itself, "Fireball 312 +40") and how much they did in all, with their share. A player who killed you and is still nearby shows as themselves, gear and all; one who's already gone shows their class icon. Their nicknames are in the card's tooltip. The rest - who hit you, physical or magic, your health, the last ten hits - is one click away behind **details** at the bottom.
+
 ## 0.17.0
 
 - **The farm's find sound is off by default.** The whisper ping for "a fresh copy of your mob turned up" kept going off in busy cities. It is now off for everyone once, unless you had picked "always". Want it back: `/bist farm sound first` (or the farm's options).

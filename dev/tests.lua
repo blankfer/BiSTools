@@ -312,7 +312,12 @@ _G.CreateFrame = function(kind, name, parent, template)
       self._creature = id
       if W.knownCreature[id] then self._file = 100000 + id else self._file = 0 W.knownCreature[id] = true end
     end
-    function f:ClearModel() self._creature, self._file = nil, nil end
+    function f:ClearModel() self._creature, self._unit, self._file = nil, nil, nil end
+    -- a unit's own body (the death recap's player killer, by UnitTokenFromGUID): a token, never a GUID or a name
+    function f:SetUnit(u)
+      if type(u) ~= "string" or u:find("%-") then error("SetUnit needs a unit token", 2) end
+      self._unit, self._file = u, 200000
+    end
     function f:GetModelFileID() return self._file or 0 end
     function f:SetPortraitZoom(z) self._zoom = z end
   end
@@ -422,6 +427,7 @@ _G.CreateFrame = function(kind, name, parent, template)
   function f:Show() self.shown = true end
   function f:Hide() self.shown = false end
   function f:IsShown() return self.shown end
+  function f:SetShown(v) self.shown = v and true or false end
   -- VISIBLE IS SHOWN ALL THE WAY UP (7 Oct 2026). A child whose parent hides stays IsShown() -
   -- that is how the Spawns shelf kept refreshing 4 times a second behind a closed farm window.
   function f:IsVisible()
@@ -2927,7 +2933,20 @@ do
   ok(w.mid.name.text == "Molten Elemental" and w.mid.role.text == "killer" and w.mid.dmg.text == "128 (42%)",
      "the middle card: killer, Molten Elemental, 128 (42%)", w.mid.dmg.text)
   ok(w.left.dmg.text == "106 (35%)" and w.right.dmg.text == "72 (24%)", "the assists either side, with their shares")
-  ok(w.mid.what.text == "killing blow 27 +14", "the killing blow and its overkill", w.mid.what.text)
+  ok(w.mid.what.text == "melee 27 +14", "what killed you: the killing blow's own hit, its size and its overkill", w.mid.what.text)
+  -- THE FACES (Arn, 26 Oct: "instead of the wall of text, up to 3 3d models ... what they killed us with and how
+  -- much they hit us for"): the killer and the two assists in 3D, by the npc id in each GUID
+  ok(w.mid.model.shown and w.mid.model._creature == 11321 and w.mid.drawn == "creature",
+     "the killer's card: the Molten Elemental in 3D (npc 11321, from its GUID)", tostring(w.mid.model._creature))
+  ok(w.left.drawn == "creature" and w.right.drawn == "creature", "the assists in 3D too")
+  -- faces first; the wall one click away
+  ok(w.faces.shown and not w.detail.shown and w.detailBtn.label.text == "details >",
+     "the window opens on the faces; the wall waits behind 'details >'")
+  w.detailBtn.scripts.OnClick(w.detailBtn)
+  ok(w.detail.shown and not w.faces.shown and w.detailBtn.label.text == "< faces" and rdb.detail == true,
+     "details: who hit you, what kind, your health, the hits - and '< faces' brings them back")
+  w.detailBtn.scripts.OnClick(w.detailBtn)
+  ok(w.faces.shown and not w.detail.shown and rdb.detail == nil, "and back to the faces")
   ok(w.foot.text == "306 damage in 6.0 seconds", "the total line", w.foot.text)
   ok(w.rows[1].amt.text == "27 +14" and w.rows[2].what.text == "melee crit" and w.rows[5].what.text == "melee 22 blk",
      "the hits, newest first, crits and blocks marked", tostring(w.rows[1].amt.text) .. " | " .. tostring(w.rows[2].what.text) .. " | " .. tostring(w.rows[5].what.text))
@@ -3103,6 +3122,16 @@ do
   ok(w.left.name.text == "Légolas Thiliaere" and w.left.dmg.text == "666 (64%)", "the biggest assist: Légolas, 666 (64%)", w.left.dmg.text)
   ok(w.left.what.text == "Arcane Shot 281", "each card says what they mostly hit you with", w.left.what.text)
   ok(w.right.what.text == "Rend 26", "even a one-hit assist", w.right.what.text)
+  -- a player's face: their own body while they are still about (a nameplate), else their class's icon
+  -- (never someone else's face)
+  local keepTok, keepTC = _G.UnitTokenFromGUID, _G.CLASS_ICON_TCOORDS
+  _G.UnitTokenFromGUID = function(g) if g == MOMS then return "nameplate3" end end
+  _G.CLASS_ICON_TCOORDS = { HUNTER = { 0, 0.25, 0.25, 0.5 }, WARRIOR = { 0, 0.25, 0, 0.25 } }
+  RC.Paint(RC.last)
+  ok(w.mid.drawn == "unit" and w.mid.model._unit == "nameplate3" and w.mid.model.shown,
+     "the killer still in sight: their own body, gear and all (UnitTokenFromGUID)", tostring(w.mid.model._unit))
+  ok(w.left.drawn == "icon" and not w.left.model.shown and w.left.icon.shown, "an assist already gone: their class icon, no face")
+  _G.UnitTokenFromGUID, _G.CLASS_ICON_TCOORDS = keepTok, keepTC
   ok(w.left.name.color and math.abs(w.left.name.color[1] - 0.67) < 0.01, "a player's name in their class colour")
   ok(w.foot.text == "1047 damage in 5.3 seconds - you healed through some of it", "more damage than health is explained", w.foot.text)
 
