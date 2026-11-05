@@ -254,6 +254,34 @@ function RD.Close()
   NS.Print("the ride card won't pop up any more - |cff66ff80/bist rides on|r brings it back")
 end
 
+--- THE HUB'S CLICK ALWAYS ANSWERS (Arn, 5 Nov: "i clicked the setting thing and nothing happend i thought it was
+--- bugged"). It used to repaint only, so after the X - or with no ride waiting - nothing moved and nothing was said.
+--- Now: the card back on if the X had closed it, and every ride from here on it, waiting or not (RD.asked = this
+--- spot, until you walk away from it; "all rides" itself is left as it was). Where it cannot show, one line says why.
+function RD.Ask(db)
+  RD.db = db
+  local back = db.card == false
+  db.card = true
+  RD.asked, RD.seenAt = true, nil                         -- RD.Paint pins it to this spot; ask where you are NOW
+  RD.Paint()
+  local here = RD.asked ~= true and RD.asked or nil
+  if RD.asked == true then RD.asked = nil end              -- nothing to pin it to (no ride here, an instance)
+  local f = RD.frame
+  local on = back and "the ride card: on again. " or ""
+  if f and f:IsShown() then
+    if back then NS.Print("the ride card: on again - it pops up while a ride waits (|cff66ff80/bist rides off|r stops it)") end
+    return true
+  end
+  if RD.seenInside then
+    NS.Print("%sno rides inside an instance - the card comes back outside", on)
+  elseif here then                                         -- a ride here, the card kept away on purpose
+    NS.Print("%sBiS Shell's TRAM-TRAK is showing the tram - the card waits until it closes", on)
+  else
+    NS.Print("%sno zeppelin, boat or tram from here - the card shows at a zeppelin tower, a boat dock or a tram platform, and in their capitals", on)
+  end
+  return false
+end
+
 --------------------------------------------------------------------
 -- RIDE-TRAK: each ride on its line, live (BiS Shell's TRAM-TRAK, for every zeppelin and boat)
 --------------------------------------------------------------------
@@ -534,7 +562,7 @@ end
 --- anywhere else, in an instance, or switched off: nothing. Answers the lines it shows.
 function RD.Paint(now, quick)
   local lib, db = RD.Lib(), RD.db
-  if not (lib and db and R:Enabled("rides") and db.card ~= false) then return RD.Hide() end
+  if not (lib and db and R:Enabled("rides") and db.card ~= false) then RD.asked = nil return RD.Hide() end
   -- QUICK (RIDE-TRAK's four a second): where you are, asked at most once a second - the map and "in an instance?"
   -- do not change between a quarter-second and the next
   local t = quick and GetTime and GetTime() or nil         -- the clock only on the quick road: the card alone never asks
@@ -562,6 +590,9 @@ function RD.Paint(now, quick)
   if RD.seenInside then return RD.Hide() end
   local map = RD.seenMap
   local here = map and lib:RidesAt(map, now) or {}
+  -- the Hub's ask (RD.Ask): pinned to this spot; walk somewhere else and the card is the plain pop-up again
+  if RD.asked == true then RD.asked = #here > 0 and map or true
+  elseif RD.asked and RD.asked ~= map then RD.asked = nil end
   if #here == 0 then return RD.Hide() end
   RD.Watching(true)
   if map == lib.TRAM_MAP then
@@ -578,8 +609,8 @@ function RD.Paint(now, quick)
       here = { math.abs(a.stop.x - RD.seenX) <= math.abs(b.stop.x - RD.seenX) and a or b }
     end
   end
-  local all = db.all == true
-  local trak = db.trak == true                  -- RIDE-TRAK open: every ride from here stays on the card
+  local all = db.all == true or (RD.asked ~= nil and RD.asked == map)
+  local trak = db.trak == true                 -- RIDE-TRAK open: every ride from here stays on the card
   local pick = {}
   for _, e in ipairs(here) do
     if all or trak or (e.sched and e.sched.docked) then pick[#pick + 1] = e end
@@ -696,11 +727,12 @@ R:Register({
     RD.Paint()
   end,
   OnEnable = function(_, db) RD.db = db RD.Paint() end,
-  -- the Hub's "reset window positions" (recenter) puts the card back at the top left too
+  -- the Hub's "reset window positions" (recenter) puts the card back at the top left too, quietly; a plain click on
+  -- rides in the Hub asks for the card (RD.Ask) and always answers
   OnOpen = function(_, db, recenter)
     RD.db = db
-    if recenter then db.pos = nil RD.Place() end
-    RD.Paint()
+    if recenter then db.pos = nil RD.Place() return RD.Paint() end
+    RD.Ask(db)
   end,
   OnDisable = function() RD.Hide() end,
   OnSlash = function(_, db, args)

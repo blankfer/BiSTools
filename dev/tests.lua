@@ -6628,7 +6628,28 @@ do
   f.x:Click()
   ok(rdb.card == false and not f:IsShown(), "the X: the card off - it stops popping up")
   ok(W.lastMsg and W.lastMsg:find("/bist rides on", 1, true), "and says how to bring it back", W.lastMsg)
-  S("rides on")
+  -- THE HUB'S CLICK ALWAYS ANSWERS (Arn, 5 Nov: "i clicked the setting thing and nothing happend i thought it was
+  -- bugged"): after the X, clicking rides in the BiS Tools list only repainted - the card stayed off, silently.
+  -- Now the click turns it back on and shows every ride from here, waiting at the dock or not.
+  rdb.all = false
+  W.lastMsg = nil
+  NS.Hub.Open("rides")
+  ok(rdb.card == true and f:IsShown() and f.lines[1].text:find("^Zeppelin to Undercity")
+     and f.lines[2] and f.lines[2].text:find("not timed yet", 1, true), "the Hub's click after the X: back on, every ride from here",
+     f:IsShown() and f.lines[1].text or "hidden")
+  ok(W.lastMsg and W.lastMsg:find("on again", 1, true), "and says it is on again", W.lastMsg)
+  ok(rdb.all == false, "the click is a look, not a setting: all rides stays as it was")
+  W.lastMsg = nil
+  NS.Hub.Open("rides")
+  ok(f:IsShown() and W.lastMsg == nil, "clicked again with the card up: still there, nothing said")
+  tick()
+  ok(f:IsShown(), "the once-a-second repaint keeps the asked-for card up while you stand here")
+  -- walk away from every ride: the asked-for card goes, and the next stop is the pop-up again
+  W.map = 1429
+  fireAll("ZONE_CHANGED_NEW_AREA")
+  W.map = 1454
+  fireAll("ZONE_CHANGED_NEW_AREA")
+  ok(not f:IsShown(), "back at the tower after leaving: the plain pop-up, nothing waiting = no card")
   rdb.all = false RD.Paint()
   -- LEAN: a minute where a ride is - one look a second, the map and an instance question each
   local Cost = dofile("../_bisdev/dev/cost.lua")
@@ -6654,6 +6675,12 @@ do
   W.map = 1429
   fireAll("ZONE_CHANGED_NEW_AREA")
   ok(not f:IsShown() and RD.watch.scripts.OnUpdate == nil, "away from every ride: hidden, nothing ticks")
+  -- the Hub's click here: no card to show, so it says where the card lives
+  W.lastMsg = nil
+  NS.Hub.Open("rides")
+  ok(not f:IsShown() and W.lastMsg and W.lastMsg:find("zeppelin tower", 1, true), "the Hub's click with no ride from here: says where the card shows",
+     W.lastMsg)
+  ok(RD.watch.scripts.OnUpdate == nil, "and nothing starts ticking")
   W.map = keepMap
 end
 

@@ -5,7 +5,7 @@ _G.BiSTools = NS
 
 -- version from the TOC, never a literal that drifts (house law); the literal is the
 -- fallback only and the harness holds it equal to ## Version
-local VERSION_FALLBACK = "0.17.0"   -- == ## Version in the TOC; the harness scans for this
+local VERSION_FALLBACK = "0.17.1"   -- == ## Version in the TOC; the harness scans for this
 NS.VERSION = (C_AddOns and C_AddOns.GetAddOnMetadata and C_AddOns.GetAddOnMetadata(ADDON, "Version"))
   or (GetAddOnMetadata and GetAddOnMetadata(ADDON, "Version")) or VERSION_FALLBACK
 

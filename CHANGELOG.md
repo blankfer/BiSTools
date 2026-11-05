@@ -1,3 +1,7 @@
+## 0.17.1
+
+- **Clicking rides in the BiS Tools list always shows something.** After the card's X it used to do nothing at all, with no word why, and with no ride waiting it did nothing either. Now the click turns the card back on and shows every zeppelin, boat or tram from where you stand, waiting or not. It stays up until you walk away, then the card goes back to popping up only when a ride waits. Nowhere near a ride, or inside an instance, one line says where the card shows.
+
 ## 0.17.0
 
 - **The farm's find sound is off by default.** The whisper ping for "a fresh copy of your mob turned up" kept going off in busy cities. It is now off for everyone once, unless you had picked "always". Want it back: `/bist farm sound first` (or the farm's options).
