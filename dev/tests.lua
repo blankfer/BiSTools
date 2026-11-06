@@ -7030,7 +7030,7 @@ do
       return "Restores 243 health over 21 sec. Must remain seated while eating. If you spend at least 10 sec eating, you will"
         .. " become well fed and gain 1 Intellect for 15 min. Additionally, experience gained from kills is increased by 5%."
     end
-    if id == 1248377 then                                      -- Arn's Longjaw Mud Snapper tooltip, 6 Nov, word for word
+    if id == 1249506 then                                      -- Arn's Longjaw Mud Snapper tooltip, 6 Nov, word for word
       return "Restores 530 health over 24 sec. Must remain seated while eating. If you spend at least 10 sec eating, you"
         .. " will become well fed and gain 10 Attack Power for 15 min. Additionally, experience gained from kills is"
         .. " increased by 5%."
@@ -7171,15 +7171,15 @@ do
   BAGS[2680], SLOTS[0][4] = nil, false
   BAGS[4592], SLOTS[0][6] = 80, 4592
   local realSpell2 = _G.C_Item.GetItemSpell
-  _G.C_Item.GetItemSpell = function(id) if id == 4592 then return "Nutritious Food", 1248377 end return realSpell2(id) end
-  LATE[1248377] = true
+  _G.C_Item.GetItemSpell = function(id) if id == 4592 then return "Nutritious Food", 1249506 end return realSpell2(id) end
+  LATE[1249506] = true
   fire("BAG_UPDATE_DELAYED")
   ok(X.pick == nil, "the Mud Snapper's text not loaded: not picked yet")
-  LATE[1248377] = nil
-  X.events.scripts.OnEvent(X.events, "SPELL_DATA_LOAD_RESULT", 1248377, true)
+  LATE[1249506] = nil
+  X.events.scripts.OnEvent(X.events, "SPELL_DATA_LOAD_RESULT", 1249506, true)
   ok(X.pick == 4592 and food.attrs.item1 == "item:4592", "its text loads: the client says so, the Mud Snapper is picked at once",
      tostring(X.pick))
-  -- a client with only the OLD global names (GetItemSpell / GetSpellDescription): still found
+  -- a client with only the OLD global names: still found (Forever has C_Item.GetItemSpell and NO global GetItemSpell - probe 6 Nov; the Mud Snapper's use spell is 1249506)
   X.xpItem, X.blank, X.waiting = {}, {}, {}
   X.pick = nil
   local cItem, cDesc = _G.C_Item.GetItemSpell, _G.C_Spell.GetSpellDescription
