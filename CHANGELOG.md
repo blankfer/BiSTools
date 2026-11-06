@@ -1,3 +1,7 @@
+## 0.19.1
+
+- **The XP food button never offers water.** Drink while you eat and 0.19.0 could take your water for "the food you last ate" and put it on the button. It now learns only food whose own text gives the experience bonus, and a water it already learned is ignored.
+
 ## 0.19.0
 
 - **XP buff buttons, while you level.** Two buttons come into the BiS> tools box when an XP buff needs you, and one click fixes it:

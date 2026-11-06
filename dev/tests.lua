@@ -7035,6 +7035,7 @@ do
       if id == 5477 then return "Nutritious Food", 1248379 end   -- Strider Stew
       if id == 2680 then return "Nutritious Food", 1248378 end   -- Spiced Wolf Meat
       if id == 4599 then return "Food", 433 end                  -- vendor bread
+      if id == 159 then return "Drink", 430 end                  -- Refreshing Spring Water
       return nil
     end,
   }
@@ -7063,6 +7064,7 @@ do
         .. " increased by 5%."
     end
     if id == 433 then return "Restores 61 health over 18 sec. Must remain seated while eating." end
+    if id == 430 then return "Restores 151 mana over 18 sec. Must remain seated while drinking." end
     -- the live Well Fed: 70 characters, no "experience" (the probe's count; the words are a stand-in of that length)
     if id == 1249519 then return "Increases Attack Power by 10 for 15 min. Must remain fed to keep it up." end
     return nil
@@ -7149,12 +7151,25 @@ do
   fire("UNIT_AURA", "player")
   ok(db.food == nil and food:IsShown(), "bread eaten: no Well Fed - not learned, the button stays")
   -- eat the stew: Forever puts ONE "Well Fed" on me (1249519, live 6 Nov), its readable text silent on experience
+  -- AND DRINK WITH IT (Arn, 6 Nov, 0.19.0 live: the food button showed his WATER - "water give no buff"). Eating and
+  -- drinking sit together; the water's cast came after the stew's, and the Well Fed that followed taught the water.
   W.lastMsg = nil
+  BAGS[159], SLOTS[0][4] = 5, 159                          -- Refreshing Spring Water
   fire("UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-2", 1248379)
-  W.now = W.now + 12
+  W.now = W.now + 2
+  fire("UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-3", 430)
+  W.now = W.now + 10
   FED = { spellId = 1249519, expirationTime = W.now + 900, applications = 1 }
   fire("UNIT_AURA", "player")
-  ok(db.food == 5477 and W.lastMsg and W.lastMsg:find("learned", 1, true), "eat the stew: learned as yours", tostring(db.food))
+  ok(db.food == 5477 and W.lastMsg and W.lastMsg:find("learned", 1, true), "eat the stew and drink water: the STEW is learned",
+     tostring(db.food))
+  -- a favourite left over from 0.19.0 that is not XP food (the water): never the button's
+  db.food = 159
+  fire("BAG_UPDATE_DELAYED")
+  ok(X.pick == 5477 and food.attrs.item1 == "item:5477", "a learned water from before: ignored, the stew is picked", tostring(X.pick))
+  db.food = 5477
+  BAGS[159], SLOTS[0][4] = nil, false
+  fire("BAG_UPDATE_DELAYED")
   ok(not food:IsShown(), "and with 15 minutes of Well Fed on: no button (Arn 6 Nov: it said 'eat' over a fresh one)")
   W.runAfters(900 - X.LOW_FOOD + 2)
   ok(food:IsShown(), "under 2 minutes left: the food button comes")
