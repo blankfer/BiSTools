@@ -14,7 +14,7 @@ there) **and threat** (a beta, off by default). The page is for Forever.
 
 # BiS Tools
 
-**What killed you, who to watch for, who heals them, and what to farm. For WoW Forever.**
+**Your XP buffs in one stop, what killed you, who to watch for, who heals them, and what to farm. For WoW Forever.**
 
 You're dead, and you never saw it coming. BiS Tools opens the game's own record of the hits that killed you: who landed the last one, who helped, with what, and how fast. Click a player on that screen and they're your rival. The next time they walk into view, you'll know.
 
