@@ -1,3 +1,10 @@
+## 0.19.0
+
+- **XP buff buttons, while you level.** Two buttons come into the BiS> tools box when an XP buff needs you, and one click fixes it:
+  - **Cozy Sleeping Bag:** when Well-Rested is gone, short of its 3 stacks, or under 10 minutes left, and the bag is in your bags. Rest inside a minute for each stack.
+  - **Your XP food:** when its Well Fed is gone or under 2 minutes left. It learns which food the first time you eat one whose Well Fed gives experience; `/bist xp food` + a shift-clicked food names it by hand.
+  - Out of combat only, nothing at level 60, and `/bist xp` says where both buffs stand. Off in the options ("sleeping bag button", "XP food button"). It costs nothing in a fight and a few calls when your buffs change.
+
 ## 0.18.1
 
 - **The death recap shows faces.** Instead of a wall of text, it opens on up to three 3D models: whoever killed you in the middle, the two biggest assists either side. Under each: what they hit you with (the killer: the killing blow itself, "Fireball 312 +40") and how much they did in all, with their share. A player who killed you and is still nearby shows as themselves, gear and all; one who's already gone shows their class icon. Their nicknames are in the card's tooltip. The rest - who hit you, physical or magic, your health, the last ten hits - is one click away behind **details** at the bottom.

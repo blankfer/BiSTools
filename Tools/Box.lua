@@ -184,6 +184,13 @@ function B.Buttons()
     out[#out + 1] = { b = ib, show = P.ShowInvite(P.db, members) }
     out[#out + 1] = { b = db_, show = P.ShowDisband(P.db, members) }
   end
+  -- the XP buffs (Arn, 6 Nov: Well-Rested, Well Fed, the Cozy Sleeping Bag - XP.lua): each only while it needs you
+  local XP = NS.XP
+  if XP and XP.Buttons then
+    local bag, food = XP.Buttons()
+    out[#out + 1] = { b = bag, show = XP.ShowBag() }
+    out[#out + 1] = { b = food, show = XP.ShowFood() }
+  end
   return out
 end
 

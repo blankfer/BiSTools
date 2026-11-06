@@ -1869,21 +1869,21 @@ do
   -- left click: the Hub, one row per tool
   mm.scripts.OnClick(mm, "LeftButton")
   local hub = BiSToolsHub
-  ok(hub and hub:IsShown() and #hub.rows == 11, "left click opens the Hub with a row per registered tool")
+  ok(hub and hub:IsShown() and #hub.rows == 12, "left click opens the Hub with a row per registered tool")
   ok(hub.scale == 1.2, "the Tools list is 20% bigger (Arn: \"lets make this 20% bigger\")")
   ok(hub.rows[1].key == "farm" and hub.rows[2].key == "summon" and hub.rows[3].key == "recap" and hub.rows[4].key == "rivals"
      and hub.rows[5].key == "social" and hub.rows[6].key == "threat" and hub.rows[7].key == "bg" and hub.rows[8].key == "map" and hub.rows[9].key == "party"
-     and hub.rows[10].key == "rides" and hub.rows[11].key == "sounds",
-     "rows in TOC order: farm, summon, recap, rivals, social, threat, bg, map, party, rides, sounds")
+     and hub.rows[10].key == "rides" and hub.rows[11].key == "sounds" and hub.rows[12].key == "xp",
+     "rows in TOC order: farm, summon, recap, rivals, social, threat, bg, map, party, rides, sounds, xp")
   -- RIVALS & PALS, their own tool (Arn, 14 Oct: "decouple from recap ... be its own thing")
   ok(hub.rows[4].name.text == "rivals & pals", "the rivals tool's row is titled rivals & pals")
   ok(hub.rows[1].name.text == "farm" and hub.rows[1].state.text:find("on", 1, true), "row: name + on")
-  ok(hub.con.slots.count and hub.con.slots.count.text == "9 of 11 on", "prompt slot counts the tools that are on (threat and party start off; rides and sounds on)")
+  ok(hub.con.slots.count and hub.con.slots.count.text == "10 of 12 on", "prompt slot counts the tools that are on (threat and party start off; rides, sounds and xp on)")
   ok(not R:Enabled("threat") and hub.rows[6].name.text == "threat (beta)" and hub.rows[6].state.text:find("off", 1, true),
      "the threat tool starts OFF and is shown as \"threat (beta)\"")
   ok(hub.con:Width() <= H.W - 15 - 8, "hub prompt fits its header budget")
   ok(hub.closeBtn.point[4] == -3, "only an x in the header, at -3")
-  ok(hub.foot and hub.foot.label.text == "options" and hub.h == 16 + 11 * 16 + 4 + 16, "footer 'options' button; height = header + rows + footer")
+  ok(hub.foot and hub.foot.label.text == "options" and hub.h == 16 + 12 * 16 + 4 + 16, "footer 'options' button; height = header + rows + footer")
   -- row click opens the tool window; shift-click drags it to the middle
   BiSToolsFarm:Hide() F.db.pos = { "TOPLEFT", 400, -300, "TOPLEFT" }
   hub.rows[1].scripts.OnClick(hub.rows[1], "LeftButton")
@@ -1933,7 +1933,7 @@ do
   for _, r in ipairs(BiSToolsOptions and BiSToolsOptions.rows or {}) do end
   -- right click toggles the tool; opening an off tool switches it on first
   hub.rows[2].scripts.OnClick(hub.rows[2], "RightButton")
-  ok(not R:Enabled("summon") and hub.rows[2].state.text:find("off", 1, true) and hub.con.slots.count.text == "8 of 11 on", "right click: summon off, row and count follow")
+  ok(not R:Enabled("summon") and hub.rows[2].state.text:find("off", 1, true) and hub.con.slots.count.text == "9 of 12 on", "right click: summon off, row and count follow")
   ok(lib:Enabled(), "and the lib is untouched by it")
   hub.rows[2].scripts.OnClick(hub.rows[2], "LeftButton")
   ok(R:Enabled("summon") and BiSToolsSummon:IsShown() and db_summon().mode == "on", "click on an off tool: switched on and its window pinned open")
@@ -1961,7 +1961,7 @@ do
   -- the party list, 15 Oct; the recruit crest, 21 Oct; the ride card, 21 Oct)
   -- (+5 in party, 21 Oct: accept from the guild / friends, invite on a keyword, the keyword, from whom)
   -- (+ sounds (1), 5 Nov: the explorer's open button - and its section header)
-  ok(#opt.rows == 12 + 3 + 5 + 7 + 1 + 8 + 2 + 2 + 4 + 7 + 4 + 4 + 5 + 1, "one row per section header and per option", #opt.rows)
+  ok(#opt.rows == 13 + 3 + 5 + 7 + 1 + 8 + 2 + 2 + 4 + 7 + 4 + 4 + 5 + 1 + 2, "one row per section header and per option", #opt.rows)
   -- THE BiSTheme STANDARD, 1.43:1 (Arn, 14 Oct): its sections poured into columns, the window that shape
   ok(math.abs(opt.w / opt.h - 1.43) < 0.01 and (opt.columns or 1) >= 2, "options: 1.43:1, in columns", opt.w .. "x" .. opt.h)
   local function find(label) for _, r in ipairs(opt.rows) do if r.name and r.name.text == label then return r end end end
@@ -2030,7 +2030,7 @@ do
   local farmHdr = opt.rows[5]
   ok(farmHdr.ctl and farmHdr.ctl.on == true, "farm section box shows on")
   farmHdr.ctl.scripts.OnClick(farmHdr.ctl)
-  ok(not R:Enabled("farm") and farmHdr.ctl.on == false and hub.con.slots.count.text == "8 of 11 on", "box off: farm off, hub count follows")
+  ok(not R:Enabled("farm") and farmHdr.ctl.on == false and hub.con.slots.count.text == "9 of 12 on", "box off: farm off, hub count follows")
   farmHdr.ctl.scripts.OnClick(farmHdr.ctl)
   ok(R:Enabled("farm"), "and back on")
   -- toggle: nag
@@ -6969,6 +6969,145 @@ do
   _G.SOUNDKIT, _G.PlaySound, _G.PlaySoundFile = keep.kits, keep.ps, keep.psf
   X.all, X.filter, X.offset, X.last = nil, "", 0, nil
   db.favs, db.files, db.starsOnly = {}, {}, nil
+end
+
+-- ------------------------------------------------------------ the XP buffs (6 Nov 2026)
+-- Arn's three tooltips: Well-Rested (429959, +3%), Well Fed (+5% experience from kills), the Cozy Sleeping Bag (211527,
+-- "stacking up to 3 times") - "i want a super light weight figure out what i want and im going to test you".
+do
+  local X, Bx = NS.XP, NS.Box
+  local db = R:DBFor(R:Get("xp"))
+  ok(X and R:Get("xp") and R:Enabled("xp"), "the xp tool, on by default")
+  local keep = { ua = _G.C_UnitAuras, item = _G.C_Item, cont = _G.C_Container, desc = _G.C_Spell and _G.C_Spell.GetSpellDescription,
+                 level = _G.UnitLevel, cspell = rawget(_G, "C_Spell") }
+  -- the client as probe round 1 measured it: my own buffs plain out of combat, secret in a fight
+  local AURA, FED, LEVEL = nil, nil, 20
+  local BAGS = { [X.BAG_ITEM] = 1, [4599] = 5, [13931] = 2 }
+  local SLOTS = { [0] = { 211527, 4599, 13931 } }        -- the bag, some bread, the XP food (Nightfin Soup's id here)
+  _G.UnitLevel = function(u) return u == "player" and LEVEL or 1 end
+  _G.C_UnitAuras = {
+    GetPlayerAuraBySpellID = function(id)
+      if W.combat then return secret() end
+      if id == X.RESTED then return AURA end
+      return nil
+    end,
+    GetAuraDataBySpellName = function(unit, name)
+      if W.combat then return secret() end
+      if unit == "player" and name == "Well Fed" then return FED end
+      return nil
+    end,
+  }
+  _G.C_Item = {
+    GetItemCount = function(id) return BAGS[id] or 0 end,
+    GetItemIconByID = function(id) return 100000 + id end,
+    GetItemSpell = function(id)
+      if id == 13931 then return "Food", 18233 end
+      if id == 4599 then return "Food", 433 end
+      return nil
+    end,
+  }
+  _G.C_Container = {
+    GetContainerNumSlots = function(bag) return SLOTS[bag] and #SLOTS[bag] or 0 end,
+    GetContainerItemID = function(bag, slot) return SLOTS[bag] and SLOTS[bag][slot] end,
+  }
+  _G.C_Spell = _G.C_Spell or {}
+  _G.C_Spell.GetSpellDescription = function(id)
+    if id == 777001 then return "Your Attack Power is increased by 10. Experience gained from kills increased by 5%." end
+    if id == 777002 then return "Increases Stamina and Spirit by 6." end
+    return nil
+  end
+  local function fire(event, ...) X.events.scripts.OnEvent(X.events, event, ...) end
+  db.food, db.bag, db.eat = nil, nil, nil
+  X.showBag, X.showFood, X.ate = nil, nil, nil
+  R:Get("xp"):OnLogin(db)
+  local bag, food = X.bag, X.food
+  ok(bag and bag.template == "SecureActionButtonTemplate" and bag.attrs.type1 == "item" and bag.attrs.item1 == "item:211527",
+     "the sleeping bag button: secure, it uses the bag")
+
+  -- Well-Rested gone, the bag in my bags: the button in the box
+  fire("UNIT_AURA", "player")
+  ok(X.ShowBag() and bag:IsShown() and bag:GetParent() == BiSToolsBox, "Well-Rested gone: the sleeping bag button, in the BiS> tools box")
+  -- one stack, plenty of time: still up - three is the full bonus
+  AURA = { spellId = X.RESTED, expirationTime = W.now + 3600, applications = 1 }
+  fire("UNIT_AURA", "player")
+  ok(bag:IsShown() and bag.word.text == "1", "one stack of three: still up, the stack on it")
+  AURA.applications = 3
+  fire("UNIT_AURA", "player")
+  ok(not bag:IsShown() and not X.ShowBag(), "three stacks: gone")
+  ok(X.due and math.abs(X.due - (3600 - X.LOW_RESTED + 1)) < 1e-6, "and ONE timer for the moment it runs low", X.due)
+  W.runAfters(3600 - X.LOW_RESTED + 2)
+  ok(bag:IsShown(), "under 10 minutes left: back, with no event and no ticker")
+  -- not in a fight: a secret answer is never a guess, and nothing runs
+  AURA.expirationTime = W.now + 3600
+  fire("UNIT_AURA", "player")
+  W.combat = true
+  local n = 0
+  local Cost = dofile("../_bisdev/dev/cost.lua")
+  local calls = Cost.Count(function() for _ = 1, 50 do fire("UNIT_AURA", "player") end end)
+  ok(calls <= 50 * 3, "in a fight: a UNIT_AURA costs next to nothing", calls)
+  W.combat = false
+  -- no bag in my bags: no button
+  BAGS[X.BAG_ITEM] = nil
+  AURA = nil
+  fire("BAG_UPDATE_DELAYED")
+  ok(not bag:IsShown(), "no sleeping bag in my bags: no button")
+  BAGS[X.BAG_ITEM] = 1
+  -- the level cap: nothing
+  LEVEL = 60
+  fire("UNIT_AURA", "player")
+  ok(not X.ShowBag() and not bag:IsShown(), "level 60: no XP buttons")
+  LEVEL = 20
+  fire("PLAYER_LEVEL_UP")
+  ok(bag:IsShown(), "levelling again (an alt): back")
+  -- a cost budget: out of combat, a minute of busy aura changes
+  print(("   cost: xp buttons, 100 aura changes out of combat = %d calls"):format(Cost.Count(function()
+    for _ = 1, 100 do fire("UNIT_AURA", "player") end
+  end)))
+  ok(Cost.Count(function() for _ = 1, 100 do fire("UNIT_AURA", "player") end end) <= 100 * 20,
+     "out of combat: a handful of calls per aura change, no layout unless something changed")
+
+  -- THE FOOD, LEARNED: bread first (its Well Fed has no experience in it - not learned), then the XP soup
+  ok(not X.ShowFood() and not food:IsShown(), "no XP food known yet: no food button")
+  fire("UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-1", 433)
+  FED = { spellId = 777002, expirationTime = W.now + 900, applications = 1 }
+  fire("UNIT_AURA", "player")
+  ok(db.food == nil, "bread's Well Fed says nothing of experience: not learned")
+  W.lastMsg = nil
+  fire("UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-2", 18233)
+  W.now = W.now + 12
+  FED = { spellId = 777001, expirationTime = W.now + 900, applications = 1 }
+  fire("UNIT_AURA", "player")
+  ok(db.food == 13931 and food.attrs.item1 == "item:13931" and W.lastMsg and W.lastMsg:find("learned", 1, true),
+     "eat the XP food: learned, the button aims at it", tostring(db.food))
+  ok(not food:IsShown(), "and with 15 minutes of it on: no button")
+  W.runAfters(900 - X.LOW_FOOD + 2)
+  ok(food:IsShown(), "under 2 minutes left: the food button comes")
+  FED = nil
+  fire("UNIT_AURA", "player")
+  ok(food:IsShown(), "gone: still up")
+  BAGS[13931] = nil
+  fire("BAG_UPDATE_DELAYED")
+  ok(not food:IsShown(), "none left in my bags: no button")
+  -- someone else's cast is never mine
+  X.ate = nil
+  fire("UNIT_SPELLCAST_SUCCEEDED", "party1", "Cast-3", 18233)
+  ok(X.ate == nil, "a party member eating is not me eating")
+  -- by hand
+  S("xp food |cffffffff|Hitem:21023::::::::60:::::|h[Dirge's Kickin' Chimaerok Chops]|h|r")
+  ok(db.food == 21023, "/bist xp food <link>: named by hand", tostring(db.food))
+  S("xp bag off")
+  ok(db.bag == false and not bag:IsShown(), "/bist xp bag off: no bag button")
+  S("xp bag on")
+  W.lastMsg = nil
+  S("xp")
+  ok(W.lastMsg and W.lastMsg:find("Well-Rested", 1, true), "/bist xp: says where both buffs stand", W.lastMsg)
+
+  db.food, db.bag, db.eat = nil, nil, nil
+  _G.C_UnitAuras, _G.C_Item, _G.C_Container, _G.UnitLevel = keep.ua, keep.item, keep.cont, keep.level
+  if keep.cspell then _G.C_Spell.GetSpellDescription = keep.desc else _G.C_Spell = nil end
+  X.showBag, X.showFood = nil, nil
+  X.token = (X.token or 0) + 1
+  Bx.Refresh()
 end
 
 local allowed = { BiSTools = true, BiSToolsDB = true, SLASH_BISTOOLS1 = true, SLASH_BISTOOLS2 = true,
