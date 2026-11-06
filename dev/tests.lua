@@ -294,6 +294,17 @@ local function FontString()
     -- bytes, and the client measures glyphs. UTF-8 continuation bytes are not letters.
     return #(t:gsub("[\128-\191]", "")) * (self.size or 9) * 0.6 + tex
   end
+  -- HEIGHT (5 Nov 2026, Arn's Skycutter card: "Zeppelin to Zephras Isle - here now, leaves in 0:47" wrapped and ran
+  -- into the foot). The client wraps a font string that has a width unless word wrap is switched off, one line per
+  -- width the text needs, about size + 2 px a line. Without this the mock had no height at all, so nothing could see
+  -- a wrapped line overflow.
+  function s:GetStringHeight()
+    local size, lines = self.size or 9, 1
+    if self.wrap ~= false and type(self.w) == "number" and self.w > 0 then
+      lines = math.max(1, math.ceil(self:GetStringWidth() / self.w))
+    end
+    return lines * (size + 2)
+  end
   function s:Hide() self.shown = false end
   function s:Show() self.shown = true end
   return s
@@ -1858,21 +1869,21 @@ do
   -- left click: the Hub, one row per tool
   mm.scripts.OnClick(mm, "LeftButton")
   local hub = BiSToolsHub
-  ok(hub and hub:IsShown() and #hub.rows == 10, "left click opens the Hub with a row per registered tool")
+  ok(hub and hub:IsShown() and #hub.rows == 11, "left click opens the Hub with a row per registered tool")
   ok(hub.scale == 1.2, "the Tools list is 20% bigger (Arn: \"lets make this 20% bigger\")")
   ok(hub.rows[1].key == "farm" and hub.rows[2].key == "summon" and hub.rows[3].key == "recap" and hub.rows[4].key == "rivals"
      and hub.rows[5].key == "social" and hub.rows[6].key == "threat" and hub.rows[7].key == "bg" and hub.rows[8].key == "map" and hub.rows[9].key == "party"
-     and hub.rows[10].key == "rides",
-     "rows in TOC order: farm, summon, recap, rivals, social, threat, bg, map, party, rides")
+     and hub.rows[10].key == "rides" and hub.rows[11].key == "sounds",
+     "rows in TOC order: farm, summon, recap, rivals, social, threat, bg, map, party, rides, sounds")
   -- RIVALS & PALS, their own tool (Arn, 14 Oct: "decouple from recap ... be its own thing")
   ok(hub.rows[4].name.text == "rivals & pals", "the rivals tool's row is titled rivals & pals")
   ok(hub.rows[1].name.text == "farm" and hub.rows[1].state.text:find("on", 1, true), "row: name + on")
-  ok(hub.con.slots.count and hub.con.slots.count.text == "8 of 10 on", "prompt slot counts the tools that are on (threat and party start off; rides on)")
+  ok(hub.con.slots.count and hub.con.slots.count.text == "9 of 11 on", "prompt slot counts the tools that are on (threat and party start off; rides and sounds on)")
   ok(not R:Enabled("threat") and hub.rows[6].name.text == "threat (beta)" and hub.rows[6].state.text:find("off", 1, true),
      "the threat tool starts OFF and is shown as \"threat (beta)\"")
   ok(hub.con:Width() <= H.W - 15 - 8, "hub prompt fits its header budget")
   ok(hub.closeBtn.point[4] == -3, "only an x in the header, at -3")
-  ok(hub.foot and hub.foot.label.text == "options" and hub.h == 16 + 10 * 16 + 4 + 16, "footer 'options' button; height = header + rows + footer")
+  ok(hub.foot and hub.foot.label.text == "options" and hub.h == 16 + 11 * 16 + 4 + 16, "footer 'options' button; height = header + rows + footer")
   -- row click opens the tool window; shift-click drags it to the middle
   BiSToolsFarm:Hide() F.db.pos = { "TOPLEFT", 400, -300, "TOPLEFT" }
   hub.rows[1].scripts.OnClick(hub.rows[1], "LeftButton")
@@ -1922,7 +1933,7 @@ do
   for _, r in ipairs(BiSToolsOptions and BiSToolsOptions.rows or {}) do end
   -- right click toggles the tool; opening an off tool switches it on first
   hub.rows[2].scripts.OnClick(hub.rows[2], "RightButton")
-  ok(not R:Enabled("summon") and hub.rows[2].state.text:find("off", 1, true) and hub.con.slots.count.text == "7 of 10 on", "right click: summon off, row and count follow")
+  ok(not R:Enabled("summon") and hub.rows[2].state.text:find("off", 1, true) and hub.con.slots.count.text == "8 of 11 on", "right click: summon off, row and count follow")
   ok(lib:Enabled(), "and the lib is untouched by it")
   hub.rows[2].scripts.OnClick(hub.rows[2], "LeftButton")
   ok(R:Enabled("summon") and BiSToolsSummon:IsShown() and db_summon().mode == "on", "click on an off tool: switched on and its window pinned open")
@@ -1949,7 +1960,8 @@ do
   -- party (2), rides (4) (the rival settings moved out of recap into their own tool, 14 Oct; the overlay map, 14 Oct;
   -- the party list, 15 Oct; the recruit crest, 21 Oct; the ride card, 21 Oct)
   -- (+5 in party, 21 Oct: accept from the guild / friends, invite on a keyword, the keyword, from whom)
-  ok(#opt.rows == 11 + 3 + 5 + 7 + 1 + 8 + 2 + 2 + 4 + 7 + 4 + 4 + 5, "one row per section header and per option", #opt.rows)
+  -- (+ sounds (1), 5 Nov: the explorer's open button - and its section header)
+  ok(#opt.rows == 12 + 3 + 5 + 7 + 1 + 8 + 2 + 2 + 4 + 7 + 4 + 4 + 5 + 1, "one row per section header and per option", #opt.rows)
   -- THE BiSTheme STANDARD, 1.43:1 (Arn, 14 Oct): its sections poured into columns, the window that shape
   ok(math.abs(opt.w / opt.h - 1.43) < 0.01 and (opt.columns or 1) >= 2, "options: 1.43:1, in columns", opt.w .. "x" .. opt.h)
   local function find(label) for _, r in ipairs(opt.rows) do if r.name and r.name.text == label then return r end end end
@@ -2018,7 +2030,7 @@ do
   local farmHdr = opt.rows[5]
   ok(farmHdr.ctl and farmHdr.ctl.on == true, "farm section box shows on")
   farmHdr.ctl.scripts.OnClick(farmHdr.ctl)
-  ok(not R:Enabled("farm") and farmHdr.ctl.on == false and hub.con.slots.count.text == "7 of 10 on", "box off: farm off, hub count follows")
+  ok(not R:Enabled("farm") and farmHdr.ctl.on == false and hub.con.slots.count.text == "8 of 11 on", "box off: farm off, hub count follows")
   farmHdr.ctl.scripts.OnClick(farmHdr.ctl)
   ok(R:Enabled("farm"), "and back on")
   -- toggle: nag
@@ -6657,7 +6669,28 @@ do
   f.x:Click()
   ok(rdb.card == false and not f:IsShown(), "the X: the card off - it stops popping up")
   ok(W.lastMsg and W.lastMsg:find("/bist rides on", 1, true), "and says how to bring it back", W.lastMsg)
-  S("rides on")
+  -- THE HUB'S CLICK ALWAYS ANSWERS (Arn, 5 Nov: "i clicked the setting thing and nothing happend i thought it was
+  -- bugged"): after the X, clicking rides in the BiS Tools list only repainted - the card stayed off, silently.
+  -- Now the click turns it back on and shows every ride from here, waiting at the dock or not.
+  rdb.all = false
+  W.lastMsg = nil
+  NS.Hub.Open("rides")
+  ok(rdb.card == true and f:IsShown() and f.lines[1].text:find("^Zeppelin to Undercity")
+     and f.lines[2] and f.lines[2].text:find("not timed yet", 1, true), "the Hub's click after the X: back on, every ride from here",
+     f:IsShown() and f.lines[1].text or "hidden")
+  ok(W.lastMsg and W.lastMsg:find("on again", 1, true), "and says it is on again", W.lastMsg)
+  ok(rdb.all == false, "the click is a look, not a setting: all rides stays as it was")
+  W.lastMsg = nil
+  NS.Hub.Open("rides")
+  ok(f:IsShown() and W.lastMsg == nil, "clicked again with the card up: still there, nothing said")
+  tick()
+  ok(f:IsShown(), "the once-a-second repaint keeps the asked-for card up while you stand here")
+  -- walk away from every ride: the asked-for card goes, and the next stop is the pop-up again
+  W.map = 1429
+  fireAll("ZONE_CHANGED_NEW_AREA")
+  W.map = 1454
+  fireAll("ZONE_CHANGED_NEW_AREA")
+  ok(not f:IsShown(), "back at the tower after leaving: the plain pop-up, nothing waiting = no card")
   rdb.all = false RD.Paint()
   -- LEAN: a minute where a ride is - one look a second, the map and an instance question each
   local Cost = dofile("../_bisdev/dev/cost.lua")
@@ -6671,6 +6704,32 @@ do
   ok(not f:IsShown(), "Thunder Bluff, the Skycutter not timed: no card")
   rdb.all = true RD.Paint()
   ok(f:IsShown() and f.lines[1].text:find("^Zeppelin to Zephras Isle"), "all rides: its line", f.lines[1].text)
+  -- A LONG LINE GOES DOWN, NOT INTO THE FOOT (Arn's screenshot, 5 Nov: the Skycutter docked, "Zeppelin to Zephras Isle
+  -- - here now, leaves in 0:47" on two lines, the second under "timed by Chainheal Ryangosling - BiSGamba"): every
+  -- row as tall as its wrapped text, the foot below the last one
+  local nowS = lib.RideNow()
+  lib.handlers.RIDE.AT("Chainheal Ryangosling", "sky_mul~sky_zeph", "sky_mul", tostring(nowS - 10), "356", tostring(nowS), "BiSGamba")
+  local function tallEnough(what)
+    local bottom = 0
+    for i, row in ipairs(f.rows) do
+      if row:IsShown() then
+        local top = -(row.say.anchor and row.say.anchor[5] or 0)
+        local need = top + row.say:GetStringHeight()
+        ok(need <= (row.h or 0), what .. ": row " .. i .. " holds its text", need .. " in " .. tostring(row.h))
+        bottom = bottom + (row.h or 0)
+      end
+    end
+    local footTop = -(f.foot.anchor and f.foot.anchor[5] or 0)
+    ok(not f.foot:IsShown() or footTop >= RD.TOP + bottom, what .. ": the foot under the last row", footTop .. " vs " .. (RD.TOP + bottom))
+    ok(not f.foot:IsShown() or footTop + f.foot:GetStringHeight() <= (f.h or 0), what .. ": the card holds the foot")
+  end
+  RD.Paint()
+  ok(f:IsShown() and f.lines[1].text:find("here now", 1, true), "the Skycutter docked: here now", f.lines[1].text)
+  ok(f.rows[1].say:GetStringHeight() > RD.LINE, "the line wraps, as in Arn's screenshot", f.rows[1].say:GetStringHeight())
+  tallEnough("all rides, the Skycutter docked")
+  rdb.all = false RD.Paint()
+  ok(f:IsShown() and f.rows[1].face:IsShown(), "the pop-up: the dockhand announces it")
+  tallEnough("the pop-up, the Skycutter docked")
   rdb.all = false
   -- in an instance: nothing; and back where no ride is: nothing ticks
   W.map = 1454
@@ -6683,6 +6742,12 @@ do
   W.map = 1429
   fireAll("ZONE_CHANGED_NEW_AREA")
   ok(not f:IsShown() and RD.watch.scripts.OnUpdate == nil, "away from every ride: hidden, nothing ticks")
+  -- the Hub's click here: no card to show, so it says where the card lives
+  W.lastMsg = nil
+  NS.Hub.Open("rides")
+  ok(not f:IsShown() and W.lastMsg and W.lastMsg:find("zeppelin tower", 1, true), "the Hub's click with no ride from here: says where the card shows",
+     W.lastMsg)
+  ok(RD.watch.scripts.OnUpdate == nil, "and nothing starts ticking")
   W.map = keepMap
 end
 
@@ -6749,6 +6814,161 @@ do
     RD.seenAt = nil
     RD.Paint()
   end
+end
+
+-- ------------------------------------------------------------ the sound explorer (5 Nov 2026)
+-- Arn: "i want a sound explorer for wow sounds where i can play the sound i uploaded and then i click on a in game
+-- sound to see if they sound similar" ... "put the sound thing in bis tools ... for peoplke to use as a tool".
+do
+  local X = NS.Sounds
+  local db = R:DBFor(R:Get("sounds"))
+  ok(X and R:Get("sounds") and R:Enabled("sounds"), "the sounds tool, on by default (it costs nothing until opened)")
+  ok(not (X.frame and X.frame:IsShown()), "closed until it is opened (the Hub test above already opened and closed it once)")
+  local keep = { kits = _G.SOUNDKIT, ps = _G.PlaySound, psf = _G.PlaySoundFile }
+  local played, FILE_OK = {}, true
+  _G.PlaySound = function(kit, ch)
+    if type(kit) ~= "number" then error("PlaySound wants a kit id", 2) end
+    played[#played + 1] = { kit = kit, ch = ch } return true, 1
+  end
+  _G.PlaySoundFile = function(file, ch)
+    if type(file) ~= "string" and type(file) ~= "number" then error("PlaySoundFile wants a path or a file id", 2) end
+    played[#played + 1] = { file = file, ch = ch }
+    if FILE_OK then return true, 2 end
+    return false
+  end
+  -- the game's own table, as Blizzard's UI carries it: NAME = kit id (two names may share one id)
+  _G.SOUNDKIT = { IG_MAINMENU_OPTION_CHECKBOX_ON = 856, TELL_MESSAGE = 3081, RAID_WARNING = 8959,
+                  UI_BELL_TOLL = 1234, UI_BELL_TOLL_ALIAS = 1234, U_CHAT_SCROLL_BUTTON = 1115 }
+  for i = 1, 20 do _G.SOUNDKIT["ZZ_FILLER_" .. string.format("%02d", i)] = 20000 + i end
+  X.all, X.filter, X.offset, X.typed = nil, "", 0, nil
+  db.favs, db.files, db.starsOnly = {}, {}, nil
+
+  S("sounds")
+  local f = BiSToolsSounds
+  ok(f and f:IsShown() and X.IsOpen(), "/bist sounds opens the explorer")
+  local all = X.All()
+  ok(#all == 25 + 2, "every named kit once (one id under two names is one row), plus the heard ones it does not name", #all)
+  ok(all[1].name < all[2].name, "by name")
+  ok(f.rows[1]:IsShown() and f.rows[X.ROWS]:IsShown() and f.rows[1].name.text == all[1].name, "the first rows painted")
+  fitsIn(f, "the sound explorer")
+  ok(math.abs(f.w / f.h - 1.43) < 0.01, "1.43:1", f.w .. "x" .. f.h)
+  -- search
+  f.find.box:SetText("bell")
+  f.find.box.scripts.OnTextChanged(f.find.box)
+  local shown = X.Shown()
+  ok(#shown == 1 and shown[1].id == 1234 and f.rows[1].entry.id == 1234 and not f.rows[2]:IsShown(), "search 'bell': the bell only")
+  f.find.box:SetText("3081")
+  f.find.box.scripts.OnTextChanged(f.find.box)
+  ok(#X.Shown() == 1 and X.Shown()[1].id == 3081, "search by id too")
+  -- click a row: hear it, on the effects channel
+  played = {}
+  f.rows[1].scripts.OnClick(f.rows[1], "LeftButton")
+  ok(played[1] and played[1].kit == 3081 and played[1].ch == "SFX", "a click plays that kit, on SFX")
+  -- THE GLOW (Arn's first look: "need these to glow to see what im clicking"): the one heard brightest, with a bar
+  -- and a gold name; it stays marked
+  local r1 = f.rows[1]
+  local gr, gg, gb = NS.Farm.color("gold")
+  ok(r1.lit.alpha == X.GLOW_LAST and r1.bar.alpha == 1 and r1.name.color[1] == gr and r1.name.color[3] == gb,
+     "the row just heard: lit, its bar on, its name gold", tostring(r1.lit.alpha))
+  local ar, ag, ab = NS.Farm.color("accent")
+  ok(r1.lit.color and math.abs(r1.lit.color[1] - ar) < 1e-6 and math.abs(r1.lit.color[3] - ab) < 1e-6,
+     "in the accent, not the window's own shade")
+  f.find.box:SetText("")
+  f.find.box.scripts.OnTextChanged(f.find.box)
+  local r2 = f.rows[2]
+  ok(r2.lit.alpha == 0 and r2.bar.alpha == 0, "a row not heard: dark")
+  r2.scripts.OnEnter(r2)
+  ok(r2.lit.alpha == X.GLOW_HOVER and r2.bar.alpha == 0, "under the mouse: a faint glow, no bar")
+  r2.scripts.OnLeave(r2)
+  ok(r2.lit.alpha == 0, "the mouse leaves: dark again")
+  f.find.box:SetText("3081")
+  f.find.box.scripts.OnTextChanged(f.find.box)
+  -- shift-click: a star, kept; stars only; /bist sounds favs
+  W.shift = true
+  f.rows[1].scripts.OnClick(f.rows[1], "LeftButton")
+  W.shift = false
+  ok(db.favs[3081] == "TELL_MESSAGE" and f.rows[1].star.text == "*", "shift-click: starred, the star shows")
+  ok(W.lastMsg and W.lastMsg:find("3081", 1, true), "and the id is said", W.lastMsg)
+  f.find.box:SetText("")
+  f.find.box.scripts.OnTextChanged(f.find.box)
+  f.stars.scripts.OnClick(f.stars, "LeftButton")
+  ok(db.starsOnly and #X.Shown() == 1 and X.Shown()[1].id == 3081, "stars only: the starred one")
+  f.stars.scripts.OnClick(f.stars, "LeftButton")
+  W.lastMsg = nil
+  S("sounds favs")
+  ok(W.lastMsg and W.lastMsg:find("TELL_MESSAGE 3081", 1, true), "/bist sounds favs: name and id", W.lastMsg)
+  -- STOP (Arn: "whatrs the command to stop sound loop?"): the client hands back a handle; the stop button stops it,
+  -- the next play stops the one before, closing the window stops it
+  local stopped, H = {}, 100
+  local keepStop = _G.StopSound
+  _G.PlaySound = function(kit, ch)
+    if type(kit) ~= "number" then error("PlaySound wants a kit id", 2) end
+    H = H + 1
+    played[#played + 1] = { kit = kit, ch = ch, h = H } return true, H
+  end
+  _G.StopSound = function(h) if type(h) ~= "number" then error("StopSound wants a sound handle", 2) end stopped[#stopped + 1] = h end
+  X.Stop()
+  stopped = {}
+  X.Play(8959)
+  local first = H
+  f.stop.scripts.OnClick(f.stop, "LeftButton")
+  ok(stopped[1] == first and X.handle == nil, "stop: the sound that was playing is stopped", tostring(stopped[1]))
+  X.Play(8959)
+  local loop = H
+  X.Play(856)
+  ok(stopped[2] == loop and X.handle == H, "a new play stops the one before (a loop never runs under the next)")
+  X.Toggle(false)
+  ok(stopped[3] == H and X.handle == nil, "closing the window stops it too")
+  X.Toggle(true)
+  ok(X.Stop() == false and #stopped == 3, "nothing playing: stop does nothing")
+  _G.StopSound = keepStop
+  -- any kit id, typed
+  f.id.box:SetText("55555")
+  played = {}
+  f.id.box.scripts.OnEnterPressed(f.id.box)
+  ok(X.typed == 55555 and played[1] and played[1].kit == 55555 and X.Shown()[1].typed, "a typed id: played, and on top to star")
+  X.typed = nil
+  -- YOUR OWN FILE (Arn's test sounds, on his PC only): typed under AddOns, played by path, remembered on top
+  f.file.box:SetText("BiSHealing/Media/click.ogg")
+  played = {}
+  f.play.scripts.OnClick(f.play, "LeftButton")
+  ok(played[1] and played[1].file == "Interface\\AddOns\\BiSHealing\\Media\\click.ogg" and played[1].ch == "SFX",
+     "your file: the path under Interface\\AddOns, slashes turned, on SFX", played[1] and played[1].file)
+  ok(db.files[1] == "BiSHealing\\Media\\click.ogg" and f.rows[1].entry.file and f.rows[1].id.text == "your file",
+     "remembered at the top of the list")
+  f.file.box:SetText("BiSHealing\\Media\\request.ogg")
+  f.file.box.scripts.OnEnterPressed(f.file.box)
+  ok(db.files[1] == "BiSHealing\\Media\\request.ogg" and db.files[2] == "BiSHealing\\Media\\click.ogg", "newest first")
+  ok(X.Path("Interface\\AddOns\\X\\y.ogg") == "Interface\\AddOns\\X\\y.ogg", "a full path is left as it is")
+  FILE_OK = false
+  W.lastMsg = nil
+  ok(not X.Play({ file = "BiSHealing\\Media\\gone.ogg" }) and W.lastMsg and W.lastMsg:find("restarted", 1, true),
+     "a file the game has not found: says to check the folder and restart the game", W.lastMsg)
+  FILE_OK = true
+  for i = 1, X.FILES_MAX + 3 do X.AddFile(db, "x\\" .. i .. ".ogg") end
+  ok(#db.files == X.FILES_MAX, "at most " .. X.FILES_MAX .. " files remembered")
+  X.Paint()
+  W.shift = true
+  f.rows[1].scripts.OnClick(f.rows[1], "LeftButton")
+  W.shift = false
+  ok(#db.files == X.FILES_MAX - 1, "shift-click a file: forgotten")
+  db.files = {}
+  -- the wheel
+  X.Paint()
+  f.scripts.OnMouseWheel(f, -1)
+  ok(X.offset == 3 and f.rows[1].entry == X.Shown()[4], "the wheel scrolls three at a time")
+  for _ = 1, 20 do f.scripts.OnMouseWheel(f, -1) end
+  ok(X.offset == #X.Shown() - X.ROWS, "and stops at the last page", X.offset)
+  -- the Hub opens and closes it like every window tool
+  S("sounds")
+  ok(not f:IsShown(), "/bist sounds again: closed")
+  NS.Hub.Open("sounds")
+  ok(f:IsShown(), "the Hub's click opens it")
+  NS.Hub.Open("sounds")
+  ok(not f:IsShown(), "and closes it")
+  _G.SOUNDKIT, _G.PlaySound, _G.PlaySoundFile = keep.kits, keep.ps, keep.psf
+  X.all, X.filter, X.offset, X.last = nil, "", 0, nil
+  db.favs, db.files, db.starsOnly = {}, {}, nil
 end
 
 local allowed = { BiSTools = true, BiSToolsDB = true, SLASH_BISTOOLS1 = true, SLASH_BISTOOLS2 = true,

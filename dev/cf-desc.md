@@ -1,4 +1,4 @@
-# BiS Tools — CurseForge page text (0.17.0)
+# BiS Tools — CurseForge page text (0.18.1)
 
 Paste everything below the line into the project description
 (CurseForge → BiS Tools, project 1686340 → Edit → Description), in the Markdown editor.
@@ -20,11 +20,10 @@ You're dead, and you never saw it coming. BiS Tools opens the game's own record 
 
 ## Death recap
 
-When you die, a small window opens with the last ten hits.
+When you die, a small window opens on the faces of whoever did it.
 
-- **The killer in the middle, the two biggest helpers either side.** Their damage, their share, their main spell, the killing blow and how far past zero it went.
-- **Your health falling across those seconds**, gold where a hit was a crit.
-- **The hits, newest first**, crits and blocks marked, and a total: "306 damage in 6.0 seconds".
+- **The killer in the middle, the two biggest helpers either side, in 3D.** A player still nearby shows as themselves, gear and all. Under each: what they hit you with (the killer: the killing blow, "Fireball 312 +40"), their damage and their share.
+- **Details, one click away:** your health falling across those seconds (gold where a hit was a crit), physical or magic, and the last ten hits newest first, with a total: "306 damage in 6.0 seconds".
 - **Players in their class colour.** Mobs are grouped by who they really are. Forever gives a mob a new nickname on every hit; the recap knows it was one Molten Elemental, not three.
 - **It closes when you're back in your body.** `/bist recap` opens your last death again.
 
@@ -84,6 +83,15 @@ At a zeppelin tower, a boat dock or a Deeprun Tram platform, a small card pops u
 - **RIDE-TRAK.** Shift-click the card and each ride gets a little line map under its announcer: here on the left, where it goes on the right, the ride a gold block moving between them - and your own face on it once you're aboard. The tram shows both of its cars.
 - **Close it for good** with the X; `/bist rides on` brings it back.
 
+## Sound explorer
+
+Every sound the game has a name for, in one list you can search. Type a word (`bell`, `click`, `chime`) or an id, click a row, hear it.
+
+- **Hold your own sound up against the game's.** Play any .ogg from your AddOns folder, then click through the game's until you find the one that sounds like it.
+- **Any id**, even the ones the list doesn't name.
+- **Star the good ones** with a shift-click; `/bist sounds favs` lists them with their ids.
+- **On the sound-effects channel**, so muting effects mutes it. Nothing runs until you open it.
+
 ## The BiS> tools box
 
 The farm's skull, the rival target button, and in battlegrounds the red **+** and the saber button sit together in one small box. Each shows only when it has something to do. With BiS Healing's "BiS> now" on screen, the box docks beside it.
@@ -106,6 +114,7 @@ Left-click the minimap button for the tools, right-click for the options. Hover 
 | `/bist social on` · `off` · `group` · `why` | the thank-you emote for buffs |
 | `/bist farm` | the farm window |
 | `/bist farm key F5` | the skull key |
+| `/bist sounds` · `/bist sounds favs` | the sound explorer · your starred sounds |
 | `/bist on <tool>` · `/bist off <tool>` | switch a tool on or off |
 
 ## Why it works the way it does
