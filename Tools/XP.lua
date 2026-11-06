@@ -133,9 +133,12 @@ function X.Boosted()
 end
 
 --- Seconds until the sleeping bag can be used again (0 = ready; a client that will not say counts as ready).
-function X.BagCD()
+function X.BagCD() return X.ItemCD(X.BAG_ITEM) end
+
+--- Seconds until an item can be used again (0 = ready, or the client will not say).
+function X.ItemCD(item)
   local f = (C_Container and C_Container.GetItemCooldown) or GetItemCooldown   -- C_Container: on both clients (fence)
-  local start, dur = ask(f, X.BAG_ITEM)
+  local start, dur = ask(f, item)
   start, dur = plain(start), plain(dur)
   if type(start) ~= "number" or type(dur) ~= "number" or start <= 0 or dur <= 0 then return 0 end
   return math.max(0, start + dur - now())
@@ -164,6 +167,7 @@ function X.State(db)
   if type(s.f) == "table" and s.f.dur then X.MEAL = s.f.dur end
   s.cd = s.hasBag and X.BagCD() or 0
   s.hasTent = db.tent ~= false and count(X.TENT_ITEM) > 0
+  s.tcd = s.hasTent and X.ItemCD(X.TENT_ITEM) or 0               -- lock one of two: the item's own cooldown
   return s
 end
 
@@ -252,7 +256,7 @@ end
 --- while you quest.
 function X.ShowTent(db, s)
   s = s or X.State(db)
-  if not (s.live and s.hasTent) then return false end
+  if not (s.live and s.hasTent) or s.tcd > 0 then return false end
   if not (X.ShowBag(db, s) or X.ShowFood(db, s)) then return false end
   local rest = X.Rest()
   if type(rest) ~= "number" or rest >= X.TENT_SHARE then return false end
@@ -398,6 +402,7 @@ function X.Arm(s)
       if X.showBag then at(f.left - X.LOW_FOOD - X.PAIR) end
     end
     if not X.showBag and s.cd > 0 then at(s.cd) end
+    if (X.showBag or X.showFood) and not X.showTent and s.tcd and s.tcd > 0 then at(s.tcd) end   -- the stop is up
   end
   X.token = (X.token or 0) + 1
   X.due = nil

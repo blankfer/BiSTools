@@ -7039,12 +7039,14 @@ do
     end,
   }
   local CD = { start = 0, dur = 0 }                         -- the sleeping bag's cooldown, as the client answers it
+  local TCD = { start = 0, dur = 0 }                        -- the tent's own item cooldown (Arn, 6 Nov: it has one)
   _G.C_Container = {
     GetContainerNumSlots = function(bag) return SLOTS[bag] and #SLOTS[bag] or 0 end,
     GetContainerItemID = function(bag, slot) return SLOTS[bag] and SLOTS[bag][slot] end,
     GetItemCooldown = function(id)
       if W.combat then return secret(), secret(), 1 end
       if id == X.BAG_ITEM then return CD.start, CD.dur, 1 end
+      if id == X.TENT_ITEM then return TCD.start, TCD.dur, 1 end
       return 0, 0, 1
     end,
   }
@@ -7319,6 +7321,14 @@ do
   BOOST = nil
   fire("UNIT_AURA", "player")
   ok(tent:IsShown(), "the debuff gone: the tent again")
+  -- TWO LOCKS (Arn, 6 Nov: "the items goes on cooldown but the xp buff gives you a debuff where you cant get another
+  -- camp exp buff for 1 hour"): the item's own cooldown counts too - and its end brings the button back, no event
+  TCD.start, TCD.dur = W.now, 300
+  fire("UNIT_AURA", "player")
+  ok(not tent:IsShown(), "the tent on its own item cooldown: not offered")
+  W.runAfters(301)
+  ok(tent:IsShown(), "its cooldown over: the tent comes back, with no event and no ticker")
+  TCD.start, TCD.dur = 0, 0
   -- never on its own: fed, Well-Rested full - rested XP low or not, no stop, no tent
   AURA = { spellId = X.RESTED, expirationTime = W.now + 3600, applications = 3 }
   FED = { spellId = 1249519, expirationTime = W.now + 900, duration = 900, applications = 1 }
