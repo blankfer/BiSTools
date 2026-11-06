@@ -294,6 +294,17 @@ local function FontString()
     -- bytes, and the client measures glyphs. UTF-8 continuation bytes are not letters.
     return #(t:gsub("[\128-\191]", "")) * (self.size or 9) * 0.6 + tex
   end
+  -- HEIGHT (5 Nov 2026, Arn's Skycutter card: "Zeppelin to Zephras Isle - here now, leaves in 0:47" wrapped and ran
+  -- into the foot). The client wraps a font string that has a width unless word wrap is switched off, one line per
+  -- width the text needs, about size + 2 px a line. Without this the mock had no height at all, so nothing could see
+  -- a wrapped line overflow.
+  function s:GetStringHeight()
+    local size, lines = self.size or 9, 1
+    if self.wrap ~= false and type(self.w) == "number" and self.w > 0 then
+      lines = math.max(1, math.ceil(self:GetStringWidth() / self.w))
+    end
+    return lines * (size + 2)
+  end
   function s:Hide() self.shown = false end
   function s:Show() self.shown = true end
   return s
@@ -6663,6 +6674,32 @@ do
   ok(not f:IsShown(), "Thunder Bluff, the Skycutter not timed: no card")
   rdb.all = true RD.Paint()
   ok(f:IsShown() and f.lines[1].text:find("^Zeppelin to Zephras Isle"), "all rides: its line", f.lines[1].text)
+  -- A LONG LINE GOES DOWN, NOT INTO THE FOOT (Arn's screenshot, 5 Nov: the Skycutter docked, "Zeppelin to Zephras Isle
+  -- - here now, leaves in 0:47" on two lines, the second under "timed by Chainheal Ryangosling - BiSGamba"): every
+  -- row as tall as its wrapped text, the foot below the last one
+  local nowS = lib.RideNow()
+  lib.handlers.RIDE.AT("Chainheal Ryangosling", "sky_mul~sky_zeph", "sky_mul", tostring(nowS - 10), "356", tostring(nowS), "BiSGamba")
+  local function tallEnough(what)
+    local bottom = 0
+    for i, row in ipairs(f.rows) do
+      if row:IsShown() then
+        local top = -(row.say.anchor and row.say.anchor[5] or 0)
+        local need = top + row.say:GetStringHeight()
+        ok(need <= (row.h or 0), what .. ": row " .. i .. " holds its text", need .. " in " .. tostring(row.h))
+        bottom = bottom + (row.h or 0)
+      end
+    end
+    local footTop = -(f.foot.anchor and f.foot.anchor[5] or 0)
+    ok(not f.foot:IsShown() or footTop >= RD.TOP + bottom, what .. ": the foot under the last row", footTop .. " vs " .. (RD.TOP + bottom))
+    ok(not f.foot:IsShown() or footTop + f.foot:GetStringHeight() <= (f.h or 0), what .. ": the card holds the foot")
+  end
+  RD.Paint()
+  ok(f:IsShown() and f.lines[1].text:find("here now", 1, true), "the Skycutter docked: here now", f.lines[1].text)
+  ok(f.rows[1].say:GetStringHeight() > RD.LINE, "the line wraps, as in Arn's screenshot", f.rows[1].say:GetStringHeight())
+  tallEnough("all rides, the Skycutter docked")
+  rdb.all = false RD.Paint()
+  ok(f:IsShown() and f.rows[1].face:IsShown(), "the pop-up: the dockhand announces it")
+  tallEnough("the pop-up, the Skycutter docked")
   rdb.all = false
   -- in an instance: nothing; and back where no ride is: nothing ticks
   W.map = 1454

@@ -643,7 +643,10 @@ function RD.Paint(now, quick)
     local r, g, b = F.color((e.sched and e.sched.docked) and "gold" or (e.sched and "ink" or "dim"))
     row.say:SetTextColor(r, g, b, 1)
     row:Show()
-    local tall = plain and RD.LINE or RD.ROW
+    -- AS TALL AS ITS TEXT (Arn's Skycutter card, 5 Nov: "Zeppelin to Zephras Isle - here now, leaves in 0:47" wrapped
+    -- and its second line sat on the foot): a row grows to its wrapped line, never shorter than before
+    local textH = row.say.GetStringHeight and tonumber(row.say:GetStringHeight()) or 0
+    local tall = plain and math.max(RD.LINE, textH + 3) or math.max(RD.ROW, 14 + textH + 2)
     row:SetHeight(tall)
     y = y + tall
     if trak then                                            -- its own line, right under him
