@@ -7,9 +7,9 @@
 --
 -- So: while you level, a button comes into the BiS> tools box when an XP buff needs you, and one click fixes it.
 --   - THE SLEEPING BAG: Well-Rested missing, under its 3 stacks, or under 10 minutes left - and the bag in your bags.
---   - YOUR XP FOOD: its Well Fed missing or under 2 minutes left - and that food in your bags. Which food is learned
---     the first time you eat one that gives an experience Well Fed (the cast, matched to the item in your bags, then
---     the buff's own description saying "experience"); `/bist xp food <item link>` names it by hand.
+--   - XP FOOD: Well Fed XP Boost missing or under 2 minutes left - and cooked XP food in your bags (its use text says
+--     "experience"; vendor food never does). Yours first - the last XP food you ate (the cast, matched to the bag
+--     item), or `/bist xp food <item link>` - else the XP food you carry most of.
 -- Out of combat only (a box of secure buttons is laid out then), nothing at the level cap.
 --
 -- SUPER LIGHT: no ticker. The player's own aura changes, bags, a level and the end of a fight make it look - one aura
@@ -27,6 +27,10 @@ X.LOW_RESTED, X.LOW_FOOD = 600, 120          -- seconds left that count as "top 
 X.FOOD_WINDOW = 60                           -- seconds from eating to its Well Fed, to learn which food it was
 X.CAP = 60
 X.WELL_FED = "Well Fed"
+-- Forever's cooked food (the runner, 6 Nov, Wowhead's Forever tooltips): the XP part is its OWN aura, "Well Fed XP
+-- Boost" (+5% from kills, flat at every food level), beside the stat Well Fed. Most cooked food gives it, vendor food
+-- never; the food's use text ends "Additionally, experience gained from kills is increased by 5%."
+X.XP_AURA = 1243969
 
 local function plain(v)
   if issecretvalue and issecretvalue(v) then return nil end
@@ -80,7 +84,15 @@ function X.IsXPFood(spellId)
   return type(d) == "string" and d:lower():find("experience", 1, true) ~= nil
 end
 
+--- The XP food buff: Well Fed XP Boost by its id; failing that, a Well Fed whose own text says experience (Arn's
+--- tooltip, 6 Nov, read that way - whichever shape the client shows, both count).
 function X.Fed()
+  local by = C_UnitAuras and C_UnitAuras.GetPlayerAuraBySpellID
+  if by then
+    local ok, a = pcall(by, X.XP_AURA)
+    if not ok or (a ~= nil and plain(a) == nil) then return nil end
+    if a ~= nil then return mine(a) end
+  end
   local f = C_UnitAuras and C_UnitAuras.GetAuraDataBySpellName
   if not f then return nil end
   local ok, aura = pcall(f, "player", X.WELL_FED, "HELPFUL")
@@ -101,10 +113,66 @@ function X.ShowBag(db)
   return r.stacks < X.RESTED_MAX or r.left < X.LOW_RESTED
 end
 
+--- Is this item an XP food? Its use spell's text says experience. Remembered per item; an empty text (not loaded
+--- yet) is "don't know" and is asked again.
+X.xpItem, X.tries = {}, {}
+function X.IsXPItem(id)
+  if type(id) ~= "number" then return false end
+  if X.xpItem[id] ~= nil then return X.xpItem[id] end
+  local _, sid = ask(C_Item and C_Item.GetItemSpell, id)
+  sid = plain(sid)
+  if type(sid) ~= "number" then X.xpItem[id] = false return false end        -- not a usable item
+  local d = plain(ask(C_Spell and C_Spell.GetSpellDescription, sid))
+  if type(d) ~= "string" or d == "" then                       -- three asks, then it is not food (a blank-text item)
+    X.tries[id] = (X.tries[id] or 0) + 1
+    if X.tries[id] >= 3 then X.xpItem[id] = false return false end
+    return nil
+  end
+  X.xpItem[id] = d:lower():find("experience", 1, true) ~= nil
+  return X.xpItem[id]
+end
+
+--- Which XP food the button eats: yours (learned or named) while you have it, else the XP food you carry most of.
+--- A bag scan - only after a bag change (X.dirty), never on an aura change.
+function X.Pick(db)
+  db = db or X.db or {}
+  local unsure = false
+  local best, most
+  if db.food and count(db.food) > 0 then
+    best = db.food
+  else
+    local C = C_Container
+    local seen = {}
+    if C and C.GetContainerNumSlots and C.GetContainerItemID then
+      for bag = 0, 4 do
+        local n = plain(ask(C.GetContainerNumSlots, bag)) or 0
+        for slot = 1, n do
+          local id = plain(ask(C.GetContainerItemID, bag, slot))
+          if type(id) == "number" and not seen[id] then
+            seen[id] = true
+            local xp = X.IsXPItem(id)
+            if xp == nil then unsure = true
+            elseif xp then
+              local c = count(id)
+              if not most or c > most then best, most = id, c end
+            end
+          end
+        end
+      end
+    end
+  end
+  X.dirty = unsure                                              -- a text still loading: look again next time
+  if best ~= X.pick then
+    X.pick = best
+    X.ArmFood(db)
+  end
+  return best
+end
+
 function X.ShowFood(db)
   db = db or X.db or {}
-  if db.eat == false or not db.food or not R:Enabled("xp") or X.Fighting() or not X.Levelling() then return false end
-  if count(db.food) == 0 then return false end
+  if db.eat == false or not X.pick or not R:Enabled("xp") or X.Fighting() or not X.Levelling() then return false end
+  if count(X.pick) == 0 then return false end
   local fed = X.Fed()
   if fed == nil then return false end
   if fed == "missing" then return true end
@@ -158,7 +226,7 @@ function X.Buttons()
       and ("Well-Rested: %d of %d, %s left."):format(r.stacks, X.RESTED_MAX, mins(r.left)) or "Well-Rested: unknown."
     return { "Unfurl your Cozy Sleeping Bag", state, "Rest inside a minute for each stack, up to " .. X.RESTED_MAX .. "." }
   end)
-  X.food = button("BiSToolsXPFood", X.db and X.db.food, function()
+  X.food = button("BiSToolsXPFood", X.pick, function()
     local f = X.Fed()
     local state = f == "missing" and "Its Well Fed is gone." or type(f) == "table" and ("Well Fed: " .. mins(f.left) .. " left.")
       or "Well Fed: unknown."
@@ -167,12 +235,12 @@ function X.Buttons()
   return X.bag, X.food
 end
 
---- Point the food button at the learned food (out of combat: a secure attribute).
-function X.ArmFood(db)
-  db = db or X.db or {}
+--- Point the food button at the picked food (out of combat: a secure attribute).
+function X.ArmFood()
   if not X.food or X.Fighting() then return false end
-  X.food:SetAttribute("item1", db.food and ("item:" .. db.food) or "")
-  X.food.icon:SetTexture(db.food and icon(db.food) or 134400)
+  local item = X.pick
+  X.food:SetAttribute("item1", item and ("item:" .. item) or "")
+  X.food.icon:SetTexture(item and icon(item) or 134400)
   return true
 end
 
@@ -181,6 +249,7 @@ end
 --- Anything changed? Only then does the box lay out (a secure layout, out of combat). And the one timer for "low".
 function X.Look()
   if X.Fighting() then return false end
+  if X.dirty then X.Pick() end
   local bag, food = X.ShowBag(), X.ShowFood()
   if X.bag then
     local r = X.Rested()
@@ -198,7 +267,7 @@ function X.Arm()
   local soon
   local r = not X.showBag and X.Rested()
   if type(r) == "table" and r.left ~= math.huge then soon = r.left - X.LOW_RESTED end
-  local f = not X.showFood and X.db and X.db.food and X.Fed()
+  local f = not X.showFood and X.pick and X.Fed()
   if type(f) == "table" and f.left ~= math.huge then
     local s = f.left - X.LOW_FOOD
     if not soon or s < soon then soon = s end
@@ -247,8 +316,8 @@ function X.Learn(db)
   X.ate = nil
   if db.food == a.item then return false end
   db.food = a.item
-  X.ArmFood(db)
-  NS.Print("xp: learned your XP food - its button comes when its Well Fed runs low")
+  X.dirty = true
+  NS.Print("xp: learned your XP food - eaten first while you have it")
   return true
 end
 
@@ -258,6 +327,7 @@ for _, e in ipairs({ "UNIT_AURA", "BAG_UPDATE_DELAYED", "PLAYER_LEVEL_UP", "PLAY
   pcall(ev.RegisterEvent, ev, e)
 end
 ev:SetScript("OnEvent", function(_, event, unit, _, spellId)
+  if event == "BAG_UPDATE_DELAYED" or event == "PLAYER_ENTERING_WORLD" then X.dirty = true end   -- even in a fight
   if not (X.db and R:Enabled("xp")) or not X.Levelling() then return end
   if (event == "UNIT_AURA" or event == "UNIT_SPELLCAST_SUCCEEDED") and unit ~= "player" then return end
   if X.Fighting() then return end                               -- nothing in a fight; the fight's end looks again
@@ -275,11 +345,11 @@ R:Register({
   options = {
     { kind = "toggle", label = "sleeping bag button", help = "While you level: a button in the BiS> tools box when Well-Rested is gone, short of 3 stacks or under 10 minutes - one click unfurls your Cozy Sleeping Bag.",
       get = function(db) return db.bag ~= false end, set = function(db, on) db.bag = on and true or false X.Look() end },
-    { kind = "toggle", label = "XP food button", help = "While you level: a button when your XP food's Well Fed is gone or under 2 minutes - one click eats it. It learns which food the first time you eat one.",
+    { kind = "toggle", label = "XP food button", help = "While you level: a button when Well Fed XP Boost is gone or under 2 minutes - one click eats cooked XP food from your bags (the one you last ate first). Vendor food has no XP buff.",
       get = function(db) return db.eat ~= false end, set = function(db, on) db.eat = on and true or false X.Look() end },
   },
   OnInit = function(_, db) X.db = db end,
-  OnLogin = function(_, db) X.db = db X.Buttons() X.ArmFood(db) X.Look() end,
+  OnLogin = function(_, db) X.db = db X.Buttons() X.dirty = true X.Look() end,
   OnEnable = function(_, db) X.db = db X.Look() end,
   OnDisable = function() X.showBag, X.showFood = nil, nil X.token = (X.token or 0) + 1 end,
   OnSlash = function(_, db, args)
@@ -287,13 +357,13 @@ R:Register({
     args = tostring(args or "")
     local link = args:match("^food%s+(.+)$")
     if args == "food off" then
-      db.food = nil X.ArmFood(db) X.Look()
-      return NS.Print("xp: no XP food - eat one and it is learned again")
+      db.food = nil X.dirty = true X.Look()
+      return NS.Print("xp: no favourite - any XP food in your bags will do")
     elseif link then
       local id = tonumber(link:match("item:(%d+)") or link:match("^(%d+)$"))
       if not id then return NS.Print("xp: shift-click the food into the chat line after /bist xp food") end
-      db.food = id X.ArmFood(db) X.Look()
-      return NS.Print("xp: your XP food is item %d", id)
+      db.food = id X.dirty = true X.Look()
+      return NS.Print("xp: your XP food is item %d - eaten first while you have it", id)
     elseif args == "bag on" or args == "bag off" then
       db.bag = args == "bag on" X.Look()
       return NS.Print("xp: sleeping bag button %s", db.bag and "on" or "off")
@@ -301,6 +371,7 @@ R:Register({
     local r, f = X.Rested(), X.Fed()
     NS.Print("xp: Well-Rested %s; Well Fed %s; XP food %s", r == "missing" and "gone" or type(r) == "table"
       and (r.stacks .. "/" .. X.RESTED_MAX .. ", " .. mins(r.left)) or "unknown", f == "missing" and "gone" or type(f) == "table"
-      and mins(f.left) or "unknown", db.food and ("item " .. db.food) or "not learned yet")
+      and mins(f.left) or "unknown", X.pick and ("item " .. X.pick .. (X.pick == db.food and " (yours)" or ""))
+      or "none in your bags")
   end,
 })

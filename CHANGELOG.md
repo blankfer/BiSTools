@@ -2,7 +2,7 @@
 
 - **XP buff buttons, while you level.** Two buttons come into the BiS> tools box when an XP buff needs you, and one click fixes it:
   - **Cozy Sleeping Bag:** when Well-Rested is gone, short of its 3 stacks, or under 10 minutes left, and the bag is in your bags. Rest inside a minute for each stack.
-  - **Your XP food:** when its Well Fed is gone or under 2 minutes left. It learns which food the first time you eat one whose Well Fed gives experience; `/bist xp food` + a shift-clicked food names it by hand.
+  - **XP food:** when Well Fed XP Boost (the +5% from kills that most cooked food gives on Forever) is gone or under 2 minutes left. Any cooked XP food in your bags will do, with nothing to set up; vendor food has no XP buff and is never picked. The XP food you last ate goes first while you have it, then whichever you carry most of. `/bist xp food` + a shift-clicked food sets your favourite by hand.
   - Out of combat only, nothing at level 60, and `/bist xp` says where both buffs stand. Off in the options ("sleeping bag button", "XP food button"). It costs nothing in a fight and a few calls when your buffs change.
 
 ## 0.18.1

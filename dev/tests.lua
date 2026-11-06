@@ -6981,14 +6981,20 @@ do
   local keep = { ua = _G.C_UnitAuras, item = _G.C_Item, cont = _G.C_Container, desc = _G.C_Spell and _G.C_Spell.GetSpellDescription,
                  level = _G.UnitLevel, cspell = rawget(_G, "C_Spell") }
   -- the client as probe round 1 measured it: my own buffs plain out of combat, secret in a fight
-  local AURA, FED, LEVEL = nil, nil, 20
-  local BAGS = { [X.BAG_ITEM] = 1, [4599] = 5, [13931] = 2 }
-  local SLOTS = { [0] = { 211527, 4599, 13931 } }        -- the bag, some bread, the XP food (Nightfin Soup's id here)
+  -- FOREVER'S REAL SHAPE (the runner, 6 Nov, Wowhead's Forever tooltips): the XP part of cooked food is its OWN aura,
+  -- spell 1243969 "Well Fed XP Boost"; the "Well Fed" beside it is the stat one, with no experience in its text. The
+  -- food's own use spell ("Nutritious Food", 1248379 at Strider Stew's tier) says "Additionally, experience gained from
+  -- kills is increased by 5%."; vendor bread's says nothing of it.
+  local AURA, FED, XPA, LEVEL = nil, nil, nil, 20
+  local BAGS = { [X.BAG_ITEM] = 1, [4599] = 5 }
+  local SLOTS = { [0] = { 211527, 4599 } }                -- the bag and some bread; the cooked food comes later
+  local LATE = {}                                          -- spells whose text the client has not loaded yet
   _G.UnitLevel = function(u) return u == "player" and LEVEL or 1 end
   _G.C_UnitAuras = {
     GetPlayerAuraBySpellID = function(id)
       if W.combat then return secret() end
       if id == X.RESTED then return AURA end
+      if id == 1243969 then return XPA end
       return nil
     end,
     GetAuraDataBySpellName = function(unit, name)
@@ -7001,8 +7007,9 @@ do
     GetItemCount = function(id) return BAGS[id] or 0 end,
     GetItemIconByID = function(id) return 100000 + id end,
     GetItemSpell = function(id)
-      if id == 13931 then return "Food", 18233 end
-      if id == 4599 then return "Food", 433 end
+      if id == 5477 then return "Nutritious Food", 1248379 end   -- Strider Stew
+      if id == 2680 then return "Nutritious Food", 1248378 end   -- Spiced Wolf Meat
+      if id == 4599 then return "Food", 433 end                  -- vendor bread
       return nil
     end,
   }
@@ -7012,6 +7019,12 @@ do
   }
   _G.C_Spell = _G.C_Spell or {}
   _G.C_Spell.GetSpellDescription = function(id)
+    if LATE[id] then return "" end                             -- not loaded yet: the client answers empty
+    if id == 1248379 or id == 1248378 then
+      return "Restores 243 health over 21 sec. Must remain seated while eating. If you spend at least 10 sec eating, you will"
+        .. " become well fed and gain 1 Intellect for 15 min. Additionally, experience gained from kills is increased by 5%."
+    end
+    if id == 433 then return "Restores 61 health over 18 sec. Must remain seated while eating." end
     if id == 777001 then return "Your Attack Power is increased by 10. Experience gained from kills increased by 5%." end
     if id == 777002 then return "Increases Stamina and Spirit by 6." end
     return nil
@@ -7066,31 +7079,81 @@ do
   ok(Cost.Count(function() for _ = 1, 100 do fire("UNIT_AURA", "player") end end) <= 100 * 20,
      "out of combat: a handful of calls per aura change, no layout unless something changed")
 
-  -- THE FOOD, LEARNED: bread first (its Well Fed has no experience in it - not learned), then the XP soup
-  ok(not X.ShowFood() and not food:IsShown(), "no XP food known yet: no food button")
+  -- THE FOOD (Arn, 6 Nov: "most food in wow forever that is crafted by the cooking profession has xp buff"): ANY
+  -- cooked XP food in your bags is the button's - no learning needed. Bread never is.
+  ok(not X.ShowFood() and not food:IsShown() and X.pick == nil, "only bread in my bags: no food button")
+  -- Strider Stew in the bags, its text not loaded yet: not decided, asked again on the next look
+  BAGS[5477] = 3
+  SLOTS[0][3] = 5477
+  LATE[1248379] = true
+  fire("BAG_UPDATE_DELAYED")
+  ok(X.pick == nil and not food:IsShown(), "the stew's text not loaded yet: no guess")
+  LATE[1248379] = nil
+  fire("UNIT_AURA", "player")
+  ok(X.pick == 5477 and food:IsShown() and food.attrs.item1 == "item:5477",
+     "loaded on the next look: the stew is the XP food, the button aims at it", tostring(X.pick))
+  ok(db.food == nil, "and nothing had to be learned for that")
+  -- bread's Well Fed is not the XP one
   fire("UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-1", 433)
   FED = { spellId = 777002, expirationTime = W.now + 900, applications = 1 }
   fire("UNIT_AURA", "player")
-  ok(db.food == nil, "bread's Well Fed says nothing of experience: not learned")
+  ok(db.food == nil and food:IsShown(), "bread eaten: its Well Fed has no experience - not learned, the button stays")
+  -- eat the stew: Forever puts "Well Fed XP Boost" (1243969) on me beside the stat Well Fed
   W.lastMsg = nil
-  fire("UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-2", 18233)
+  fire("UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-2", 1248379)
   W.now = W.now + 12
-  FED = { spellId = 777001, expirationTime = W.now + 900, applications = 1 }
+  XPA = { spellId = 1243969, expirationTime = W.now + 900, applications = 1 }
   fire("UNIT_AURA", "player")
-  ok(db.food == 13931 and food.attrs.item1 == "item:13931" and W.lastMsg and W.lastMsg:find("learned", 1, true),
-     "eat the XP food: learned, the button aims at it", tostring(db.food))
-  ok(not food:IsShown(), "and with 15 minutes of it on: no button")
+  ok(db.food == 5477 and W.lastMsg and W.lastMsg:find("learned", 1, true), "eat the stew: learned as yours", tostring(db.food))
+  ok(not food:IsShown(), "and with 15 minutes of Well Fed XP Boost on: no button")
   W.runAfters(900 - X.LOW_FOOD + 2)
   ok(food:IsShown(), "under 2 minutes left: the food button comes")
-  FED = nil
+  XPA, FED = nil, nil
   fire("UNIT_AURA", "player")
   ok(food:IsShown(), "gone: still up")
-  BAGS[13931] = nil
+  -- yours first, then whatever XP food you carry
+  BAGS[2680] = 10
+  SLOTS[0][4] = 2680
   fire("BAG_UPDATE_DELAYED")
-  ok(not food:IsShown(), "none left in my bags: no button")
+  ok(X.pick == 5477, "more wolf meat than stew, but the stew is yours: still the stew")
+  BAGS[5477] = nil
+  SLOTS[0][3] = false
+  fire("BAG_UPDATE_DELAYED")
+  ok(X.pick == 2680 and food.attrs.item1 == "item:2680" and food:IsShown(), "out of stew: the wolf meat, no learning",
+     tostring(X.pick))
+  BAGS[2680] = nil
+  SLOTS[0][4] = false
+  fire("BAG_UPDATE_DELAYED")
+  ok(not food:IsShown() and X.pick == nil, "no XP food left in my bags: no button")
+  -- the other shape (Arn's own Well Fed tooltip had the experience line in it): one Well Fed that says experience
+  FED = { spellId = 777001, expirationTime = W.now + 900, applications = 1 }
+  ok(type(X.Fed()) == "table", "a Well Fed whose own text says experience counts too")
+  FED = { spellId = 777002, expirationTime = W.now + 900, applications = 1 }
+  ok(X.Fed() == "missing", "a stat-only Well Fed and no XP Boost: the XP buff is missing")
+  FED = nil
+  -- the bag scan is only on a bag change, never on an aura change
+  BAGS[2680], SLOTS[0][4] = 10, 2680
+  fire("BAG_UPDATE_DELAYED")
+  local scans = 0
+  local realSlots = _G.C_Container.GetContainerItemID
+  _G.C_Container.GetContainerItemID = function(...) scans = scans + 1 return realSlots(...) end
+  for _ = 1, 20 do fire("UNIT_AURA", "player") end
+  ok(scans == 0, "20 aura changes: no bag scan", scans)
+  -- an item whose text never loads (blank): three looks, then it is not food and the scans stop
+  BAGS[6948], SLOTS[0][5] = 1, 6948
+  local realSpell = _G.C_Item.GetItemSpell
+  _G.C_Item.GetItemSpell = function(id) if id == 6948 then return "Blank", 999 end return realSpell(id) end
+  LATE[999] = true
+  fire("BAG_UPDATE_DELAYED")
+  for _ = 1, 5 do fire("UNIT_AURA", "player") end
+  scans = 0
+  for _ = 1, 20 do fire("UNIT_AURA", "player") end
+  ok(scans == 0 and X.xpItem[6948] == false, "a blank-text item: given up after three asks, no scans after", scans)
+  _G.C_Container.GetContainerItemID = realSlots
+  _G.C_Item.GetItemSpell = realSpell
   -- someone else's cast is never mine
   X.ate = nil
-  fire("UNIT_SPELLCAST_SUCCEEDED", "party1", "Cast-3", 18233)
+  fire("UNIT_SPELLCAST_SUCCEEDED", "party1", "Cast-3", 1248378)
   ok(X.ate == nil, "a party member eating is not me eating")
   -- by hand
   S("xp food |cffffffff|Hitem:21023::::::::60:::::|h[Dirge's Kickin' Chimaerok Chops]|h|r")

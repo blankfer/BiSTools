@@ -37,9 +37,11 @@ Read ../_bisdev/CLAUDE.md first.
     `Rides.lua`.
   - `XP.lua`: the `xp` tool (`NS.XP`, 6 Nov 2026): two secure item buttons the BiS> tools box adopts (`B.Buttons`):
     the Cozy Sleeping Bag (211527) while Well-Rested (429959) is missing / under 3 stacks / under `X.LOW_RESTED`,
-    and the learned XP food (`db.food`) while its Well Fed is missing / under `X.LOW_FOOD`. The food is learned from
-    UNIT_SPELLCAST_SUCCEEDED (bag item by `C_Item.GetItemSpell`) + an experience Well Fed within `X.FOOD_WINDOW`
-    (`C_Spell.GetSpellDescription` says "experience"). Levelling only (`X.CAP`), out of combat only; no ticker - one
+    and XP food (`X.pick`) while Well Fed XP Boost (`X.XP_AURA` 1243969, Forever's own aura beside the stat Well Fed;
+    fallback: a Well Fed whose text says experience) is missing / under `X.LOW_FOOD`. `X.Pick` = `db.food` (the last XP
+    food eaten: UNIT_SPELLCAST_SUCCEEDED -> bag item by `C_Item.GetItemSpell`, or `/bist xp food <link>`) while carried,
+    else the XP food carried most of (`X.IsXPItem`: the use spell's text says "experience", cached per item; blank
+    text = asked again, 3 tries). The bag scan runs only when `X.dirty` (bag change / login). Levelling only (`X.CAP`), out of combat only; no ticker - one
     `C_Timer.After` for the next "low" (`X.token`). Loads after `Sounds.lua`.
   - `Hub.lua` (284 lines): `NS.Hub`. Not a Registry tool, so it cannot be switched off. It has the hand-rolled minimap button (no LibDBIcon), the Hub list of tools and the Options window (built with `BiSTheme.Options` from the embed), and it sets `NS.HubSlash`. Sections: db, minimap, shared bits, the Hub, Options, boot.
 - `Libs/`: embedded copies of `BiSTheme/Console.lua`, `BiSTheme/Options.lua`, `LibBiSComm-1.0` and `RezComm-1.0`, all listed in the TOC. Since 0.4.0 also three THIRD-PARTY libs, unmodified from upstream at pinned commits: `LibStub`, `CallbackHandler-1.0` (Ace3, BSD) and `HereBeDragons` (Nevcairiel, BSD) - sources, commits and the license text in `Libs/THIRD-PARTY.txt`. Never edit them; replace from upstream. bislint and the fence skip them, as they skip every non-BiS lib. `RezComm` starts itself at login from its TOC line; nothing in `Tools/` calls it. See the libs rules in `../_bisdev/CLAUDE.md`.
