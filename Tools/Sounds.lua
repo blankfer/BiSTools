@@ -232,7 +232,16 @@ function X.Build(db)
     local r = CreateFrame("Button", nil, f)
     r:SetSize(X.W - 16, X.ROW)
     r:SetPoint("TOPLEFT", 8, -70 - (i - 1) * X.ROW)
-    r.lit = K.tex(r, "BACKGROUND", "surface", 0)
+    -- THE GLOW (Arn, 5 Nov, the first look: "need these to glow to see what im clicking"): the "surface" shade was
+    -- the window's own colour, so neither the hover nor the last click showed. The accent now: faint under the mouse,
+    -- brighter with a bar on the left and a gold name for the one you last heard.
+    r.lit = K.tex(r, "BACKGROUND", "accent", 0)
+    r.bar = r:CreateTexture(nil, "ARTWORK")
+    r.bar:SetPoint("TOPLEFT")
+    r.bar:SetPoint("BOTTOMLEFT")
+    r.bar:SetWidth(3)
+    do local rr, g, b = K.color("accent") r.bar:SetColorTexture(rr, g, b, 1) end
+    r.bar:SetAlpha(0)
     r.star = K.fs(r, "", 9, "gold")
     r.star:SetPoint("LEFT", 2, 0)
     r.name = K.fs(r, "", 9, "ink")
@@ -245,8 +254,8 @@ function X.Build(db)
     r.id:SetWidth(60)
     r:RegisterForClicks("AnyUp")
     r:SetScript("OnClick", function(self) X.ClickRow(self) end)
-    r:SetScript("OnEnter", function(self) self.lit:SetAlpha(0.6) end)
-    r:SetScript("OnLeave", function(self) X.PaintRow(self) end)
+    r:SetScript("OnEnter", function(self) self.hover = true X.PaintRow(self) end)
+    r:SetScript("OnLeave", function(self) self.hover = nil X.PaintRow(self) end)
     f.rows[i] = r
   end
   f:EnableMouseWheel(true)
@@ -265,10 +274,20 @@ function X.Build(db)
   return f
 end
 
+X.GLOW_HOVER, X.GLOW_LAST = 0.18, 0.40
+
+--- One row's glow: the last one heard brightest (bar + gold name), the one under the mouse faint, the rest dark.
 function X.PaintRow(r)
   local e = r.entry
-  local mine = e and X.last ~= nil and (e.file or e.id) == X.last
-  r.lit:SetAlpha(mine and 0.35 or 0)
+  local heard = e ~= nil and X.last ~= nil and (e.file or e.id) == X.last
+  r.lit:SetAlpha(heard and X.GLOW_LAST or (r.hover and e and X.GLOW_HOVER or 0))
+  if r.bar then r.bar:SetAlpha(heard and 1 or 0) end
+  r.heard = heard
+  if e then
+    local K = F()
+    local rr, g, b = K.color(heard and "gold" or (e.file and "accent" or (e.typed and "gold" or "ink")))
+    r.name:SetTextColor(rr, g, b, 1)
+  end
 end
 
 function X.Paint()
@@ -283,8 +302,6 @@ function X.Paint()
       r.name:SetText(e.name)
       r.id:SetText(e.file and "your file" or tostring(e.id))
       r.star:SetText((not e.file and db.favs and db.favs[e.id]) and "*" or "")
-      local rr, g, b = K.color(e.file and "accent" or (e.typed and "gold" or "ink"))
-      r.name:SetTextColor(rr, g, b, 1)
       X.PaintRow(r)
       r:Show()
     else

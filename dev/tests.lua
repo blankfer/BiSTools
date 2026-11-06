@@ -6771,6 +6771,25 @@ do
   played = {}
   f.rows[1].scripts.OnClick(f.rows[1], "LeftButton")
   ok(played[1] and played[1].kit == 3081 and played[1].ch == "SFX", "a click plays that kit, on SFX")
+  -- THE GLOW (Arn's first look: "need these to glow to see what im clicking"): the one heard brightest, with a bar
+  -- and a gold name; it stays marked
+  local r1 = f.rows[1]
+  local gr, gg, gb = NS.Farm.color("gold")
+  ok(r1.lit.alpha == X.GLOW_LAST and r1.bar.alpha == 1 and r1.name.color[1] == gr and r1.name.color[3] == gb,
+     "the row just heard: lit, its bar on, its name gold", tostring(r1.lit.alpha))
+  local ar, ag, ab = NS.Farm.color("accent")
+  ok(r1.lit.color and math.abs(r1.lit.color[1] - ar) < 1e-6 and math.abs(r1.lit.color[3] - ab) < 1e-6,
+     "in the accent, not the window's own shade")
+  f.find.box:SetText("")
+  f.find.box.scripts.OnTextChanged(f.find.box)
+  local r2 = f.rows[2]
+  ok(r2.lit.alpha == 0 and r2.bar.alpha == 0, "a row not heard: dark")
+  r2.scripts.OnEnter(r2)
+  ok(r2.lit.alpha == X.GLOW_HOVER and r2.bar.alpha == 0, "under the mouse: a faint glow, no bar")
+  r2.scripts.OnLeave(r2)
+  ok(r2.lit.alpha == 0, "the mouse leaves: dark again")
+  f.find.box:SetText("3081")
+  f.find.box.scripts.OnTextChanged(f.find.box)
   -- shift-click: a star, kept; stars only; /bist sounds favs
   W.shift = true
   f.rows[1].scripts.OnClick(f.rows[1], "LeftButton")
