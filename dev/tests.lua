@@ -6992,11 +6992,13 @@ do
   local keep = { ua = _G.C_UnitAuras, item = _G.C_Item, cont = _G.C_Container, desc = _G.C_Spell and _G.C_Spell.GetSpellDescription,
                  level = _G.UnitLevel, cspell = rawget(_G, "C_Spell") }
   -- the client as probe round 1 measured it: my own buffs plain out of combat, secret in a fight
-  -- FOREVER'S REAL SHAPE (the runner, 6 Nov, Wowhead's Forever tooltips): the XP part of cooked food is its OWN aura,
-  -- spell 1243969 "Well Fed XP Boost"; the "Well Fed" beside it is the stat one, with no experience in its text. The
-  -- food's own use spell ("Nutritious Food", 1248379 at Strider Stew's tier) says "Additionally, experience gained from
-  -- kills is increased by 5%."; vendor bread's says nothing of it.
-  local AURA, FED, XPA, LEVEL = nil, nil, nil, 20
+  -- FOREVER'S REAL SHAPE, MEASURED (Arn's BiS? probe, 6 Nov 15:31, the Mud Snapper eaten): ONE aura, "Well Fed",
+  -- spell 1249519. Its tooltip has the experience line, but GetSpellDescription hands back 70 characters with NO
+  -- "experience" in them - and there is no "Well Fed XP Boost" (1243969) aura at all. (The runner's guess from Wowhead
+  -- had both; the mock believed it, the suite went green, and the button told a fed player to eat.) The food's own use
+  -- spell ("Nutritious Food", 1248379 at Strider Stew's tier) says "Additionally, experience gained from kills is
+  -- increased by 5%."; vendor bread's says nothing of it, and bread gives no Well Fed.
+  local AURA, FED, LEVEL = nil, nil, 20
   local BAGS = { [X.BAG_ITEM] = 1, [4599] = 5 }
   local SLOTS = { [0] = { 211527, 4599 } }                -- the bag and some bread; the cooked food comes later
   local LATE = {}                                          -- spells whose text the client has not loaded yet
@@ -7005,7 +7007,7 @@ do
     GetPlayerAuraBySpellID = function(id)
       if W.combat then return secret() end
       if id == X.RESTED then return AURA end
-      if id == 1243969 then return XPA end
+      if FED and id == FED.spellId then return FED end
       return nil
     end,
     GetAuraDataBySpellName = function(unit, name)
@@ -7047,8 +7049,8 @@ do
         .. " increased by 5%."
     end
     if id == 433 then return "Restores 61 health over 18 sec. Must remain seated while eating." end
-    if id == 777001 then return "Your Attack Power is increased by 10. Experience gained from kills increased by 5%." end
-    if id == 777002 then return "Increases Stamina and Spirit by 6." end
+    -- the live Well Fed: 70 characters, no "experience" (the probe's count; the words are a stand-in of that length)
+    if id == 1249519 then return "Increases Attack Power by 10 for 15 min. Must remain fed to keep it up." end
     return nil
   end
   local function fire(event, ...) X.events.scripts.OnEvent(X.events, event, ...) end
@@ -7127,22 +7129,22 @@ do
   food:Show()
   ok(glow.pulse.playing, "back: the pulse again")
   ok(bag.glow and bag.glow.pulse, "the sleeping bag button glows the same way")
-  -- bread's Well Fed is not the XP one
+  -- bread gives no Well Fed: nothing learned, the button stays
   fire("UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-1", 433)
-  FED = { spellId = 777002, expirationTime = W.now + 900, applications = 1 }
+  W.now = W.now + 12
   fire("UNIT_AURA", "player")
-  ok(db.food == nil and food:IsShown(), "bread eaten: its Well Fed has no experience - not learned, the button stays")
-  -- eat the stew: Forever puts "Well Fed XP Boost" (1243969) on me beside the stat Well Fed
+  ok(db.food == nil and food:IsShown(), "bread eaten: no Well Fed - not learned, the button stays")
+  -- eat the stew: Forever puts ONE "Well Fed" on me (1249519, live 6 Nov), its readable text silent on experience
   W.lastMsg = nil
   fire("UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-2", 1248379)
   W.now = W.now + 12
-  XPA = { spellId = 1243969, expirationTime = W.now + 900, applications = 1 }
+  FED = { spellId = 1249519, expirationTime = W.now + 900, applications = 1 }
   fire("UNIT_AURA", "player")
   ok(db.food == 5477 and W.lastMsg and W.lastMsg:find("learned", 1, true), "eat the stew: learned as yours", tostring(db.food))
-  ok(not food:IsShown(), "and with 15 minutes of Well Fed XP Boost on: no button")
+  ok(not food:IsShown(), "and with 15 minutes of Well Fed on: no button (Arn 6 Nov: it said 'eat' over a fresh one)")
   W.runAfters(900 - X.LOW_FOOD + 2)
   ok(food:IsShown(), "under 2 minutes left: the food button comes")
-  XPA, FED = nil, nil
+  FED = nil
   fire("UNIT_AURA", "player")
   ok(food:IsShown(), "gone: still up")
   -- yours first, then whatever XP food you carry
@@ -7159,11 +7161,13 @@ do
   SLOTS[0][4] = false
   fire("BAG_UPDATE_DELAYED")
   ok(not food:IsShown() and X.pick == nil, "no XP food left in my bags: no button")
-  -- the other shape (Arn's own Well Fed tooltip had the experience line in it): one Well Fed that says experience
-  FED = { spellId = 777001, expirationTime = W.now + 900, applications = 1 }
-  ok(type(X.Fed()) == "table", "a Well Fed whose own text says experience counts too")
-  FED = { spellId = 777002, expirationTime = W.now + 900, applications = 1 }
-  ok(X.Fed() == "missing", "a stat-only Well Fed and no XP Boost: the XP buff is missing")
+  -- any Well Fed is the fed one: its readable text never says experience on Forever, so it is never asked
+  FED = { spellId = 1249519, expirationTime = W.now + 900, applications = 1 }
+  ok(type(X.Fed()) == "table", "the live Well Fed, text silent on experience: counts")
+  FED = { spellId = 1249519, expirationTime = W.now + 900, applications = 1 }
+  LATE[1249519] = true
+  ok(type(X.Fed()) == "table", "and with its text not loaded yet: still counts")
+  LATE[1249519] = nil
   FED = nil
   -- the bag scan is only on a bag change, never on an aura change
   BAGS[2680], SLOTS[0][4] = 10, 2680
@@ -7243,7 +7247,7 @@ do
   ok(X.pick == 2680, "wolf meat in the bags for this part")
   -- food gone, Well-Rested full but would run low before the next meal (15 min left, the meal's 13 away): both
   AURA = { spellId = X.RESTED, expirationTime = W.now + 900, applications = 3 }
-  XPA, FED = nil, nil
+  FED = nil
   fire("UNIT_AURA", "player")
   ok(food:IsShown() and bag:IsShown(), "eating now, and Well-Rested would run low before the next meal: the bag too")
   -- Well-Rested with 50 minutes left: only the food
@@ -7260,17 +7264,17 @@ do
   CD.start, CD.dur = 0, 0
   -- the other way: the bag is due and the food would run low within 5 minutes - eat in the same stop
   AURA = nil
-  XPA = { spellId = 1243969, expirationTime = W.now + 600, duration = 900, applications = 1 }
+  FED = { spellId = 1249519, expirationTime = W.now + 600, duration = 900, applications = 1 }
   fire("UNIT_AURA", "player")
   ok(bag:IsShown() and not food:IsShown(), "bag due, 10 minutes of food left: only the bag")
   W.runAfters(600 - X.LOW_FOOD - X.PAIR + 2)
   ok(bag:IsShown() and food:IsShown(), "food within 5 minutes of running low: the food joins the bag")
   -- a 30-minute food (Gourmand, or a longer food) is read from the buff itself
   AURA = { spellId = X.RESTED, expirationTime = W.now + 1500, applications = 3 }
-  XPA = { spellId = 1243969, expirationTime = W.now + 60, duration = 1800, applications = 1 }
+  FED = { spellId = 1249519, expirationTime = W.now + 60, duration = 1800, applications = 1 }
   fire("UNIT_AURA", "player")
   ok(food:IsShown() and bag:IsShown(), "a 30-minute meal: Well-Rested's 25 minutes would not last it - the bag too")
-  XPA, AURA = nil, nil
+  FED, AURA = nil, nil
 
   db.food, db.bag, db.eat = nil, nil, nil
   _G.C_UnitAuras, _G.C_Item, _G.C_Container, _G.UnitLevel = keep.ua, keep.item, keep.cont, keep.level

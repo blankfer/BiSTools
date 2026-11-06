@@ -7,7 +7,7 @@
 --
 -- So: while you level, a button comes into the BiS> tools box when an XP buff needs you, and one click fixes it.
 --   - THE SLEEPING BAG: Well-Rested missing, under its 3 stacks, or under 10 minutes left - and the bag in your bags.
---   - XP FOOD: Well Fed XP Boost missing or under 2 minutes left - and cooked XP food in your bags (its use text says
+--   - XP FOOD: Well Fed missing or under 2 minutes left - and cooked XP food in your bags (its use text says
 --     "experience"; vendor food never does). Yours first - the last XP food you ate (the cast, matched to the bag
 --     item), or `/bist xp food <item link>` - else the XP food you carry most of.
 -- Out of combat only (a box of secure buttons is laid out then), nothing at the level cap.
@@ -27,10 +27,8 @@ X.LOW_RESTED, X.LOW_FOOD = 600, 120          -- seconds left that count as "top 
 X.FOOD_WINDOW = 60                           -- seconds from eating to its Well Fed, to learn which food it was
 X.CAP = 60
 X.WELL_FED = "Well Fed"
--- Forever's cooked food (the runner, 6 Nov, Wowhead's Forever tooltips): the XP part is its OWN aura, "Well Fed XP
--- Boost" (+5% from kills, flat at every food level), beside the stat Well Fed. Most cooked food gives it, vendor food
--- never; the food's use text ends "Additionally, experience gained from kills is increased by 5%."
-X.XP_AURA = 1243969
+-- Forever's cooked food: most gives Well Fed with +5% experience from kills, vendor food never; the food's use text
+-- ends "Additionally, experience gained from kills is increased by 5%." (The buff itself: see X.Fed.)
 
 local function plain(v)
   if issecretvalue and issecretvalue(v) then return nil end
@@ -90,29 +88,17 @@ local function itemSpell(id)
 end
 X.spellText, X.itemSpell = spellText, itemSpell
 
---- Is this Well Fed the experience one? Its own description says so.
-function X.IsXPFood(spellId)
-  if type(spellId) ~= "number" then return false end
-  local d = spellText(spellId)
-  return type(d) == "string" and d:lower():find("experience", 1, true) ~= nil
-end
-
---- The XP food buff: Well Fed XP Boost by its id; failing that, a Well Fed whose own text says experience (Arn's
---- tooltip, 6 Nov, read that way - whichever shape the client shows, both count).
+--- The XP food buff: Well Fed, any Well Fed. MEASURED 6 Nov 15:31 (Arn's BiS? probe, the Mud Snapper eaten): Forever
+--- puts ONE aura on you, "Well Fed" (1249519 at that tier); the experience line is in its tooltip only - the text an
+--- addon can read (GetSpellDescription, 70 characters) never says it - and there is no separate XP Boost aura. Asking
+--- the text made a fed player "missing" and the button said eat over a fresh buff. The button only ever eats food whose
+--- own use text says experience (X.IsXPItem), and vendor food gives no Well Fed, so a Well Fed on you is the one.
 function X.Fed()
-  local by = C_UnitAuras and C_UnitAuras.GetPlayerAuraBySpellID
-  if by then
-    local ok, a = pcall(by, X.XP_AURA)
-    if not ok or (a ~= nil and plain(a) == nil) then return nil end
-    if a ~= nil then return mine(a) end
-  end
   local f = C_UnitAuras and C_UnitAuras.GetAuraDataBySpellName
   if not f then return nil end
   local ok, aura = pcall(f, "player", X.WELL_FED, "HELPFUL")
   if not ok or (aura ~= nil and plain(aura) == nil) then return nil end
-  local m = mine(aura)
-  if type(m) == "table" and not X.IsXPFood(m.id) then return "missing" end   -- a Well Fed with no experience in it
-  return m
+  return mine(aura)
 end
 
 --- Seconds until the sleeping bag can be used again (0 = ready; a client that will not say counts as ready).
@@ -438,7 +424,7 @@ R:Register({
   options = {
     { kind = "toggle", label = "sleeping bag button", help = "While you level: a button in the BiS> tools box when Well-Rested is gone, short of 3 stacks or under 10 minutes - one click unfurls your Cozy Sleeping Bag.",
       get = function(db) return db.bag ~= false end, set = function(db, on) db.bag = on and true or false X.Look() end },
-    { kind = "toggle", label = "XP food button", help = "While you level: a button when Well Fed XP Boost is gone or under 2 minutes - one click eats cooked XP food from your bags (the one you last ate first). Vendor food has no XP buff.",
+    { kind = "toggle", label = "XP food button", help = "While you level: a button when Well Fed is gone or under 2 minutes - one click eats cooked XP food from your bags (the one you last ate first). Vendor food has no XP buff.",
       get = function(db) return db.eat ~= false end, set = function(db, on) db.eat = on and true or false X.Look() end },
   },
   OnInit = function(_, db) X.db = db end,
