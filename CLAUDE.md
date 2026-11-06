@@ -42,6 +42,10 @@ Read ../_bisdev/CLAUDE.md first.
     food eaten: UNIT_SPELLCAST_SUCCEEDED -> bag item by `C_Item.GetItemSpell`, or `/bist xp food <link>`) while carried,
     else the XP food carried most of (`X.IsXPItem`: the use spell's text says "experience", cached per item; blank
     text = asked again, 3 tries). The bag scan runs only when `X.dirty` (bag change / login). Levelling only (`X.CAP`), out of combat only; no ticker - one
+    Pairing (Arn 6 Nov): `X.State` reads Well-Rested, the food buff and `X.BagCD` once per look; the bag also shows when
+    the food is due and Well-Rested would come due before the next meal (`X.MEAL`, from the buff's duration), the food
+    when the bag is due and the food is within `X.PAIR` of low. Lookups fall back to the globals GetItemSpell /
+    GetSpellDescription; a blank text asks RequestLoadSpellData and waits `X.LOAD_WAIT` (SPELL_DATA_LOAD_RESULT looks again).
     `C_Timer.After` for the next "low" (`X.token`). Loads after `Sounds.lua`.
   - `Hub.lua` (284 lines): `NS.Hub`. Not a Registry tool, so it cannot be switched off. It has the hand-rolled minimap button (no LibDBIcon), the Hub list of tools and the Options window (built with `BiSTheme.Options` from the embed), and it sets `NS.HubSlash`. Sections: db, minimap, shared bits, the Hub, Options, boot.
 - `Libs/`: embedded copies of `BiSTheme/Console.lua`, `BiSTheme/Options.lua`, `LibBiSComm-1.0` and `RezComm-1.0`, all listed in the TOC. Since 0.4.0 also three THIRD-PARTY libs, unmodified from upstream at pinned commits: `LibStub`, `CallbackHandler-1.0` (Ace3, BSD) and `HereBeDragons` (Nevcairiel, BSD) - sources, commits and the license text in `Libs/THIRD-PARTY.txt`. Never edit them; replace from upstream. bislint and the fence skip them, as they skip every non-BiS lib. `RezComm` starts itself at login from its TOC line; nothing in `Tools/` calls it. See the libs rules in `../_bisdev/CLAUDE.md`.

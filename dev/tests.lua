@@ -7013,9 +7013,15 @@ do
       return nil
     end,
   }
+  local CD = { start = 0, dur = 0 }                         -- the sleeping bag's cooldown, as the client answers it
   _G.C_Container = {
     GetContainerNumSlots = function(bag) return SLOTS[bag] and #SLOTS[bag] or 0 end,
     GetContainerItemID = function(bag, slot) return SLOTS[bag] and SLOTS[bag][slot] end,
+    GetItemCooldown = function(id)
+      if W.combat then return secret(), secret(), 1 end
+      if id == X.BAG_ITEM then return CD.start, CD.dur, 1 end
+      return 0, 0, 1
+    end,
   }
   _G.C_Spell = _G.C_Spell or {}
   _G.C_Spell.GetSpellDescription = function(id)
@@ -7023,6 +7029,11 @@ do
     if id == 1248379 or id == 1248378 then
       return "Restores 243 health over 21 sec. Must remain seated while eating. If you spend at least 10 sec eating, you will"
         .. " become well fed and gain 1 Intellect for 15 min. Additionally, experience gained from kills is increased by 5%."
+    end
+    if id == 1248377 then                                      -- Arn's Longjaw Mud Snapper tooltip, 6 Nov, word for word
+      return "Restores 530 health over 24 sec. Must remain seated while eating. If you spend at least 10 sec eating, you"
+        .. " will become well fed and gain 10 Attack Power for 15 min. Additionally, experience gained from kills is"
+        .. " increased by 5%."
     end
     if id == 433 then return "Restores 61 health over 18 sec. Must remain seated while eating." end
     if id == 777001 then return "Your Attack Power is increased by 10. Experience gained from kills increased by 5%." end
@@ -7139,18 +7150,53 @@ do
   _G.C_Container.GetContainerItemID = function(...) scans = scans + 1 return realSlots(...) end
   for _ = 1, 20 do fire("UNIT_AURA", "player") end
   ok(scans == 0, "20 aura changes: no bag scan", scans)
-  -- an item whose text never loads (blank): three looks, then it is not food and the scans stop
+  -- an item whose text never loads (blank): asked to load, waited on X.LOAD_WAIT seconds, then not food - scans stop
   BAGS[6948], SLOTS[0][5] = 1, 6948
   local realSpell = _G.C_Item.GetItemSpell
   _G.C_Item.GetItemSpell = function(id) if id == 6948 then return "Blank", 999 end return realSpell(id) end
   LATE[999] = true
+  local asked = {}
+  _G.C_Spell.RequestLoadSpellData = function(id) asked[#asked + 1] = id end
   fire("BAG_UPDATE_DELAYED")
   for _ = 1, 5 do fire("UNIT_AURA", "player") end
+  ok(#asked == 1 and asked[1] == 999 and X.xpItem[6948] == nil, "a blank text: the client asked to load it, once - no verdict yet")
+  W.now = W.now + X.LOAD_WAIT
+  fire("UNIT_AURA", "player")
   scans = 0
   for _ = 1, 20 do fire("UNIT_AURA", "player") end
-  ok(scans == 0 and X.xpItem[6948] == false, "a blank-text item: given up after three asks, no scans after", scans)
+  ok(scans == 0 and X.xpItem[6948] == false, "never loaded in 30 seconds: not food, no scans after", scans)
   _G.C_Container.GetContainerItemID = realSlots
   _G.C_Item.GetItemSpell = realSpell
+  -- a text that loads late: SPELL_DATA_LOAD_RESULT looks again at once (the Mud Snapper, 6 Nov live)
+  BAGS[2680], SLOTS[0][4] = nil, false
+  BAGS[4592], SLOTS[0][6] = 80, 4592
+  local realSpell2 = _G.C_Item.GetItemSpell
+  _G.C_Item.GetItemSpell = function(id) if id == 4592 then return "Nutritious Food", 1248377 end return realSpell2(id) end
+  LATE[1248377] = true
+  fire("BAG_UPDATE_DELAYED")
+  ok(X.pick == nil, "the Mud Snapper's text not loaded: not picked yet")
+  LATE[1248377] = nil
+  X.events.scripts.OnEvent(X.events, "SPELL_DATA_LOAD_RESULT", 1248377, true)
+  ok(X.pick == 4592 and food.attrs.item1 == "item:4592", "its text loads: the client says so, the Mud Snapper is picked at once",
+     tostring(X.pick))
+  -- a client with only the OLD global names (GetItemSpell / GetSpellDescription): still found
+  X.xpItem, X.blank, X.waiting = {}, {}, {}
+  X.pick = nil
+  local cItem, cDesc = _G.C_Item.GetItemSpell, _G.C_Spell.GetSpellDescription
+  _G.C_Item.GetItemSpell, _G.C_Spell.GetSpellDescription = nil, nil
+  _G.GetItemSpell, _G.GetSpellDescription = cItem, cDesc
+  fire("BAG_UPDATE_DELAYED")
+  ok(X.pick == 4592, "only the old global lookups: the Mud Snapper still found", tostring(X.pick))
+  -- neither: nothing decided, nothing remembered
+  _G.GetItemSpell = nil
+  X.xpItem, X.pick = {}, nil
+  fire("BAG_UPDATE_DELAYED")
+  ok(X.pick == nil and next(X.xpItem) == nil, "no item lookup at all: no guess, nothing remembered as not-food")
+  _G.C_Item.GetItemSpell, _G.C_Spell.GetSpellDescription = cItem, cDesc
+  _G.GetItemSpell, _G.GetSpellDescription = nil, nil
+  _G.C_Item.GetItemSpell = realSpell2
+  _G.C_Spell.RequestLoadSpellData = nil
+  BAGS[4592], SLOTS[0][6] = nil, false
   -- someone else's cast is never mine
   X.ate = nil
   fire("UNIT_SPELLCAST_SUCCEEDED", "party1", "Cast-3", 1248378)
@@ -7164,6 +7210,44 @@ do
   W.lastMsg = nil
   S("xp")
   ok(W.lastMsg and W.lastMsg:find("Well-Rested", 1, true), "/bist xp: says where both buffs stand", W.lastMsg)
+
+  -- ONE STOP FOR BOTH (Arn, 6 Nov: "time the bag and eating at the same time if they are running out close to the same
+  -- time mostly food and our bag is off cooldown we should also do the sleeping bag because if i have the buff itll
+  -- redo the 3 stack instead of letting it fall out and having to wait 3 minutes")
+  db.food = nil
+  BAGS[2680], SLOTS[0][4] = 10, 2680
+  fire("BAG_UPDATE_DELAYED")
+  ok(X.pick == 2680, "wolf meat in the bags for this part")
+  -- food gone, Well-Rested full but would run low before the next meal (15 min left, the meal's 13 away): both
+  AURA = { spellId = X.RESTED, expirationTime = W.now + 900, applications = 3 }
+  XPA, FED = nil, nil
+  fire("UNIT_AURA", "player")
+  ok(food:IsShown() and bag:IsShown(), "eating now, and Well-Rested would run low before the next meal: the bag too")
+  -- Well-Rested with 50 minutes left: only the food
+  AURA.expirationTime = W.now + 3000
+  fire("UNIT_AURA", "player")
+  ok(food:IsShown() and not bag:IsShown(), "Well-Rested good past the next meal: only the food")
+  -- the bag on cooldown: not offered alongside; offered the moment the cooldown ends (one timer, no event)
+  AURA.expirationTime = W.now + 900
+  CD.start, CD.dur = W.now - 60, 300
+  fire("UNIT_AURA", "player")
+  ok(food:IsShown() and not bag:IsShown(), "the bag on cooldown: not offered")
+  W.runAfters(241)
+  ok(bag:IsShown(), "its cooldown over: the bag joins the food")
+  CD.start, CD.dur = 0, 0
+  -- the other way: the bag is due and the food would run low within 5 minutes - eat in the same stop
+  AURA = nil
+  XPA = { spellId = 1243969, expirationTime = W.now + 600, duration = 900, applications = 1 }
+  fire("UNIT_AURA", "player")
+  ok(bag:IsShown() and not food:IsShown(), "bag due, 10 minutes of food left: only the bag")
+  W.runAfters(600 - X.LOW_FOOD - X.PAIR + 2)
+  ok(bag:IsShown() and food:IsShown(), "food within 5 minutes of running low: the food joins the bag")
+  -- a 30-minute food (Gourmand, or a longer food) is read from the buff itself
+  AURA = { spellId = X.RESTED, expirationTime = W.now + 1500, applications = 3 }
+  XPA = { spellId = 1243969, expirationTime = W.now + 60, duration = 1800, applications = 1 }
+  fire("UNIT_AURA", "player")
+  ok(food:IsShown() and bag:IsShown(), "a 30-minute meal: Well-Rested's 25 minutes would not last it - the bag too")
+  XPA, AURA = nil, nil
 
   db.food, db.bag, db.eat = nil, nil, nil
   _G.C_UnitAuras, _G.C_Item, _G.C_Container, _G.UnitLevel = keep.ua, keep.item, keep.cont, keep.level

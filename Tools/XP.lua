@@ -66,7 +66,9 @@ local function mine(aura)
   local exp, apps = plain(aura.expirationTime), plain(aura.applications)
   if type(exp) ~= "number" then return nil end
   local left = exp > 0 and (exp - now()) or math.huge          -- 0 = no end
-  return { left = left, stacks = type(apps) == "number" and math.max(apps, 1) or 1, id = plain(aura.spellId) }
+  local dur = plain(aura.duration)
+  return { left = left, stacks = type(apps) == "number" and math.max(apps, 1) or 1, id = plain(aura.spellId),
+           dur = type(dur) == "number" and dur > 0 and dur or nil }
 end
 
 function X.Rested()
@@ -77,10 +79,21 @@ function X.Rested()
   return mine(aura)
 end
 
+-- Arn, 6 Nov, live: 80 Longjaw Mud Snappers (4592, "experience gained from kills is increased by 5%") and "XP food none
+-- in your bags". So both lookups take whichever name the client has - the C_ one or the old global.
+local function spellText(id)
+  return plain(ask((C_Spell and C_Spell.GetSpellDescription) or GetSpellDescription, id))
+end
+local function itemSpell(id)
+  local _, sid = ask((C_Item and C_Item.GetItemSpell) or GetItemSpell, id)
+  return plain(sid)
+end
+X.spellText, X.itemSpell = spellText, itemSpell
+
 --- Is this Well Fed the experience one? Its own description says so.
 function X.IsXPFood(spellId)
   if type(spellId) ~= "number" then return false end
-  local d = plain(ask(C_Spell and C_Spell.GetSpellDescription, spellId))
+  local d = spellText(spellId)
   return type(d) == "string" and d:lower():find("experience", 1, true) ~= nil
 end
 
@@ -102,30 +115,69 @@ function X.Fed()
   return m
 end
 
---- Should the sleeping bag's button be up? (the bag in your bags, Well-Rested missing / short of 3 / running low)
-function X.ShowBag(db)
-  db = db or X.db or {}
-  if db.bag == false or not R:Enabled("xp") or X.Fighting() or not X.Levelling() then return false end
-  if count(X.BAG_ITEM) == 0 then return false end
-  local r = X.Rested()
-  if r == nil then return false end                             -- the client would not say: no guess
-  if r == "missing" then return true end
-  return r.stacks < X.RESTED_MAX or r.left < X.LOW_RESTED
+--- Seconds until the sleeping bag can be used again (0 = ready; a client that will not say counts as ready).
+function X.BagCD()
+  local f = (C_Container and C_Container.GetItemCooldown) or (C_Item and C_Item.GetItemCooldown) or GetItemCooldown
+  local start, dur = ask(f, X.BAG_ITEM)
+  start, dur = plain(start), plain(dur)
+  if type(start) ~= "number" or type(dur) ~= "number" or start <= 0 or dur <= 0 then return 0 end
+  return math.max(0, start + dur - now())
 end
 
---- Is this item an XP food? Its use spell's text says experience. Remembered per item; an empty text (not loaded
---- yet) is "don't know" and is asked again.
-X.xpItem, X.tries = {}, {}
+-- ONE STOP FOR BOTH (Arn, 6 Nov): you sit down to eat anyway, and the bag tops a live Well-Rested back up to 3 stacks
+-- instead of letting it drop and resting 3 minutes again. So each buff's button also comes with the other's:
+--   - eating now, and Well-Rested would run low before the NEXT meal is due -> the bag too (if off cooldown);
+--   - the bag due, and the food would run low within X.PAIR -> the food too.
+X.PAIR = 300
+X.MEAL = 900                                                    -- a meal's length until a buff tells us (its duration)
+
+function X.BagDue(r) return r == "missing" or (type(r) == "table" and (r.stacks < X.RESTED_MAX or r.left < X.LOW_RESTED)) end
+function X.FoodDue(f) return f == "missing" or (type(f) == "table" and f.left < X.LOW_FOOD) end
+
+--- What both buttons are decided from - read once per look: Well-Rested, the XP food buff, the bag's cooldown.
+function X.State(db)
+  db = db or X.db or {}
+  local s = { db = db }
+  s.live = R:Enabled("xp") and not X.Fighting() and X.Levelling()
+  if not s.live then return s end
+  s.hasBag = db.bag ~= false and count(X.BAG_ITEM) > 0
+  s.hasFood = db.eat ~= false and X.pick ~= nil and count(X.pick) > 0
+  s.r = X.Rested()
+  s.f = X.pick and X.Fed() or nil
+  if type(s.f) == "table" and s.f.dur then X.MEAL = s.f.dur end
+  s.cd = s.hasBag and X.BagCD() or 0
+  return s
+end
+
+--- Should the sleeping bag's button be up?
+function X.ShowBag(db, s)
+  s = s or X.State(db)
+  if not (s.live and s.hasBag) or s.cd > 0 or s.r == nil then return false end   -- r nil: the client would not say
+  if X.BagDue(s.r) then return true end
+  if not (s.hasFood and X.FoodDue(s.f)) then return false end
+  return s.r.left - X.LOW_RESTED < X.MEAL - X.LOW_FOOD          -- would come due before the next meal: now, with it
+end
+
+--- Is this item an XP food? Its use spell's text says experience. Remembered per item. An empty text is "not loaded
+--- yet": the client is asked to load it (SPELL_DATA_LOAD_RESULT looks again) and it is given X.LOAD_WAIT seconds
+--- before it counts as not food. A client with neither lookup decides nothing and remembers nothing.
+X.xpItem, X.blank, X.waiting = {}, {}, {}
+X.LOAD_WAIT = 30
 function X.IsXPItem(id)
   if type(id) ~= "number" then return false end
   if X.xpItem[id] ~= nil then return X.xpItem[id] end
-  local _, sid = ask(C_Item and C_Item.GetItemSpell, id)
-  sid = plain(sid)
+  if not ((C_Item and C_Item.GetItemSpell) or GetItemSpell) or not ((C_Spell and C_Spell.GetSpellDescription)
+     or GetSpellDescription) then return nil end
+  local sid = itemSpell(id)
   if type(sid) ~= "number" then X.xpItem[id] = false return false end        -- not a usable item
-  local d = plain(ask(C_Spell and C_Spell.GetSpellDescription, sid))
-  if type(d) ~= "string" or d == "" then                       -- three asks, then it is not food (a blank-text item)
-    X.tries[id] = (X.tries[id] or 0) + 1
-    if X.tries[id] >= 3 then X.xpItem[id] = false return false end
+  local d = spellText(sid)
+  if type(d) ~= "string" or d == "" then
+    X.blank[id] = X.blank[id] or now()
+    if now() - X.blank[id] >= X.LOAD_WAIT then X.xpItem[id] = false return false end
+    if not X.waiting[sid] then
+      X.waiting[sid] = true
+      ask(C_Spell and C_Spell.RequestLoadSpellData, sid)
+    end
     return nil
   end
   X.xpItem[id] = d:lower():find("experience", 1, true) ~= nil
@@ -169,14 +221,12 @@ function X.Pick(db)
   return best
 end
 
-function X.ShowFood(db)
-  db = db or X.db or {}
-  if db.eat == false or not X.pick or not R:Enabled("xp") or X.Fighting() or not X.Levelling() then return false end
-  if count(X.pick) == 0 then return false end
-  local fed = X.Fed()
-  if fed == nil then return false end
-  if fed == "missing" then return true end
-  return fed.left < X.LOW_FOOD
+function X.ShowFood(db, s)
+  s = s or X.State(db)
+  if not (s.live and s.hasFood) or s.f == nil then return false end
+  if X.FoodDue(s.f) then return true end
+  if not s.hasBag or s.cd > 0 or not X.BagDue(s.r) then return false end
+  return s.f.left < X.LOW_FOOD + X.PAIR                         -- the bag's stop is in 5 minutes of the food's: eat too
 end
 
 -- ------------------------------------------------------------------ the buttons
@@ -250,27 +300,30 @@ end
 function X.Look()
   if X.Fighting() then return false end
   if X.dirty then X.Pick() end
-  local bag, food = X.ShowBag(), X.ShowFood()
-  if X.bag then
-    local r = X.Rested()
-    X.bag.word:SetText(type(r) == "table" and tostring(r.stacks) or "")
-  end
+  local s = X.State()
+  local bag, food = X.ShowBag(nil, s), X.ShowFood(nil, s)
+  if X.bag then X.bag.word:SetText(type(s.r) == "table" and tostring(s.r.stacks) or "") end
   local changed = bag ~= X.showBag or food ~= X.showFood
   X.showBag, X.showFood = bag, food
   if changed and NS.Box and NS.Box.Refresh then NS.Box.Refresh() end
-  X.Arm()
+  X.Arm(s)
   return changed
 end
 
---- One timer, for the soonest moment a buff we hold turns "low". A fresh one replaces the last (X.token).
-function X.Arm()
+--- One timer, for the soonest moment either button could change: a buff turning "low", the food coming within X.PAIR
+--- of low while the bag is up, the bag's cooldown ending. A fresh one replaces the last (X.token).
+function X.Arm(s)
+  s = s or X.State()
   local soon
-  local r = not X.showBag and X.Rested()
-  if type(r) == "table" and r.left ~= math.huge then soon = r.left - X.LOW_RESTED end
-  local f = not X.showFood and X.pick and X.Fed()
-  if type(f) == "table" and f.left ~= math.huge then
-    local s = f.left - X.LOW_FOOD
-    if not soon or s < soon then soon = s end
+  local function at(t) if t and t ~= math.huge and t > -math.huge and (not soon or t < soon) then soon = t end end
+  if s.live then
+    local r, f = s.r, s.f
+    if type(r) == "table" and not X.showBag then at(r.left - X.LOW_RESTED) end
+    if type(f) == "table" and not X.showFood then
+      at(f.left - X.LOW_FOOD)
+      if X.showBag then at(f.left - X.LOW_FOOD - X.PAIR) end
+    end
+    if not X.showBag and s.cd > 0 then at(s.cd) end
   end
   X.token = (X.token or 0) + 1
   X.due = nil
@@ -285,15 +338,12 @@ end
 function X.ItemForSpell(spellId)
   local C = C_Container
   if type(spellId) ~= "number" or not (C and C.GetContainerNumSlots and C.GetContainerItemID) then return nil end
-  local spellOf = C_Item and C_Item.GetItemSpell
-  if not spellOf then return nil end
   for bag = 0, 4 do
     local n = plain(ask(C.GetContainerNumSlots, bag)) or 0
     for slot = 1, n do
       local id = plain(ask(C.GetContainerItemID, bag, slot))
       if type(id) == "number" then
-        local _, sid = ask(spellOf, id)
-        if plain(sid) == spellId then return id end
+        if itemSpell(id) == spellId then return id end
       end
     end
   end
@@ -323,10 +373,15 @@ end
 
 local ev = CreateFrame("Frame")
 for _, e in ipairs({ "UNIT_AURA", "BAG_UPDATE_DELAYED", "PLAYER_LEVEL_UP", "PLAYER_REGEN_ENABLED", "PLAYER_ENTERING_WORLD",
-                     "UNIT_SPELLCAST_SUCCEEDED" }) do
+                     "UNIT_SPELLCAST_SUCCEEDED", "SPELL_DATA_LOAD_RESULT" }) do
   pcall(ev.RegisterEvent, ev, e)
 end
 ev:SetScript("OnEvent", function(_, event, unit, _, spellId)
+  if event == "SPELL_DATA_LOAD_RESULT" then                     -- (spellID, success): only a food text we asked for
+    if not X.waiting[unit] then return end
+    X.waiting[unit] = nil
+    X.dirty = true
+  end
   if event == "BAG_UPDATE_DELAYED" or event == "PLAYER_ENTERING_WORLD" then X.dirty = true end   -- even in a fight
   if not (X.db and R:Enabled("xp")) or not X.Levelling() then return end
   if (event == "UNIT_AURA" or event == "UNIT_SPELLCAST_SUCCEEDED") and unit ~= "player" then return end
@@ -368,10 +423,11 @@ R:Register({
       db.bag = args == "bag on" X.Look()
       return NS.Print("xp: sleeping bag button %s", db.bag and "on" or "off")
     end
+    if X.dirty and not X.Fighting() then X.Pick(db) end
     local r, f = X.Rested(), X.Fed()
     NS.Print("xp: Well-Rested %s; Well Fed %s; XP food %s", r == "missing" and "gone" or type(r) == "table"
       and (r.stacks .. "/" .. X.RESTED_MAX .. ", " .. mins(r.left)) or "unknown", f == "missing" and "gone" or type(f) == "table"
       and mins(f.left) or "unknown", X.pick and ("item " .. X.pick .. (X.pick == db.food and " (yours)" or ""))
-      or "none in your bags")
+      or X.dirty and "still reading your bags" or "none in your bags")
   end,
 })
