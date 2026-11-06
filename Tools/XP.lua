@@ -117,7 +117,7 @@ end
 
 --- Seconds until the sleeping bag can be used again (0 = ready; a client that will not say counts as ready).
 function X.BagCD()
-  local f = (C_Container and C_Container.GetItemCooldown) or (C_Item and C_Item.GetItemCooldown) or GetItemCooldown
+  local f = (C_Container and C_Container.GetItemCooldown) or GetItemCooldown   -- C_Container: on both clients (fence)
   local start, dur = ask(f, X.BAG_ITEM)
   start, dur = plain(start), plain(dur)
   if type(start) ~= "number" or type(dur) ~= "number" or start <= 0 or dur <= 0 then return 0 end
@@ -237,6 +237,43 @@ local function icon(item)
   return t or 134400                                            -- the question mark
 end
 
+-- THE GLOW (Arn, 6 Nov: the food button - "its pretty vital"). A gold ring just outside the button, breathing. The
+-- CLIENT runs the pulse (an animation group, as BiS Healing's cure glow) - no OnUpdate, nothing of ours per frame - and
+-- only while the button is up: OnShow plays it, OnHide stops it. No game art either: four coloured lines, so nothing
+-- to go missing on Forever.
+X.GLOW_PX, X.GLOW_LOW, X.GLOW_SECONDS = 2, 0.25, 0.6
+
+local function glow(b)
+  local K = NS.Farm
+  local ok, g = pcall(CreateFrame, "Frame", nil, b)
+  if not ok or not g then return nil end
+  g:SetPoint("TOPLEFT", b, "TOPLEFT", -3, 3)
+  g:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", 3, -3)
+  if g.SetFrameLevel and b.GetFrameLevel then
+    local lvl = b:GetFrameLevel()
+    if type(lvl) == "number" then g:SetFrameLevel(lvl + 5) end
+  end
+  if g.EnableMouse then g:EnableMouse(false) end                -- the click goes through to the button
+  g.ring = K.border(g, "gold", 1)
+  g.ring.top:SetHeight(X.GLOW_PX) g.ring.bottom:SetHeight(X.GLOW_PX)
+  g.ring.left:SetWidth(X.GLOW_PX) g.ring.right:SetWidth(X.GLOW_PX)
+  if g.CreateAnimationGroup then
+    local okA, pulse = pcall(g.CreateAnimationGroup, g)
+    if okA and pulse then
+      local fade = pulse:CreateAnimation("Alpha")
+      fade:SetFromAlpha(1)
+      fade:SetToAlpha(X.GLOW_LOW)
+      fade:SetDuration(X.GLOW_SECONDS)
+      if fade.SetSmoothing then fade:SetSmoothing("IN_OUT") end
+      pulse:SetLooping("BOUNCE")
+      g.pulse = pulse
+      b:HookScript("OnShow", function() pulse:Play() end)
+      b:HookScript("OnHide", function() pulse:Stop() end)
+    end
+  end
+  return g
+end
+
 local function button(name, item, tip)
   local K = NS.Farm
   local b = CreateFrame("Button", name, UIParent, "SecureActionButtonTemplate")
@@ -263,6 +300,7 @@ local function button(name, item, tip)
   end)
   b:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
   b:Hide()
+  b.glow = glow(b)                                              -- after the Hide: it starts still
   return b
 end
 

@@ -435,10 +435,21 @@ _G.CreateFrame = function(kind, name, parent, template)
   function f:RegisterForClicks(c) self.clicks = c end
   function f:StartMoving() end
   function f:StopMovingOrSizing() end
-  function f:Show() self.shown = true end
-  function f:Hide() self.shown = false end
+  -- SHOW AND HIDE RUN OnShow / OnHide, on a real change only, as the client does (6 Nov 2026, the XP food glow
+  -- plays while the button is up and stops when it goes). The old mock only flipped a flag, so "does the pulse
+  -- stop when the button hides" had no answer.
+  function f:Show()
+    local was = self.shown
+    self.shown = true
+    if not was and self.scripts.OnShow then self.scripts.OnShow(self) end
+  end
+  function f:Hide()
+    local was = self.shown
+    self.shown = false
+    if was and self.scripts.OnHide then self.scripts.OnHide(self) end
+  end
   function f:IsShown() return self.shown end
-  function f:SetShown(v) self.shown = v and true or false end
+  function f:SetShown(v) if v then self:Show() else self:Hide() end end
   -- VISIBLE IS SHOWN ALL THE WAY UP (7 Oct 2026). A child whose parent hides stays IsShown() -
   -- that is how the Spawns shelf kept refreshing 4 times a second behind a closed farm window.
   function f:IsVisible()
@@ -5274,7 +5285,7 @@ do
     ev("UPDATE_BATTLEFIELD_SCORE")
     ok(#sorts == n0 and BG.healers.Heala == 1, "a score event right after a read: no re-sort, the last read stays")
     -- Arn's scoreboard is open: never reshuffle what he is looking at
-    board:Show() if board.scripts.OnShow then board.scripts.OnShow(board) end
+    board:Show()                                            -- runs its OnShow, as the client does
     W.now = W.now + 60
     ev("UPDATE_BATTLEFIELD_SCORE")
     ok(#sorts == n0, "the scoreboard window is open: no sort")
@@ -7104,6 +7115,18 @@ do
   ok(X.pick == 5477 and food:IsShown() and food.attrs.item1 == "item:5477",
      "loaded on the next look: the stew is the XP food, the button aims at it", tostring(X.pick))
   ok(db.food == nil, "and nothing had to be learned for that")
+  -- THE GLOW (Arn, 6 Nov: the food button "its pretty vital"): a gold ring around it, breathing - the client runs the
+  -- pulse, so nothing of ours runs per frame; it plays while the button is up and stops when it goes
+  local glow = food.glow
+  ok(glow and glow.pulse and glow.pulse.playing and glow.pulse.looping == "BOUNCE", "the food button glows while it is up")
+  ok(glow.ring and glow.ring.top.color and glow.ring.top.color[1] > 0.8 and glow.ring.top.color[3] < 0.5,
+     "a gold ring, outside the button's own edge")
+  ok(not food.scripts.OnUpdate and not glow.scripts.OnUpdate, "and no OnUpdate: the client runs the pulse, not us")
+  food:Hide()
+  ok(not glow.pulse.playing, "the button goes: the pulse stops")
+  food:Show()
+  ok(glow.pulse.playing, "back: the pulse again")
+  ok(bag.glow and bag.glow.pulse, "the sleeping bag button glows the same way")
   -- bread's Well Fed is not the XP one
   fire("UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-1", 433)
   FED = { spellId = 777002, expirationTime = W.now + 900, applications = 1 }
