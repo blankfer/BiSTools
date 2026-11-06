@@ -29,6 +29,12 @@ Read ../_bisdev/CLAUDE.md first.
     "timed by X - addon" at the foot (`db.who`), dragged anywhere (`db.pos`). Repaints once a second while shown,
     nothing ticks while hidden; hidden in instances. Hands the lib `db.clock` (`RideStore`) so the clock outlives a
     logout. BiSToolsAPI v3 `Rides(map)` / `RideCard()`. Loads after `Party.lua`.
+  - `Sounds.lua`: the `sounds` tool (`NS.Sounds`, 5 Nov 2026), the sound explorer `BiSToolsSounds` (430x300):
+    every SOUNDKIT name (one row per id, read once on first open, plus `X.EXTRA`), search by word or id, a typed kit
+    id, your own .ogg by path under Interface\AddOns (`db.files`, newest first, at most `X.FILES_MAX`). Click = hear
+    (SFX); shift-click = star (`db.favs[id] = name`) or forget a file; `/bist sounds favs` prints the stars. No event,
+    no ticker: nothing runs until opened. "Reset window positions" only re-centres it, never opens it. Loads after
+    `Rides.lua`.
   - `Hub.lua` (284 lines): `NS.Hub`. Not a Registry tool, so it cannot be switched off. It has the hand-rolled minimap button (no LibDBIcon), the Hub list of tools and the Options window (built with `BiSTheme.Options` from the embed), and it sets `NS.HubSlash`. Sections: db, minimap, shared bits, the Hub, Options, boot.
 - `Libs/`: embedded copies of `BiSTheme/Console.lua`, `BiSTheme/Options.lua`, `LibBiSComm-1.0` and `RezComm-1.0`, all listed in the TOC. Since 0.4.0 also three THIRD-PARTY libs, unmodified from upstream at pinned commits: `LibStub`, `CallbackHandler-1.0` (Ace3, BSD) and `HereBeDragons` (Nevcairiel, BSD) - sources, commits and the license text in `Libs/THIRD-PARTY.txt`. Never edit them; replace from upstream. bislint and the fence skip them, as they skip every non-BiS lib. `RezComm` starts itself at login from its TOC line; nothing in `Tools/` calls it. See the libs rules in `../_bisdev/CLAUDE.md`.
 - `dev/tests.lua` (1755 lines): the headless harness (`lua5.1 dev/tests.lua`, run from the addon root). It reads `BiSTools.toc` for the version and the file list, then loads every listed file in order, with no stubs, and calls each one as `chunk("BiSTools", NS)`. It asserts the TOC lists at least 9 files and that it lists `Libs/BiSTheme/Options.lua`. Sections: WoW mock (`_G.__W`), load, checks, spawn zones + spots, comm lib + summon tool, a full 25-man, RezComm, the Hub, wrong-accent pass, embedded libs are the canonical bytes. The last section compares the four `Libs/` files byte for byte against `../_bisdev/` and `../BiSTheme/`.

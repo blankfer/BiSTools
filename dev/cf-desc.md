@@ -1,4 +1,4 @@
-# BiS Tools — CurseForge page text (0.17.0)
+# BiS Tools — CurseForge page text (0.18.0)
 
 Paste everything below the line into the project description
 (CurseForge → BiS Tools, project 1686340 → Edit → Description), in the Markdown editor.
@@ -84,6 +84,15 @@ At a zeppelin tower, a boat dock or a Deeprun Tram platform, a small card pops u
 - **RIDE-TRAK.** Shift-click the card and each ride gets a little line map under its announcer: here on the left, where it goes on the right, the ride a gold block moving between them - and your own face on it once you're aboard. The tram shows both of its cars.
 - **Close it for good** with the X; `/bist rides on` brings it back.
 
+## Sound explorer
+
+Every sound the game has a name for, in one list you can search. Type a word (`bell`, `click`, `chime`) or an id, click a row, hear it.
+
+- **Hold your own sound up against the game's.** Play any .ogg from your AddOns folder, then click through the game's until you find the one that sounds like it.
+- **Any id**, even the ones the list doesn't name.
+- **Star the good ones** with a shift-click; `/bist sounds favs` lists them with their ids.
+- **On the sound-effects channel**, so muting effects mutes it. Nothing runs until you open it.
+
 ## The BiS> tools box
 
 The farm's skull, the rival target button, and in battlegrounds the red **+** and the saber button sit together in one small box. Each shows only when it has something to do. With BiS Healing's "BiS> now" on screen, the box docks beside it.
@@ -106,6 +115,7 @@ Left-click the minimap button for the tools, right-click for the options. Hover 
 | `/bist social on` · `off` · `group` · `why` | the thank-you emote for buffs |
 | `/bist farm` | the farm window |
 | `/bist farm key F5` | the skull key |
+| `/bist sounds` · `/bist sounds favs` | the sound explorer · your starred sounds |
 | `/bist on <tool>` · `/bist off <tool>` | switch a tool on or off |
 
 ## Why it works the way it does
