@@ -6804,6 +6804,31 @@ do
   W.lastMsg = nil
   S("sounds favs")
   ok(W.lastMsg and W.lastMsg:find("TELL_MESSAGE 3081", 1, true), "/bist sounds favs: name and id", W.lastMsg)
+  -- STOP (Arn: "whatrs the command to stop sound loop?"): the client hands back a handle; the stop button stops it,
+  -- the next play stops the one before, closing the window stops it
+  local stopped, H = {}, 100
+  local keepStop = _G.StopSound
+  _G.PlaySound = function(kit, ch)
+    if type(kit) ~= "number" then error("PlaySound wants a kit id", 2) end
+    H = H + 1
+    played[#played + 1] = { kit = kit, ch = ch, h = H } return true, H
+  end
+  _G.StopSound = function(h) if type(h) ~= "number" then error("StopSound wants a sound handle", 2) end stopped[#stopped + 1] = h end
+  X.Stop()
+  stopped = {}
+  X.Play(8959)
+  local first = H
+  f.stop.scripts.OnClick(f.stop, "LeftButton")
+  ok(stopped[1] == first and X.handle == nil, "stop: the sound that was playing is stopped", tostring(stopped[1]))
+  X.Play(8959)
+  local loop = H
+  X.Play(856)
+  ok(stopped[2] == loop and X.handle == H, "a new play stops the one before (a loop never runs under the next)")
+  X.Toggle(false)
+  ok(stopped[3] == H and X.handle == nil, "closing the window stops it too")
+  X.Toggle(true)
+  ok(X.Stop() == false and #stopped == 3, "nothing playing: stop does nothing")
+  _G.StopSound = keepStop
   -- any kit id, typed
   f.id.box:SetText("55555")
   played = {}

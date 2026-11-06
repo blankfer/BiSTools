@@ -72,22 +72,34 @@ function X.Path(typed)
   return p
 end
 
+--- STOP (Arn, 5 Nov: "whatrs the command to stop sound loop?" - some kits loop forever). The handle the client gives
+--- back for the last sound started here, stopped. Every new play stops the one before, so a loop never keeps running
+--- under the next one you are comparing it with; the window's stop button and closing the window stop it too.
+function X.Stop()
+  local h = X.handle
+  X.handle = nil
+  if h == nil or not StopSound then return false end
+  return pcall(StopSound, h) and true or false
+end
+
 --- Hear a row (or a kit id): a kit through PlaySound, a file through PlaySoundFile; the effects channel.
 function X.Play(e)
   if type(e) == "number" then e = { id = e } end
   if type(e) ~= "table" then return false end
-  local ok, will
+  X.Stop()
+  local ok, will, handle
   if e.file then
     if not PlaySoundFile then return false end
-    ok, will = pcall(PlaySoundFile, X.Path(e.file), "SFX")
+    ok, will, handle = pcall(PlaySoundFile, X.Path(e.file), "SFX")
     if not (ok and will) then
       NS.Print("sounds: %s did not play - is it under Interface\\AddOns, and was the game restarted since the file was put there?", tostring(e.file))
       return false
     end
   else
     if not (PlaySound and type(e.id) == "number") then return false end
-    ok, will = pcall(PlaySound, e.id, "SFX")
+    ok, will, handle = pcall(PlaySound, e.id, "SFX")
   end
+  if ok and will and handle ~= nil then X.handle = handle end
   X.last = e.file or e.id
   return ok and will ~= false
 end
@@ -197,6 +209,8 @@ function X.Build(db)
   f.title:SetPoint("TOPLEFT", 8, -6)
   f.close = button(f, "x", 16, function() X.Toggle(false) end)
   f.close:SetPoint("TOPRIGHT", -4, -4)
+  f.stop = button(f, "stop", 40, function() X.Stop() end)
+  f.stop:SetPoint("RIGHT", f.close, "LEFT", -4, 0)
   -- line 1: search, stars only, a kit id
   f.find = field(f, "BiSToolsSoundsFind", 170, "search: bell, click, chime...")
   f.find:SetPoint("TOPLEFT", 8, -24)
@@ -267,7 +281,7 @@ function X.Build(db)
   -- the foot
   f.count = K.fs(f, "", 9, "muted")
   f.count:SetPoint("BOTTOMLEFT", 8, 22)
-  f.help = K.fs(f, "click: hear it   shift-click: star / forget a file   wheel: scroll", 9, "dim")
+  f.help = K.fs(f, "click: hear it   shift-click: star / forget a file   wheel: scroll   stop: a looping one", 9, "dim")
   f.help:SetPoint("BOTTOMLEFT", 8, 8)
   f:Hide()
   X.frame = f
@@ -318,7 +332,7 @@ function X.IsOpen() return X.frame ~= nil and X.frame:IsShown() end
 function X.Toggle(want)
   local f = X.Build(X.db)
   if want == nil then want = not f:IsShown() end
-  if want then f:Show() X.Paint() else f:Hide() end
+  if want then f:Show() X.Paint() else f:Hide() X.Stop() end
   return f:IsShown()
 end
 
