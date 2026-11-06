@@ -1,3 +1,7 @@
+## 0.18.1
+
+- **The death recap shows faces.** Instead of a wall of text, it opens on up to three 3D models: whoever killed you in the middle, the two biggest assists either side. Under each: what they hit you with (the killer: the killing blow itself, "Fireball 312 +40") and how much they did in all, with their share. A player who killed you and is still nearby shows as themselves, gear and all; one who's already gone shows their class icon. Their nicknames are in the card's tooltip. The rest - who hit you, physical or magic, your health, the last ten hits - is one click away behind **details** at the bottom.
+
 ## 0.18.0
 
 - **The sound explorer (`/bist sounds`, or "sounds" in the BiS Tools list).** Every sound the game has a name for, in one searchable list: type a word (`bell`, `click`, `chime`) or an id, click a row to hear it. A box plays any sound id the list doesn't name, and another plays your own .ogg from anywhere in your AddOns folder (`BiSHealing\Media\click.ogg`), so you can hold your sound up against the game's. Shift-click to star a sound; `/bist sounds favs` lists your stars with their ids. Everything plays on the sound-effects channel. Nothing runs until you open it.
