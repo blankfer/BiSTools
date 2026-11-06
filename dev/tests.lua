@@ -1972,7 +1972,8 @@ do
   -- the party list, 15 Oct; the recruit crest, 21 Oct; the ride card, 21 Oct)
   -- (+5 in party, 21 Oct: accept from the guild / friends, invite on a keyword, the keyword, from whom)
   -- (+ sounds (1), 5 Nov: the explorer's open button - and its section header)
-  ok(#opt.rows == 13 + 3 + 5 + 7 + 1 + 8 + 2 + 2 + 4 + 7 + 4 + 4 + 5 + 1 + 2, "one row per section header and per option", #opt.rows)
+  -- (+1 in xp, 6 Nov: the camp tent button)
+  ok(#opt.rows == 13 + 3 + 5 + 7 + 1 + 8 + 2 + 2 + 4 + 7 + 4 + 4 + 5 + 1 + 2 + 1, "one row per section header and per option", #opt.rows)
   -- THE BiSTheme STANDARD, 1.43:1 (Arn, 14 Oct): its sections poured into columns, the window that shape
   ok(math.abs(opt.w / opt.h - 1.43) < 0.01 and (opt.columns or 1) >= 2, "options: 1.43:1, in columns", opt.w .. "x" .. opt.h)
   local function find(label) for _, r in ipairs(opt.rows) do if r.name and r.name.text == label then return r end end end
@@ -6999,6 +7000,14 @@ do
   -- spell ("Nutritious Food", 1248379 at Strider Stew's tier) says "Additionally, experience gained from kills is
   -- increased by 5%."; vendor bread's says nothing of it, and bread gives no Well Fed.
   local AURA, FED, LEVEL = nil, nil, 20
+  -- the camp tent's debuff (Arn, 6 Nov: "track it by the debuff"): a HARMFUL aura, asked by id or by name with the
+  -- HARMFUL filter - the by-name lookup reads helpful auras unless told otherwise, as the client's does
+  local BOOST
+  -- rested XP: GetXPExhaustion answers nil when there is none (the client's way), UnitXPMax the level's XP
+  local RESTXP, XPMAX = nil, 10000
+  keep.exh, keep.xpmax = rawget(_G, "GetXPExhaustion"), rawget(_G, "UnitXPMax")
+  _G.GetXPExhaustion = function() if W.combat then return secret() end return RESTXP end
+  _G.UnitXPMax = function(u) return u == "player" and XPMAX or 0 end
   local BAGS = { [X.BAG_ITEM] = 1, [4599] = 5 }
   local SLOTS = { [0] = { 211527, 4599 } }                -- the bag and some bread; the cooked food comes later
   local LATE = {}                                          -- spells whose text the client has not loaded yet
@@ -7008,11 +7017,14 @@ do
       if W.combat then return secret() end
       if id == X.RESTED then return AURA end
       if FED and id == FED.spellId then return FED end
+      if BOOST and id == BOOST.spellId then return BOOST end
       return nil
     end,
-    GetAuraDataBySpellName = function(unit, name)
+    GetAuraDataBySpellName = function(unit, name, filter)
       if W.combat then return secret() end
-      if unit == "player" and name == "Well Fed" then return FED end
+      local harmful = type(filter) == "string" and filter:find("HARMFUL", 1, true)
+      if unit == "player" and name == "Well Fed" and not harmful then return FED end
+      if unit == "player" and BOOST and name == BOOST.name and harmful then return BOOST end
       return nil
     end,
   }
@@ -7276,7 +7288,61 @@ do
   ok(food:IsShown() and bag:IsShown(), "a 30-minute meal: Well-Rested's 25 minutes would not last it - the bag too")
   FED, AURA = nil, nil
 
-  db.food, db.bag, db.eat = nil, nil, nil
+  -- THE CAMP TENT (Arn, 6 Nov: "need to track this too ... we have to track it by the debuff"; "the ideal start is camp
+  -- tent down, sleeping bag and food"). Item 279978 tops rested XP up to 5% of a level, needs a campfire, then a debuff
+  -- (Boosted Rest, 1229451 by one guide - by name too) blocks it an hour. It joins the stop, FIRST; never on its own.
+  local tent = select(3, X.Buttons())
+  ok(tent and tent.template == "SecureActionButtonTemplate" and tent.attrs.item1 == "item:279978", "the tent button: secure, it uses the tent")
+  BAGS[X.TENT_ITEM], SLOTS[0][7] = 1, X.TENT_ITEM
+  RESTXP = 200                                              -- 2% of the level
+  fire("BAG_UPDATE_DELAYED")
+  ok(food:IsShown() and bag:IsShown() and tent:IsShown(), "the stop, rested at 2% of a level, no debuff: the tent comes too")
+  local order = {}
+  for i, e in ipairs(Bx.Buttons()) do if e.show then order[e.b] = i end end
+  ok(order[tent] and order[bag] and order[food] and order[tent] < order[bag] and order[bag] < order[food],
+     "in Arn's order: tent, sleeping bag, food")
+  ok(tent.glow and tent.glow.pulse.playing, "and it glows like the others")
+  RESTXP = nil
+  fire("UPDATE_EXHAUSTION")
+  ok(tent:IsShown(), "no rested XP at all (the client answers nil): the tent")
+  -- put it down: the rested XP climbs to 5%, the debuff lands - gone either way
+  RESTXP = 500
+  fire("UPDATE_EXHAUSTION")
+  ok(not tent:IsShown() and food:IsShown(), "rested at 5% of a level: nothing to top up, the tent goes")
+  RESTXP = 100
+  BOOST = { spellId = 1229451, name = "Boosted Rest", expirationTime = W.now + 3600, applications = 1 }
+  fire("UNIT_AURA", "player")
+  ok(not tent:IsShown(), "Boosted Rest on me: no tent for its hour")
+  BOOST = { spellId = 1229999, name = "Boosted Rest", expirationTime = W.now + 3600, applications = 1 }
+  fire("UNIT_AURA", "player")
+  ok(not tent:IsShown(), "the debuff by its name, whatever its id")
+  BOOST = nil
+  fire("UNIT_AURA", "player")
+  ok(tent:IsShown(), "the debuff gone: the tent again")
+  -- never on its own: fed, Well-Rested full - rested XP low or not, no stop, no tent
+  AURA = { spellId = X.RESTED, expirationTime = W.now + 3600, applications = 3 }
+  FED = { spellId = 1249519, expirationTime = W.now + 900, duration = 900, applications = 1 }
+  fire("UNIT_AURA", "player")
+  ok(not tent:IsShown() and not bag:IsShown() and not food:IsShown(), "no stop due: no tent, however low the rested XP")
+  FED, AURA = nil, nil
+  -- off by its option; no tent in the bags
+  db.tent = false
+  fire("UNIT_AURA", "player")
+  ok(not tent:IsShown() and food:IsShown(), "camp tent button off: not offered")
+  db.tent = nil
+  BAGS[X.TENT_ITEM], SLOTS[0][7] = nil, false
+  fire("BAG_UPDATE_DELAYED")
+  ok(not tent:IsShown(), "no tent in my bags: no button")
+  -- in a fight the rested XP is a secret: nothing is asked, nothing changes
+  BAGS[X.TENT_ITEM], SLOTS[0][7] = 1, X.TENT_ITEM
+  fire("BAG_UPDATE_DELAYED")
+  W.combat = true
+  ok(X.Rest() == nil, "rested XP hidden: unknown, never a guess")
+  W.combat = false
+  BAGS[X.TENT_ITEM], SLOTS[0][7], RESTXP, BOOST = nil, false, nil, nil
+
+  db.food, db.bag, db.eat, db.tent = nil, nil, nil, nil
+  _G.GetXPExhaustion, _G.UnitXPMax = keep.exh, keep.xpmax
   _G.C_UnitAuras, _G.C_Item, _G.C_Container, _G.UnitLevel = keep.ua, keep.item, keep.cont, keep.level
   if keep.cspell then _G.C_Spell.GetSpellDescription = keep.desc else _G.C_Spell = nil end
   X.showBag, X.showFood = nil, nil

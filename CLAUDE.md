@@ -38,7 +38,10 @@ Read ../_bisdev/CLAUDE.md first.
   - `XP.lua`: the `xp` tool (`NS.XP`, 6 Nov 2026): two secure item buttons the BiS> tools box adopts (`B.Buttons`):
     the Cozy Sleeping Bag (211527) while Well-Rested (429959) is missing / under 3 stacks / under `X.LOW_RESTED`,
     and XP food (`X.pick`) while Well Fed (any - measured 6 Nov: Forever's is ONE aura, 1249519 at the Mud Snapper's
-    tier, whose readable text never says experience, and no separate XP Boost aura exists) is missing / under `X.LOW_FOOD`. `X.Pick` = `db.food` (the last XP
+    tier, whose readable text never says experience, and no separate XP Boost aura exists) is missing / under `X.LOW_FOOD`.
+    The Camp Tent (279978, `X.ShowTent`) joins that stop FIRST (Arn: "camp tent down, sleeping bag and food"), never on
+    its own: rested XP (`X.Rest` = GetXPExhaustion / UnitXPMax) under `X.TENT_SHARE` (5%) and its debuff off
+    (`X.Boosted`: "Boosted Rest" 1229451 by id, then by name HARMFUL - from a guide, UNVERIFIED live); UPDATE_EXHAUSTION looks again. `X.Pick` = `db.food` (the last XP
     food eaten: UNIT_SPELLCAST_SUCCEEDED -> bag item by `C_Item.GetItemSpell`, or `/bist xp food <link>`) while carried,
     else the XP food carried most of (`X.IsXPItem`: the use spell's text says "experience", cached per item; blank
     text = asked again, 3 tries). The bag scan runs only when `X.dirty` (bag change / login). Levelling only (`X.CAP`), out of combat only; no ticker - one

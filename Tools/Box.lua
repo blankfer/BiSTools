@@ -187,7 +187,9 @@ function B.Buttons()
   -- the XP buffs (Arn, 6 Nov: Well-Rested, Well Fed, the Cozy Sleeping Bag - XP.lua): each only while it needs you
   local XP = NS.XP
   if XP and XP.Buttons then
-    local bag, food = XP.Buttons()
+    local bag, food, tent = XP.Buttons()
+    -- Arn's order (6 Nov): "camp tent down, sleeping bag and food"
+    if tent then out[#out + 1] = { b = tent, show = XP.ShowTent() } end
     out[#out + 1] = { b = bag, show = XP.ShowBag() }
     out[#out + 1] = { b = food, show = XP.ShowFood() }
   end

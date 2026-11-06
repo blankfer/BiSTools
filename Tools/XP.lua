@@ -27,6 +27,12 @@ X.LOW_RESTED, X.LOW_FOOD = 600, 120          -- seconds left that count as "top 
 X.FOOD_WINDOW = 60                           -- seconds from eating to its Well Fed, to learn which food it was
 X.CAP = 60
 X.WELL_FED = "Well Fed"
+-- THE CAMP TENT (Arn, 6 Nov, its tooltip: ItemID 279978, IconID 134250, Leatherworking 20): "increase Rested experience
+-- to 5% of a level. No effect if Rested experience already exceeds that value. Requires a Campfire nearby." Then a
+-- debuff blocks it an hour - "Boosted Rest" (1229451) by Warcraft Tavern's guide, UNVERIFIED live, so it is asked by
+-- id AND by name. Arn: "the ideal start is camp tent down, sleeping bag and food" - it joins that stop, first.
+X.TENT_ITEM, X.TENT_SHARE = 279978, 0.05
+X.BOOSTED, X.BOOSTED_NAME = 1229451, "Boosted Rest"
 -- Forever's cooked food: most gives Well Fed with +5% experience from kills, vendor food never; the food's use text
 -- ends "Additionally, experience gained from kills is increased by 5%." (The buff itself: see X.Fed.)
 
@@ -101,6 +107,31 @@ function X.Fed()
   return mine(aura)
 end
 
+--- Rested XP as a share of this level (0.02 = 2%), or nil when the client will not say. None at all answers nil from
+--- GetXPExhaustion - that is 0, not "unknown"; a hidden answer is unknown.
+function X.Rest()
+  local okE, ex = pcall(GetXPExhaustion or function() return nil end)
+  if not okE or (ex ~= nil and plain(ex) == nil) then return nil end
+  local max = plain(ask(UnitXPMax, "player"))
+  if type(max) ~= "number" or max <= 0 then return nil end
+  return (type(ex) == "number" and ex or 0) / max
+end
+
+--- The tent's debuff on me? true / false, or nil when the client will not say. By id, then by name (HARMFUL).
+function X.Boosted()
+  local by = C_UnitAuras and C_UnitAuras.GetPlayerAuraBySpellID
+  if by then
+    local ok, a = pcall(by, X.BOOSTED)
+    if not ok or (a ~= nil and plain(a) == nil) then return nil end
+    if a ~= nil then return true end
+  end
+  local f = C_UnitAuras and C_UnitAuras.GetAuraDataBySpellName
+  if not f then return by and false or nil end
+  local ok, a = pcall(f, "player", X.BOOSTED_NAME, "HARMFUL")
+  if not ok or (a ~= nil and plain(a) == nil) then return nil end
+  return a ~= nil
+end
+
 --- Seconds until the sleeping bag can be used again (0 = ready; a client that will not say counts as ready).
 function X.BagCD()
   local f = (C_Container and C_Container.GetItemCooldown) or GetItemCooldown   -- C_Container: on both clients (fence)
@@ -132,6 +163,7 @@ function X.State(db)
   s.f = X.pick and X.Fed() or nil
   if type(s.f) == "table" and s.f.dur then X.MEAL = s.f.dur end
   s.cd = s.hasBag and X.BagCD() or 0
+  s.hasTent = db.tent ~= false and count(X.TENT_ITEM) > 0
   return s
 end
 
@@ -215,6 +247,18 @@ function X.ShowFood(db, s)
   return s.f.left < X.LOW_FOOD + X.PAIR                         -- the bag's stop is in 5 minutes of the food's: eat too
 end
 
+--- The camp tent: only in the stop (the bag or the food is up), only when it would do something - rested XP under 5%
+--- of the level, its debuff not on me. Rested XP and the debuff are asked only then: a tent in the bags costs nothing
+--- while you quest.
+function X.ShowTent(db, s)
+  s = s or X.State(db)
+  if not (s.live and s.hasTent) then return false end
+  if not (X.ShowBag(db, s) or X.ShowFood(db, s)) then return false end
+  local rest = X.Rest()
+  if type(rest) ~= "number" or rest >= X.TENT_SHARE then return false end
+  return X.Boosted() == false
+end
+
 -- ------------------------------------------------------------------ the buttons
 
 local function icon(item)
@@ -293,7 +337,7 @@ end
 local function mins(s) return s == math.huge and "no end" or (math.floor(s / 60) .. " min") end
 
 function X.Buttons()
-  if X.bag then return X.bag, X.food end
+  if X.bag then return X.bag, X.food, X.tent end
   X.bag = button("BiSToolsXPBag", X.BAG_ITEM, function()
     local r = X.Rested()
     local state = r == "missing" and "Well-Rested is gone." or type(r) == "table"
@@ -306,7 +350,13 @@ function X.Buttons()
       or "Well Fed: unknown."
     return { "Eat your XP food", state }
   end)
-  return X.bag, X.food
+  X.tent = button("BiSToolsXPTent", X.TENT_ITEM, function()
+    local rest = X.Rest()
+    local state = type(rest) == "number" and ("Rested XP: %d%% of a level - it tops up to %d%%."):format(
+      math.floor(rest * 100 + 0.5), X.TENT_SHARE * 100) or "Rested XP: unknown."
+    return { "Put down your Camp Tent", state, "Needs a campfire nearby. Then the sleeping bag, then eat." }
+  end)
+  return X.bag, X.food, X.tent
 end
 
 --- Point the food button at the picked food (out of combat: a secure attribute).
@@ -325,10 +375,10 @@ function X.Look()
   if X.Fighting() then return false end
   if X.dirty then X.Pick() end
   local s = X.State()
-  local bag, food = X.ShowBag(nil, s), X.ShowFood(nil, s)
+  local bag, food, tent = X.ShowBag(nil, s), X.ShowFood(nil, s), X.ShowTent(nil, s)
   if X.bag then X.bag.word:SetText(type(s.r) == "table" and tostring(s.r.stacks) or "") end
-  local changed = bag ~= X.showBag or food ~= X.showFood
-  X.showBag, X.showFood = bag, food
+  local changed = bag ~= X.showBag or food ~= X.showFood or tent ~= X.showTent
+  X.showBag, X.showFood, X.showTent = bag, food, tent
   if changed and NS.Box and NS.Box.Refresh then NS.Box.Refresh() end
   X.Arm(s)
   return changed
@@ -397,7 +447,7 @@ end
 
 local ev = CreateFrame("Frame")
 for _, e in ipairs({ "UNIT_AURA", "BAG_UPDATE_DELAYED", "PLAYER_LEVEL_UP", "PLAYER_REGEN_ENABLED", "PLAYER_ENTERING_WORLD",
-                     "UNIT_SPELLCAST_SUCCEEDED", "SPELL_DATA_LOAD_RESULT" }) do
+                     "UNIT_SPELLCAST_SUCCEEDED", "SPELL_DATA_LOAD_RESULT", "UPDATE_EXHAUSTION" }) do
   pcall(ev.RegisterEvent, ev, e)
 end
 ev:SetScript("OnEvent", function(_, event, unit, _, spellId)
@@ -418,19 +468,21 @@ X.events = ev
 
 R:Register({
   name = "xp",
-  desc = "a button when your XP buffs run low: the sleeping bag, your XP food",
-  usage = "/bist xp [food <item link> | food off | bag on|off]",
+  desc = "a button when your XP buffs run low: the camp tent, the sleeping bag, your XP food",
+  usage = "/bist xp [food <item link> | food off | bag on|off | tent on|off]",
   defaults = {},
   options = {
     { kind = "toggle", label = "sleeping bag button", help = "While you level: a button in the BiS> tools box when Well-Rested is gone, short of 3 stacks or under 10 minutes - one click unfurls your Cozy Sleeping Bag.",
       get = function(db) return db.bag ~= false end, set = function(db, on) db.bag = on and true or false X.Look() end },
     { kind = "toggle", label = "XP food button", help = "While you level: a button when Well Fed is gone or under 2 minutes - one click eats cooked XP food from your bags (the one you last ate first). Vendor food has no XP buff.",
       get = function(db) return db.eat ~= false end, set = function(db, on) db.eat = on and true or false X.Look() end },
+    { kind = "toggle", label = "camp tent button", help = "When the sleeping bag or food button comes up: your Camp Tent first, if your rested XP is under 5% of a level and its debuff is off you. Needs a campfire nearby.",
+      get = function(db) return db.tent ~= false end, set = function(db, on) db.tent = on and true or false X.Look() end },
   },
   OnInit = function(_, db) X.db = db end,
   OnLogin = function(_, db) X.db = db X.Buttons() X.dirty = true X.Look() end,
   OnEnable = function(_, db) X.db = db X.Look() end,
-  OnDisable = function() X.showBag, X.showFood = nil, nil X.token = (X.token or 0) + 1 end,
+  OnDisable = function() X.showBag, X.showFood, X.showTent = nil, nil, nil X.token = (X.token or 0) + 1 end,
   OnSlash = function(_, db, args)
     X.db = db
     args = tostring(args or "")
@@ -446,12 +498,19 @@ R:Register({
     elseif args == "bag on" or args == "bag off" then
       db.bag = args == "bag on" X.Look()
       return NS.Print("xp: sleeping bag button %s", db.bag and "on" or "off")
+    elseif args == "tent on" or args == "tent off" then
+      db.tent = args == "tent on" X.Look()
+      return NS.Print("xp: camp tent button %s", db.tent and "on" or "off")
     end
     if X.dirty and not X.Fighting() then X.Pick(db) end
     local r, f = X.Rested(), X.Fed()
-    NS.Print("xp: Well-Rested %s; Well Fed %s; XP food %s", r == "missing" and "gone" or type(r) == "table"
-      and (r.stacks .. "/" .. X.RESTED_MAX .. ", " .. mins(r.left)) or "unknown", f == "missing" and "gone" or type(f) == "table"
-      and mins(f.left) or "unknown", X.pick and ("item " .. X.pick .. (X.pick == db.food and " (yours)" or ""))
-      or X.dirty and "still reading your bags" or "none in your bags")
+    local rest, boosted = X.Rest(), X.Boosted()
+    NS.Print("xp: Well-Rested %s; Well Fed %s; XP food %s; rested XP %s of a level; %s %s",
+      r == "missing" and "gone" or type(r) == "table" and (r.stacks .. "/" .. X.RESTED_MAX .. ", " .. mins(r.left)) or "unknown",
+      f == "missing" and "gone" or type(f) == "table" and mins(f.left) or "unknown",
+      X.pick and ("item " .. X.pick .. (X.pick == db.food and " (yours)" or "")) or X.dirty and "still reading your bags"
+      or "none in your bags",
+      type(rest) == "number" and (math.floor(rest * 1000 + 0.5) / 10 .. "%") or "unknown",
+      X.BOOSTED_NAME, boosted == true and "on you (no tent for now)" or boosted == false and "off" or "unknown")
   end,
 })
