@@ -435,10 +435,21 @@ _G.CreateFrame = function(kind, name, parent, template)
   function f:RegisterForClicks(c) self.clicks = c end
   function f:StartMoving() end
   function f:StopMovingOrSizing() end
-  function f:Show() self.shown = true end
-  function f:Hide() self.shown = false end
+  -- SHOW AND HIDE RUN OnShow / OnHide, on a real change only, as the client does (6 Nov 2026, the XP food glow
+  -- plays while the button is up and stops when it goes). The old mock only flipped a flag, so "does the pulse
+  -- stop when the button hides" had no answer.
+  function f:Show()
+    local was = self.shown
+    self.shown = true
+    if not was and self.scripts.OnShow then self.scripts.OnShow(self) end
+  end
+  function f:Hide()
+    local was = self.shown
+    self.shown = false
+    if was and self.scripts.OnHide then self.scripts.OnHide(self) end
+  end
   function f:IsShown() return self.shown end
-  function f:SetShown(v) self.shown = v and true or false end
+  function f:SetShown(v) if v then self:Show() else self:Hide() end end
   -- VISIBLE IS SHOWN ALL THE WAY UP (7 Oct 2026). A child whose parent hides stays IsShown() -
   -- that is how the Spawns shelf kept refreshing 4 times a second behind a closed farm window.
   function f:IsVisible()
@@ -1869,21 +1880,21 @@ do
   -- left click: the Hub, one row per tool
   mm.scripts.OnClick(mm, "LeftButton")
   local hub = BiSToolsHub
-  ok(hub and hub:IsShown() and #hub.rows == 11, "left click opens the Hub with a row per registered tool")
+  ok(hub and hub:IsShown() and #hub.rows == 12, "left click opens the Hub with a row per registered tool")
   ok(hub.scale == 1.2, "the Tools list is 20% bigger (Arn: \"lets make this 20% bigger\")")
   ok(hub.rows[1].key == "farm" and hub.rows[2].key == "summon" and hub.rows[3].key == "recap" and hub.rows[4].key == "rivals"
      and hub.rows[5].key == "social" and hub.rows[6].key == "threat" and hub.rows[7].key == "bg" and hub.rows[8].key == "map" and hub.rows[9].key == "party"
-     and hub.rows[10].key == "rides" and hub.rows[11].key == "sounds",
-     "rows in TOC order: farm, summon, recap, rivals, social, threat, bg, map, party, rides, sounds")
+     and hub.rows[10].key == "rides" and hub.rows[11].key == "sounds" and hub.rows[12].key == "xp",
+     "rows in TOC order: farm, summon, recap, rivals, social, threat, bg, map, party, rides, sounds, xp")
   -- RIVALS & PALS, their own tool (Arn, 14 Oct: "decouple from recap ... be its own thing")
   ok(hub.rows[4].name.text == "rivals & pals", "the rivals tool's row is titled rivals & pals")
   ok(hub.rows[1].name.text == "farm" and hub.rows[1].state.text:find("on", 1, true), "row: name + on")
-  ok(hub.con.slots.count and hub.con.slots.count.text == "9 of 11 on", "prompt slot counts the tools that are on (threat and party start off; rides and sounds on)")
+  ok(hub.con.slots.count and hub.con.slots.count.text == "10 of 12 on", "prompt slot counts the tools that are on (threat and party start off; rides, sounds and xp on)")
   ok(not R:Enabled("threat") and hub.rows[6].name.text == "threat (beta)" and hub.rows[6].state.text:find("off", 1, true),
      "the threat tool starts OFF and is shown as \"threat (beta)\"")
   ok(hub.con:Width() <= H.W - 15 - 8, "hub prompt fits its header budget")
   ok(hub.closeBtn.point[4] == -3, "only an x in the header, at -3")
-  ok(hub.foot and hub.foot.label.text == "options" and hub.h == 16 + 11 * 16 + 4 + 16, "footer 'options' button; height = header + rows + footer")
+  ok(hub.foot and hub.foot.label.text == "options" and hub.h == 16 + 12 * 16 + 4 + 16, "footer 'options' button; height = header + rows + footer")
   -- row click opens the tool window; shift-click drags it to the middle
   BiSToolsFarm:Hide() F.db.pos = { "TOPLEFT", 400, -300, "TOPLEFT" }
   hub.rows[1].scripts.OnClick(hub.rows[1], "LeftButton")
@@ -1933,7 +1944,7 @@ do
   for _, r in ipairs(BiSToolsOptions and BiSToolsOptions.rows or {}) do end
   -- right click toggles the tool; opening an off tool switches it on first
   hub.rows[2].scripts.OnClick(hub.rows[2], "RightButton")
-  ok(not R:Enabled("summon") and hub.rows[2].state.text:find("off", 1, true) and hub.con.slots.count.text == "8 of 11 on", "right click: summon off, row and count follow")
+  ok(not R:Enabled("summon") and hub.rows[2].state.text:find("off", 1, true) and hub.con.slots.count.text == "9 of 12 on", "right click: summon off, row and count follow")
   ok(lib:Enabled(), "and the lib is untouched by it")
   hub.rows[2].scripts.OnClick(hub.rows[2], "LeftButton")
   ok(R:Enabled("summon") and BiSToolsSummon:IsShown() and db_summon().mode == "on", "click on an off tool: switched on and its window pinned open")
@@ -1961,7 +1972,8 @@ do
   -- the party list, 15 Oct; the recruit crest, 21 Oct; the ride card, 21 Oct)
   -- (+5 in party, 21 Oct: accept from the guild / friends, invite on a keyword, the keyword, from whom)
   -- (+ sounds (1), 5 Nov: the explorer's open button - and its section header)
-  ok(#opt.rows == 12 + 3 + 5 + 7 + 1 + 8 + 2 + 2 + 4 + 7 + 4 + 4 + 5 + 1, "one row per section header and per option", #opt.rows)
+  -- (+1 in xp, 6 Nov: the camp tent button)
+  ok(#opt.rows == 13 + 3 + 5 + 7 + 1 + 8 + 2 + 2 + 4 + 7 + 4 + 4 + 5 + 1 + 2 + 1, "one row per section header and per option", #opt.rows)
   -- THE BiSTheme STANDARD, 1.43:1 (Arn, 14 Oct): its sections poured into columns, the window that shape
   ok(math.abs(opt.w / opt.h - 1.43) < 0.01 and (opt.columns or 1) >= 2, "options: 1.43:1, in columns", opt.w .. "x" .. opt.h)
   local function find(label) for _, r in ipairs(opt.rows) do if r.name and r.name.text == label then return r end end end
@@ -2030,7 +2042,7 @@ do
   local farmHdr = opt.rows[5]
   ok(farmHdr.ctl and farmHdr.ctl.on == true, "farm section box shows on")
   farmHdr.ctl.scripts.OnClick(farmHdr.ctl)
-  ok(not R:Enabled("farm") and farmHdr.ctl.on == false and hub.con.slots.count.text == "8 of 11 on", "box off: farm off, hub count follows")
+  ok(not R:Enabled("farm") and farmHdr.ctl.on == false and hub.con.slots.count.text == "9 of 12 on", "box off: farm off, hub count follows")
   farmHdr.ctl.scripts.OnClick(farmHdr.ctl)
   ok(R:Enabled("farm"), "and back on")
   -- toggle: nag
@@ -5274,7 +5286,7 @@ do
     ev("UPDATE_BATTLEFIELD_SCORE")
     ok(#sorts == n0 and BG.healers.Heala == 1, "a score event right after a read: no re-sort, the last read stays")
     -- Arn's scoreboard is open: never reshuffle what he is looking at
-    board:Show() if board.scripts.OnShow then board.scripts.OnShow(board) end
+    board:Show()                                            -- runs its OnShow, as the client does
     W.now = W.now + 60
     ev("UPDATE_BATTLEFIELD_SCORE")
     ok(#sorts == n0, "the scoreboard window is open: no sort")
@@ -6969,6 +6981,383 @@ do
   _G.SOUNDKIT, _G.PlaySound, _G.PlaySoundFile = keep.kits, keep.ps, keep.psf
   X.all, X.filter, X.offset, X.last = nil, "", 0, nil
   db.favs, db.files, db.starsOnly = {}, {}, nil
+end
+
+-- ------------------------------------------------------------ the XP buffs (6 Nov 2026)
+-- Arn's three tooltips: Well-Rested (429959, +3%), Well Fed (+5% experience from kills), the Cozy Sleeping Bag (211527,
+-- "stacking up to 3 times") - "i want a super light weight figure out what i want and im going to test you".
+do
+  local X, Bx = NS.XP, NS.Box
+  local db = R:DBFor(R:Get("xp"))
+  ok(X and R:Get("xp") and R:Enabled("xp"), "the xp tool, on by default")
+  local keep = { ua = _G.C_UnitAuras, item = _G.C_Item, cont = _G.C_Container, desc = _G.C_Spell and _G.C_Spell.GetSpellDescription,
+                 level = _G.UnitLevel, cspell = rawget(_G, "C_Spell") }
+  -- the client as probe round 1 measured it: my own buffs plain out of combat, secret in a fight
+  -- FOREVER'S REAL SHAPE, MEASURED (Arn's BiS? probe, 6 Nov 15:31, the Mud Snapper eaten): ONE aura, "Well Fed",
+  -- spell 1249519. Its tooltip has the experience line, but GetSpellDescription hands back 70 characters with NO
+  -- "experience" in them - and there is no "Well Fed XP Boost" (1243969) aura at all. (The runner's guess from Wowhead
+  -- had both; the mock believed it, the suite went green, and the button told a fed player to eat.) The food's own use
+  -- spell ("Nutritious Food", 1248379 at Strider Stew's tier) says "Additionally, experience gained from kills is
+  -- increased by 5%."; vendor bread's says nothing of it, and bread gives no Well Fed.
+  local AURA, FED, LEVEL = nil, nil, 20
+  -- the camp tent's debuff (Arn, 6 Nov: "track it by the debuff"): a HARMFUL aura, asked by id or by name with the
+  -- HARMFUL filter - the by-name lookup reads helpful auras unless told otherwise, as the client's does
+  local BOOST
+  -- rested XP: GetXPExhaustion answers nil when there is none (the client's way), UnitXPMax the level's XP
+  local RESTXP, XPMAX = nil, 10000
+  keep.exh, keep.xpmax = rawget(_G, "GetXPExhaustion"), rawget(_G, "UnitXPMax")
+  _G.GetXPExhaustion = function() if W.combat then return secret() end return RESTXP end
+  _G.UnitXPMax = function(u) return u == "player" and XPMAX or 0 end
+  local BAGS = { [X.BAG_ITEM] = 1, [4599] = 5 }
+  local SLOTS = { [0] = { 211527, 4599 } }                -- the bag and some bread; the cooked food comes later
+  local LATE = {}                                          -- spells whose text the client has not loaded yet
+  _G.UnitLevel = function(u) return u == "player" and LEVEL or 1 end
+  _G.C_UnitAuras = {
+    GetPlayerAuraBySpellID = function(id)
+      if W.combat then return secret() end
+      if id == X.RESTED then return AURA end
+      if FED and id == FED.spellId then return FED end
+      if BOOST and id == BOOST.spellId then return BOOST end
+      return nil
+    end,
+    GetAuraDataBySpellName = function(unit, name, filter)
+      if W.combat then return secret() end
+      local harmful = type(filter) == "string" and filter:find("HARMFUL", 1, true)
+      if unit == "player" and name == "Well Fed" and not harmful then return FED end
+      if unit == "player" and BOOST and name == BOOST.name and harmful then return BOOST end
+      return nil
+    end,
+  }
+  _G.C_Item = {
+    GetItemCount = function(id) return BAGS[id] or 0 end,
+    GetItemIconByID = function(id) return 100000 + id end,
+    GetItemSpell = function(id)
+      if id == 5477 then return "Nutritious Food", 1248379 end   -- Strider Stew
+      if id == 2680 then return "Nutritious Food", 1248378 end   -- Spiced Wolf Meat
+      if id == 4599 then return "Food", 433 end                  -- vendor bread
+      return nil
+    end,
+  }
+  local CD = { start = 0, dur = 0 }                         -- the sleeping bag's cooldown, as the client answers it
+  local TCD = { start = 0, dur = 0 }                        -- the tent's own item cooldown (Arn, 6 Nov: it has one)
+  _G.C_Container = {
+    GetContainerNumSlots = function(bag) return SLOTS[bag] and #SLOTS[bag] or 0 end,
+    GetContainerItemID = function(bag, slot) return SLOTS[bag] and SLOTS[bag][slot] end,
+    GetItemCooldown = function(id)
+      if W.combat then return secret(), secret(), 1 end
+      if id == X.BAG_ITEM then return CD.start, CD.dur, 1 end
+      if id == X.TENT_ITEM then return TCD.start, TCD.dur, 1 end
+      return 0, 0, 1
+    end,
+  }
+  _G.C_Spell = _G.C_Spell or {}
+  _G.C_Spell.GetSpellDescription = function(id)
+    if LATE[id] then return "" end                             -- not loaded yet: the client answers empty
+    if id == 1248379 or id == 1248378 then
+      return "Restores 243 health over 21 sec. Must remain seated while eating. If you spend at least 10 sec eating, you will"
+        .. " become well fed and gain 1 Intellect for 15 min. Additionally, experience gained from kills is increased by 5%."
+    end
+    if id == 1249506 then                                      -- Arn's Longjaw Mud Snapper tooltip, 6 Nov, word for word
+      return "Restores 530 health over 24 sec. Must remain seated while eating. If you spend at least 10 sec eating, you"
+        .. " will become well fed and gain 10 Attack Power for 15 min. Additionally, experience gained from kills is"
+        .. " increased by 5%."
+    end
+    if id == 433 then return "Restores 61 health over 18 sec. Must remain seated while eating." end
+    -- the live Well Fed: 70 characters, no "experience" (the probe's count; the words are a stand-in of that length)
+    if id == 1249519 then return "Increases Attack Power by 10 for 15 min. Must remain fed to keep it up." end
+    return nil
+  end
+  local function fire(event, ...) X.events.scripts.OnEvent(X.events, event, ...) end
+  db.food, db.bag, db.eat = nil, nil, nil
+  X.showBag, X.showFood, X.ate = nil, nil, nil
+  R:Get("xp"):OnLogin(db)
+  local bag, food = X.bag, X.food
+  ok(bag and bag.template == "SecureActionButtonTemplate" and bag.attrs.type1 == "item" and bag.attrs.item1 == "item:211527",
+     "the sleeping bag button: secure, it uses the bag")
+
+  -- Well-Rested gone, the bag in my bags: the button in the box
+  fire("UNIT_AURA", "player")
+  ok(X.ShowBag() and bag:IsShown() and bag:GetParent() == BiSToolsBox, "Well-Rested gone: the sleeping bag button, in the BiS> tools box")
+  -- one stack, plenty of time: still up - three is the full bonus
+  AURA = { spellId = X.RESTED, expirationTime = W.now + 3600, applications = 1 }
+  fire("UNIT_AURA", "player")
+  ok(bag:IsShown() and bag.word.text == "1", "one stack of three: still up, the stack on it")
+  AURA.applications = 3
+  fire("UNIT_AURA", "player")
+  ok(not bag:IsShown() and not X.ShowBag(), "three stacks: gone")
+  ok(X.due and math.abs(X.due - (3600 - X.LOW_RESTED + 1)) < 1e-6, "and ONE timer for the moment it runs low", X.due)
+  W.runAfters(3600 - X.LOW_RESTED + 2)
+  ok(bag:IsShown(), "under 10 minutes left: back, with no event and no ticker")
+  -- not in a fight: a secret answer is never a guess, and nothing runs
+  AURA.expirationTime = W.now + 3600
+  fire("UNIT_AURA", "player")
+  W.combat = true
+  local n = 0
+  local Cost = dofile("../_bisdev/dev/cost.lua")
+  local calls = Cost.Count(function() for _ = 1, 50 do fire("UNIT_AURA", "player") end end)
+  ok(calls <= 50 * 3, "in a fight: a UNIT_AURA costs next to nothing", calls)
+  W.combat = false
+  -- no bag in my bags: no button
+  BAGS[X.BAG_ITEM] = nil
+  AURA = nil
+  fire("BAG_UPDATE_DELAYED")
+  ok(not bag:IsShown(), "no sleeping bag in my bags: no button")
+  BAGS[X.BAG_ITEM] = 1
+  -- the level cap: nothing
+  LEVEL = 60
+  fire("UNIT_AURA", "player")
+  ok(not X.ShowBag() and not bag:IsShown(), "level 60: no XP buttons")
+  LEVEL = 20
+  fire("PLAYER_LEVEL_UP")
+  ok(bag:IsShown(), "levelling again (an alt): back")
+  -- a cost budget: out of combat, a minute of busy aura changes
+  print(("   cost: xp buttons, 100 aura changes out of combat = %d calls"):format(Cost.Count(function()
+    for _ = 1, 100 do fire("UNIT_AURA", "player") end
+  end)))
+  ok(Cost.Count(function() for _ = 1, 100 do fire("UNIT_AURA", "player") end end) <= 100 * 20,
+     "out of combat: a handful of calls per aura change, no layout unless something changed")
+
+  -- THE FOOD (Arn, 6 Nov: "most food in wow forever that is crafted by the cooking profession has xp buff"): ANY
+  -- cooked XP food in your bags is the button's - no learning needed. Bread never is.
+  ok(not X.ShowFood() and not food:IsShown() and X.pick == nil, "only bread in my bags: no food button")
+  -- Strider Stew in the bags, its text not loaded yet: not decided, asked again on the next look
+  BAGS[5477] = 3
+  SLOTS[0][3] = 5477
+  LATE[1248379] = true
+  fire("BAG_UPDATE_DELAYED")
+  ok(X.pick == nil and not food:IsShown(), "the stew's text not loaded yet: no guess")
+  LATE[1248379] = nil
+  fire("UNIT_AURA", "player")
+  ok(X.pick == 5477 and food:IsShown() and food.attrs.item1 == "item:5477",
+     "loaded on the next look: the stew is the XP food, the button aims at it", tostring(X.pick))
+  ok(db.food == nil, "and nothing had to be learned for that")
+  -- THE GLOW (Arn, 6 Nov: the food button "its pretty vital"): a gold ring around it, breathing - the client runs the
+  -- pulse, so nothing of ours runs per frame; it plays while the button is up and stops when it goes
+  local glow = food.glow
+  ok(glow and glow.pulse and glow.pulse.playing and glow.pulse.looping == "BOUNCE", "the food button glows while it is up")
+  ok(glow.ring and glow.ring.top.color and glow.ring.top.color[1] > 0.8 and glow.ring.top.color[3] < 0.5,
+     "a gold ring, outside the button's own edge")
+  ok(not food.scripts.OnUpdate and not glow.scripts.OnUpdate, "and no OnUpdate: the client runs the pulse, not us")
+  food:Hide()
+  ok(not glow.pulse.playing, "the button goes: the pulse stops")
+  food:Show()
+  ok(glow.pulse.playing, "back: the pulse again")
+  ok(bag.glow and bag.glow.pulse, "the sleeping bag button glows the same way")
+  -- bread gives no Well Fed: nothing learned, the button stays
+  fire("UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-1", 433)
+  W.now = W.now + 12
+  fire("UNIT_AURA", "player")
+  ok(db.food == nil and food:IsShown(), "bread eaten: no Well Fed - not learned, the button stays")
+  -- eat the stew: Forever puts ONE "Well Fed" on me (1249519, live 6 Nov), its readable text silent on experience
+  W.lastMsg = nil
+  fire("UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-2", 1248379)
+  W.now = W.now + 12
+  FED = { spellId = 1249519, expirationTime = W.now + 900, applications = 1 }
+  fire("UNIT_AURA", "player")
+  ok(db.food == 5477 and W.lastMsg and W.lastMsg:find("learned", 1, true), "eat the stew: learned as yours", tostring(db.food))
+  ok(not food:IsShown(), "and with 15 minutes of Well Fed on: no button (Arn 6 Nov: it said 'eat' over a fresh one)")
+  W.runAfters(900 - X.LOW_FOOD + 2)
+  ok(food:IsShown(), "under 2 minutes left: the food button comes")
+  FED = nil
+  fire("UNIT_AURA", "player")
+  ok(food:IsShown(), "gone: still up")
+  -- yours first, then whatever XP food you carry
+  BAGS[2680] = 10
+  SLOTS[0][4] = 2680
+  fire("BAG_UPDATE_DELAYED")
+  ok(X.pick == 5477, "more wolf meat than stew, but the stew is yours: still the stew")
+  BAGS[5477] = nil
+  SLOTS[0][3] = false
+  fire("BAG_UPDATE_DELAYED")
+  ok(X.pick == 2680 and food.attrs.item1 == "item:2680" and food:IsShown(), "out of stew: the wolf meat, no learning",
+     tostring(X.pick))
+  BAGS[2680] = nil
+  SLOTS[0][4] = false
+  fire("BAG_UPDATE_DELAYED")
+  ok(not food:IsShown() and X.pick == nil, "no XP food left in my bags: no button")
+  -- any Well Fed is the fed one: its readable text never says experience on Forever, so it is never asked
+  FED = { spellId = 1249519, expirationTime = W.now + 900, applications = 1 }
+  ok(type(X.Fed()) == "table", "the live Well Fed, text silent on experience: counts")
+  FED = { spellId = 1249519, expirationTime = W.now + 900, applications = 1 }
+  LATE[1249519] = true
+  ok(type(X.Fed()) == "table", "and with its text not loaded yet: still counts")
+  LATE[1249519] = nil
+  FED = nil
+  -- the bag scan is only on a bag change, never on an aura change
+  BAGS[2680], SLOTS[0][4] = 10, 2680
+  fire("BAG_UPDATE_DELAYED")
+  local scans = 0
+  local realSlots = _G.C_Container.GetContainerItemID
+  _G.C_Container.GetContainerItemID = function(...) scans = scans + 1 return realSlots(...) end
+  for _ = 1, 20 do fire("UNIT_AURA", "player") end
+  ok(scans == 0, "20 aura changes: no bag scan", scans)
+  -- an item whose text never loads (blank): asked to load, waited on X.LOAD_WAIT seconds, then not food - scans stop
+  BAGS[6948], SLOTS[0][5] = 1, 6948
+  local realSpell = _G.C_Item.GetItemSpell
+  _G.C_Item.GetItemSpell = function(id) if id == 6948 then return "Blank", 999 end return realSpell(id) end
+  LATE[999] = true
+  local asked = {}
+  _G.C_Spell.RequestLoadSpellData = function(id) asked[#asked + 1] = id end
+  fire("BAG_UPDATE_DELAYED")
+  for _ = 1, 5 do fire("UNIT_AURA", "player") end
+  ok(#asked == 1 and asked[1] == 999 and X.xpItem[6948] == nil, "a blank text: the client asked to load it, once - no verdict yet")
+  W.now = W.now + X.LOAD_WAIT
+  fire("UNIT_AURA", "player")
+  scans = 0
+  for _ = 1, 20 do fire("UNIT_AURA", "player") end
+  ok(scans == 0 and X.xpItem[6948] == false, "never loaded in 30 seconds: not food, no scans after", scans)
+  _G.C_Container.GetContainerItemID = realSlots
+  _G.C_Item.GetItemSpell = realSpell
+  -- a text that loads late: SPELL_DATA_LOAD_RESULT looks again at once (the Mud Snapper, 6 Nov live)
+  BAGS[2680], SLOTS[0][4] = nil, false
+  BAGS[4592], SLOTS[0][6] = 80, 4592
+  local realSpell2 = _G.C_Item.GetItemSpell
+  _G.C_Item.GetItemSpell = function(id) if id == 4592 then return "Nutritious Food", 1249506 end return realSpell2(id) end
+  LATE[1249506] = true
+  fire("BAG_UPDATE_DELAYED")
+  ok(X.pick == nil, "the Mud Snapper's text not loaded: not picked yet")
+  LATE[1249506] = nil
+  X.events.scripts.OnEvent(X.events, "SPELL_DATA_LOAD_RESULT", 1249506, true)
+  ok(X.pick == 4592 and food.attrs.item1 == "item:4592", "its text loads: the client says so, the Mud Snapper is picked at once",
+     tostring(X.pick))
+  -- a client with only the OLD global names: still found (Forever has C_Item.GetItemSpell and NO global GetItemSpell - probe 6 Nov; the Mud Snapper's use spell is 1249506)
+  X.xpItem, X.blank, X.waiting = {}, {}, {}
+  X.pick = nil
+  local cItem, cDesc = _G.C_Item.GetItemSpell, _G.C_Spell.GetSpellDescription
+  _G.C_Item.GetItemSpell, _G.C_Spell.GetSpellDescription = nil, nil
+  _G.GetItemSpell, _G.GetSpellDescription = cItem, cDesc
+  fire("BAG_UPDATE_DELAYED")
+  ok(X.pick == 4592, "only the old global lookups: the Mud Snapper still found", tostring(X.pick))
+  -- neither: nothing decided, nothing remembered
+  _G.GetItemSpell = nil
+  X.xpItem, X.pick = {}, nil
+  fire("BAG_UPDATE_DELAYED")
+  ok(X.pick == nil and next(X.xpItem) == nil, "no item lookup at all: no guess, nothing remembered as not-food")
+  _G.C_Item.GetItemSpell, _G.C_Spell.GetSpellDescription = cItem, cDesc
+  _G.GetItemSpell, _G.GetSpellDescription = nil, nil
+  _G.C_Item.GetItemSpell = realSpell2
+  _G.C_Spell.RequestLoadSpellData = nil
+  BAGS[4592], SLOTS[0][6] = nil, false
+  -- someone else's cast is never mine
+  X.ate = nil
+  fire("UNIT_SPELLCAST_SUCCEEDED", "party1", "Cast-3", 1248378)
+  ok(X.ate == nil, "a party member eating is not me eating")
+  -- by hand
+  S("xp food |cffffffff|Hitem:21023::::::::60:::::|h[Dirge's Kickin' Chimaerok Chops]|h|r")
+  ok(db.food == 21023, "/bist xp food <link>: named by hand", tostring(db.food))
+  S("xp bag off")
+  ok(db.bag == false and not bag:IsShown(), "/bist xp bag off: no bag button")
+  S("xp bag on")
+  W.lastMsg = nil
+  S("xp")
+  ok(W.lastMsg and W.lastMsg:find("Well-Rested", 1, true), "/bist xp: says where both buffs stand", W.lastMsg)
+
+  -- ONE STOP FOR BOTH (Arn, 6 Nov: "time the bag and eating at the same time if they are running out close to the same
+  -- time mostly food and our bag is off cooldown we should also do the sleeping bag because if i have the buff itll
+  -- redo the 3 stack instead of letting it fall out and having to wait 3 minutes")
+  db.food = nil
+  BAGS[2680], SLOTS[0][4] = 10, 2680
+  fire("BAG_UPDATE_DELAYED")
+  ok(X.pick == 2680, "wolf meat in the bags for this part")
+  -- food gone, Well-Rested full but would run low before the next meal (15 min left, the meal's 13 away): both
+  AURA = { spellId = X.RESTED, expirationTime = W.now + 900, applications = 3 }
+  FED = nil
+  fire("UNIT_AURA", "player")
+  ok(food:IsShown() and bag:IsShown(), "eating now, and Well-Rested would run low before the next meal: the bag too")
+  -- Well-Rested with 50 minutes left: only the food
+  AURA.expirationTime = W.now + 3000
+  fire("UNIT_AURA", "player")
+  ok(food:IsShown() and not bag:IsShown(), "Well-Rested good past the next meal: only the food")
+  -- the bag on cooldown: not offered alongside; offered the moment the cooldown ends (one timer, no event)
+  AURA.expirationTime = W.now + 900
+  CD.start, CD.dur = W.now - 60, 300
+  fire("UNIT_AURA", "player")
+  ok(food:IsShown() and not bag:IsShown(), "the bag on cooldown: not offered")
+  W.runAfters(241)
+  ok(bag:IsShown(), "its cooldown over: the bag joins the food")
+  CD.start, CD.dur = 0, 0
+  -- the other way: the bag is due and the food would run low within 5 minutes - eat in the same stop
+  AURA = nil
+  FED = { spellId = 1249519, expirationTime = W.now + 600, duration = 900, applications = 1 }
+  fire("UNIT_AURA", "player")
+  ok(bag:IsShown() and not food:IsShown(), "bag due, 10 minutes of food left: only the bag")
+  W.runAfters(600 - X.LOW_FOOD - X.PAIR + 2)
+  ok(bag:IsShown() and food:IsShown(), "food within 5 minutes of running low: the food joins the bag")
+  -- a 30-minute food (Gourmand, or a longer food) is read from the buff itself
+  AURA = { spellId = X.RESTED, expirationTime = W.now + 1500, applications = 3 }
+  FED = { spellId = 1249519, expirationTime = W.now + 60, duration = 1800, applications = 1 }
+  fire("UNIT_AURA", "player")
+  ok(food:IsShown() and bag:IsShown(), "a 30-minute meal: Well-Rested's 25 minutes would not last it - the bag too")
+  FED, AURA = nil, nil
+
+  -- THE CAMP TENT (Arn, 6 Nov: "need to track this too ... we have to track it by the debuff"; "the ideal start is camp
+  -- tent down, sleeping bag and food"). Item 279978 tops rested XP up to 5% of a level, needs a campfire, then a debuff
+  -- (Boosted Rest, 1229451 by one guide - by name too) blocks it an hour. It joins the stop, FIRST; never on its own.
+  local tent = select(3, X.Buttons())
+  ok(tent and tent.template == "SecureActionButtonTemplate" and tent.attrs.item1 == "item:279978", "the tent button: secure, it uses the tent")
+  BAGS[X.TENT_ITEM], SLOTS[0][7] = 1, X.TENT_ITEM
+  RESTXP = 200                                              -- 2% of the level
+  fire("BAG_UPDATE_DELAYED")
+  ok(food:IsShown() and bag:IsShown() and tent:IsShown(), "the stop, rested at 2% of a level, no debuff: the tent comes too")
+  local order = {}
+  for i, e in ipairs(Bx.Buttons()) do if e.show then order[e.b] = i end end
+  ok(order[tent] and order[bag] and order[food] and order[tent] < order[bag] and order[bag] < order[food],
+     "in Arn's order: tent, sleeping bag, food")
+  ok(tent.glow and tent.glow.pulse.playing, "and it glows like the others")
+  RESTXP = nil
+  fire("UPDATE_EXHAUSTION")
+  ok(tent:IsShown(), "no rested XP at all (the client answers nil): the tent")
+  -- put it down: the rested XP climbs to 5%, the debuff lands - gone either way
+  RESTXP = 500
+  fire("UPDATE_EXHAUSTION")
+  ok(not tent:IsShown() and food:IsShown(), "rested at 5% of a level: nothing to top up, the tent goes")
+  RESTXP = 100
+  BOOST = { spellId = 1229451, name = "Boosted Rest", expirationTime = W.now + 3600, applications = 1 }
+  fire("UNIT_AURA", "player")
+  ok(not tent:IsShown(), "Boosted Rest on me: no tent for its hour")
+  BOOST = { spellId = 1229999, name = "Boosted Rest", expirationTime = W.now + 3600, applications = 1 }
+  fire("UNIT_AURA", "player")
+  ok(not tent:IsShown(), "the debuff by its name, whatever its id")
+  BOOST = nil
+  fire("UNIT_AURA", "player")
+  ok(tent:IsShown(), "the debuff gone: the tent again")
+  -- TWO LOCKS (Arn, 6 Nov: "the items goes on cooldown but the xp buff gives you a debuff where you cant get another
+  -- camp exp buff for 1 hour"): the item's own cooldown counts too - and its end brings the button back, no event
+  TCD.start, TCD.dur = W.now, 300
+  fire("UNIT_AURA", "player")
+  ok(not tent:IsShown(), "the tent on its own item cooldown: not offered")
+  W.runAfters(301)
+  ok(tent:IsShown(), "its cooldown over: the tent comes back, with no event and no ticker")
+  TCD.start, TCD.dur = 0, 0
+  -- never on its own: fed, Well-Rested full - rested XP low or not, no stop, no tent
+  AURA = { spellId = X.RESTED, expirationTime = W.now + 3600, applications = 3 }
+  FED = { spellId = 1249519, expirationTime = W.now + 900, duration = 900, applications = 1 }
+  fire("UNIT_AURA", "player")
+  ok(not tent:IsShown() and not bag:IsShown() and not food:IsShown(), "no stop due: no tent, however low the rested XP")
+  FED, AURA = nil, nil
+  -- off by its option; no tent in the bags
+  db.tent = false
+  fire("UNIT_AURA", "player")
+  ok(not tent:IsShown() and food:IsShown(), "camp tent button off: not offered")
+  db.tent = nil
+  BAGS[X.TENT_ITEM], SLOTS[0][7] = nil, false
+  fire("BAG_UPDATE_DELAYED")
+  ok(not tent:IsShown(), "no tent in my bags: no button")
+  -- in a fight the rested XP is a secret: nothing is asked, nothing changes
+  BAGS[X.TENT_ITEM], SLOTS[0][7] = 1, X.TENT_ITEM
+  fire("BAG_UPDATE_DELAYED")
+  W.combat = true
+  ok(X.Rest() == nil, "rested XP hidden: unknown, never a guess")
+  W.combat = false
+  BAGS[X.TENT_ITEM], SLOTS[0][7], RESTXP, BOOST = nil, false, nil, nil
+
+  db.food, db.bag, db.eat, db.tent = nil, nil, nil, nil
+  _G.GetXPExhaustion, _G.UnitXPMax = keep.exh, keep.xpmax
+  _G.C_UnitAuras, _G.C_Item, _G.C_Container, _G.UnitLevel = keep.ua, keep.item, keep.cont, keep.level
+  if keep.cspell then _G.C_Spell.GetSpellDescription = keep.desc else _G.C_Spell = nil end
+  X.showBag, X.showFood = nil, nil
+  X.token = (X.token or 0) + 1
+  Bx.Refresh()
 end
 
 local allowed = { BiSTools = true, BiSToolsDB = true, SLASH_BISTOOLS1 = true, SLASH_BISTOOLS2 = true,

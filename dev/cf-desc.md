@@ -1,4 +1,4 @@
-# BiS Tools — CurseForge page text (0.18.1)
+# BiS Tools — CurseForge page text (0.19.0)
 
 Paste everything below the line into the project description
 (CurseForge → BiS Tools, project 1686340 → Edit → Description), in the Markdown editor.
@@ -83,6 +83,16 @@ At a zeppelin tower, a boat dock or a Deeprun Tram platform, a small card pops u
 - **RIDE-TRAK.** Shift-click the card and each ride gets a little line map under its announcer: here on the left, where it goes on the right, the ride a gold block moving between them - and your own face on it once you're aboard. The tram shows both of its cars.
 - **Close it for good** with the X; `/bist rides on` brings it back.
 
+## XP buffs, while you level
+
+Stop to eat, and BiS Tools has the whole stop ready. When an XP buff needs you, its button comes into the BiS> tools box, glowing, and one click does it:
+
+- **Camp Tent first.** Your rested XP under 5% of a level, the tent off cooldown and its hour-long debuff off you: put it down (a campfire nearby).
+- **Then the Cozy Sleeping Bag.** Well-Rested gone, short of its 3 stacks, or under 10 minutes left.
+- **Then your XP food.** Well Fed gone or under 2 minutes left. Any cooked food that gives the experience bonus will do, with nothing to set up; the one you last ate goes first. Vendor food is never picked.
+- **One stop for both.** Eat on the bag and you get both buffs at once. So when it's time to eat and Well-Rested would run low before your next meal, the bag comes too, and the other way round.
+- **Out of combat only, nothing at level 60.** No timer ticking: it looks when your buffs, bags or rested XP change. `/bist xp` says where everything stands.
+
 ## Sound explorer
 
 Every sound the game has a name for, in one list you can search. Type a word (`bell`, `click`, `chime`) or an id, click a row, hear it.
@@ -94,7 +104,7 @@ Every sound the game has a name for, in one list you can search. Type a word (`b
 
 ## The BiS> tools box
 
-The farm's skull, the rival target button, and in battlegrounds the red **+** and the saber button sit together in one small box. Each shows only when it has something to do. With BiS Healing's "BiS> now" on screen, the box docks beside it.
+The farm's skull, the rival target button, the XP buff buttons, and in battlegrounds the red **+** and the saber button sit together in one small box. Each shows only when it has something to do. With BiS Healing's "BiS> now" on screen, the box docks beside it.
 
 ## Settings
 
@@ -115,6 +125,7 @@ Left-click the minimap button for the tools, right-click for the options. Hover 
 | `/bist farm` | the farm window |
 | `/bist farm key F5` | the skull key |
 | `/bist sounds` · `/bist sounds favs` | the sound explorer · your starred sounds |
+| `/bist xp` · `/bist xp tent off` · `/bist xp bag off` | where your XP buffs stand · drop a button |
 | `/bist on <tool>` · `/bist off <tool>` | switch a tool on or off |
 
 ## Why it works the way it does
