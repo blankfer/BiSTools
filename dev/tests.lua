@@ -2336,14 +2336,66 @@ do
     ok(page and page.category and page.category.name == "BiS> Tools" and page.category.parentCat.name == "BiS>",
        "BiS> Tools: a page under BiS> in the game's options")
     local spec = page.spec
-    ok(spec.title == "Tools" and spec.api and spec.api.name == "BiSToolsAPI" and spec.open and spec.open.label == "the tools",
+    ok(spec.title == "Tools" and spec.api and spec.api.name == "BiSToolsAPI" and spec.open and spec.open.label == "the tools list",
        "titled Tools, the API named, a big button to the tools")
     ok(spec.status() == H.Status() and spec.status():find("of 15 tools on", 1, true), "its status line: N of 15 tools on", spec.status())
-    ok(spec.window() == BiSToolsOptions, "it holds the options window (every tool's on/off tick lives there)")
+    -- THE DASHBOARD (Arn, 7 Nov live: "dont just shrink remake them all"): the page draws itself and never takes
+    -- the options window in
+    ok(spec.build and spec.refresh and spec.window == nil, "the page is a dashboard, not the options window in a box")
+    BiSToolsOptions:Hide()
     page.frame:Show()
-    ok(BiSToolsOptions.parent == page.frame.body and BiSToolsOptions:IsShown(), "shown: the options window sits inside the page")
+    local optParent = BiSToolsOptions.parent
+    ok(optParent ~= page.frame.body and not BiSToolsOptions:IsShown(), "the options window stays where it lives, hidden")
+    local d = page.frame.body.dash
+    ok(d and #d.rows == 16 and d.rows[1].entry.general, "the list: BiS Tools itself, then all 15 tools", d and #d.rows)
+    local xpRow
+    for _, r in ipairs(d.rows) do if r.entry.key == "xp" then xpRow = r end end
+    xpRow.scripts.OnClick(xpRow, "LeftButton")
+    ok(d.selected == "xp" and d.detail.name.text == "xp", "click a tool: its panel")
+    local xpTool = R:Get("xp")
+    local xpRows = d.pages.xp
+    ok(#xpRows == #xpTool.options and #xpRows == 3, "every one of its settings is a big row", #xpRows)
+    ok(d.detail.desc.text == xpTool.desc, "with what it does in full words")
+    ok(d.detail.usage.text:find(xpTool.usage, 1, true), "and its command")
+    local was = R:Enabled("xp")
+    d.detail.switch.scripts.OnClick(d.detail.switch)
+    ok(R:Enabled("xp") == not was and d.detail.switch.on == not was, "the big switch turns it on / off")
+    ok(xpRow.state.text == (not was and "ON" or "off"), "and the list says so at once")
+    ok(xpRows[1].label.alpha == (not was and 1 or 0.45), "its settings grey out while it is off")
+    xpRow.scripts.OnClick(xpRow, "RightButton")
+    ok(R:Enabled("xp") == was, "right-click in the list switches it back")
+    xpRows[1].scripts.OnEnter(xpRows[1])
+    ok(d.help.text.text == xpTool.options[1].help, "pointing at a setting reads its help in the strip")
+    xpRows[1].scripts.OnLeave(xpRows[1])
+    local xdb = R:DBFor(xpTool)
+    local bagWas = xdb.bag ~= false
+    xpRows[1].sw.scripts.OnClick(xpRows[1].sw)
+    ok((xdb.bag ~= false) == not bagWas, "a setting's switch changes the tool's saved setting")
+    xpRows[1].sw.scripts.OnClick(xpRows[1].sw)
+    -- a tool with a window: a button opens it, after putting the game's options away
+    local pupsRow
+    for _, r in ipairs(d.rows) do if r.entry.key == "pups" then pupsRow = r end end
+    pupsRow.scripts.OnClick(pupsRow, "LeftButton")
+    ok(d.detail.open:IsShown(), "a tool with a window: a button to open it")
+    local panelUp = true
+    _G.SettingsPanel = { IsShown = function() return panelUp end, Hide = function() panelUp = false end }
+    local keepHUI = rawget(_G, "HideUIPanel")
+    _G.HideUIPanel = function(x) x:Hide() end
+    local keepOpen = H.Open
+    local openedKey
+    H.Open = function(k) openedKey = k end
+    d.detail.open.scripts.OnClick(d.detail.open)
+    H.Open = keepOpen
+    _G.SettingsPanel, _G.HideUIPanel = nil, keepHUI
+    ok(panelUp == false and openedKey == "pups", "it closes the game's options, then opens that tool's window")
+    d.rows[1].scripts.OnClick(d.rows[1], "LeftButton")
+    ok(d.selected == "_general" and not d.detail.switch:IsShown() and #d.pages._general == 3,
+       "BiS Tools itself: no on/off, its own three settings")
+    -- every row and button pops under the mouse (the family rule)
+    pupsRow.scripts.OnEnter(pupsRow)
+    ok(pupsRow.wash.alpha == 1 and d.help.text.text == R:Get("pups").desc, "a list row pops and reads what the tool does")
+    pupsRow.scripts.OnLeave(pupsRow)
     page.frame:Hide()
-    ok(BiSToolsOptions.parent ~= page.frame.body and not BiSToolsOptions:IsShown(), "left: given back to the screen, hidden")
     -- every tool has its tick in that window (a new install's tools all start off: each must be switchable there)
     local found = {}
     for key, tool in R:Each() do
@@ -2353,17 +2405,21 @@ do
       end
     end
     ok(#found == 15, "all 15 tools have an on/off tick in the options window", #found)
-    -- the minimap's right-click: the BiS> page; the open button: the Hub
+    -- the minimap's right-click: the OWN options window, and again closes it (Arn, 7 Nov live); the open button: the Hub
     BiSToolsHub:Hide()
+    BiSToolsOptions:Hide()
+    local before = #opened
     mm.scripts.OnClick(mm, "RightButton")
-    ok(opened[#opened] == "BiS> Tools" and not BiSToolsOptions:IsShown(), "right-click opens BiS> Tools in the game's options", opened[#opened])
+    ok(BiSToolsOptions:IsShown() and #opened == before, "right-click opens the own options window, not the game's options")
+    mm.scripts.OnClick(mm, "RightButton")
+    ok(not BiSToolsOptions:IsShown(), "right-click again closes it")
     spec.open.func()
     ok(BiSToolsHub:IsShown(), "the page's big button opens the tools (the Hub)")
     BiSToolsHub:Hide()
-    -- no panel (an older client, or it failed): the own options window, as before
+    -- no panel (an older client): the same
     _G.Settings = nil
     mm.scripts.OnClick(mm, "RightButton")
-    ok(BiSToolsOptions:IsShown(), "no game panel: right-click falls back to the own options window")
+    ok(BiSToolsOptions:IsShown(), "no game panel: right-click is the own options window too")
     BiSToolsOptions:Hide()
     _G.Settings, BT.settingsRoot, BT.settingsPages, BT.settingsOrder = keepS, keepRoot, keepPages, keepOrder
   end
@@ -7619,6 +7675,37 @@ do
   X.events.scripts.OnEvent(X.events, "SPELL_DATA_LOAD_RESULT", 1249506, true)
   ok(X.pick == 4592 and food.attrs.item1 == "item:4592", "its text loads: the client says so, the Mud Snapper is picked at once",
      tostring(X.pick))
+  -- A SLOW LOGIN (Arn, 7 Nov live: "xp food buff button was missing" with 80 Mud Snappers on him, there after a
+  -- reload). The text did not load in 30 seconds and no load event came: the food was written off for the whole
+  -- session. The food he was SEEN eating is trusted while he carries it, and a written-off text is asked again on
+  -- the next bag change.
+  X.xpItem, X.blank, X.waiting = {}, {}, {}
+  X.pick = nil
+  local keepFav = db.food
+  db.food = 4592
+  LATE[1249506] = true
+  fire("BAG_UPDATE_DELAYED")
+  ok(X.pick == 4592, "login, the Mud Snapper's text not loaded: yours, so picked", tostring(X.pick))
+  W.now = W.now + X.LOAD_WAIT
+  fire("UNIT_AURA", "player")
+  ok(X.pick == 4592 and X.xpItem[4592] == false, "30 seconds, still no text: written off - but yours stays on the button",
+     tostring(X.pick))
+  db.food = nil
+  fire("BAG_UPDATE_DELAYED")
+  ok(X.pick == nil, "not learned yet and its text never came: nothing to eat for now", tostring(X.pick))
+  LATE[1249506] = nil
+  fire("BAG_UPDATE_DELAYED")
+  ok(X.pick == 4592, "the text there now: the next bag change asks again and picks it - not lost for the session",
+     tostring(X.pick))
+  db.food = keepFav
+  -- LEAN: one second chance per item, so a text that never comes cannot keep the bag scan running all evening
+  X.gaveUp, X.retried = { [777] = true }, {}
+  X.Retry()
+  ok(X.gaveUp[777] == nil, "a written-off text gets one more try")
+  X.gaveUp[777] = true
+  X.Retry()
+  ok(X.gaveUp[777] == true, "and only one: written off again, it stays written off")
+  X.gaveUp, X.retried = {}, {}
   -- a client with only the OLD global names: still found (Forever has C_Item.GetItemSpell and NO global GetItemSpell - probe 6 Nov; the Mud Snapper's use spell is 1249506)
   X.xpItem, X.blank, X.waiting = {}, {}, {}
   X.pick = nil
