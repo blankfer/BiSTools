@@ -32,6 +32,7 @@ NS.Proc = P
 
 P.SPELL, P.LINE = 13262, 333                    -- Disenchant; Enchanting's skill line
 P.W, P.H = 358, 250                             -- 1.43:1
+P.SCALE, P.GLOW = 1.2, 0.35                     -- 20% bigger (Arn: "cant read"); the hover wash, clearly seen
 P.ROW, P.ROWS = 20, 7                         -- 7: room for the haul strip under them
 P.TAPE_W, P.TAPE_H = 50, 160
 P.PX = 1.0                                      -- tape pixels per skill point
@@ -402,6 +403,9 @@ function P.Build()
   f:SetSize(P.W, P.H)
   f:SetPoint("CENTER")
   f:SetFrameStrata("DIALOG")
+  f:SetScale(P.SCALE)                                           -- Arn: "lets make 20% bigger its so small cant read"
+  if UISpecialFrames then table.insert(UISpecialFrames, "BiSToolsProcessing") end   -- Escape closes it (out of combat:
+                                                                -- a fight puts it away first)
   f:EnableMouse(true)
   f:SetMovable(true)
   f:SetClampedToScreen(true)
@@ -445,7 +449,13 @@ function P.Build()
     local r = CreateFrame("Button", nil, f)
     r:SetSize(w, P.ROW)
     r:SetPoint("TOPLEFT", x, -26 - (i - 1) * P.ROW)
+    -- THE ROW POPS UNDER THE MOUSE (Arn, 6 Nov, the third time asked): a clear wash and a bar on the left
     r.lit = k.tex(r, "BACKGROUND", "accent", 0)
+    r.bar = r:CreateTexture(nil, "ARTWORK")
+    r.bar:SetPoint("TOPLEFT") r.bar:SetPoint("BOTTOMLEFT")
+    r.bar:SetWidth(3)
+    do local rr, g, b = K().color("accent") r.bar:SetColorTexture(rr, g, b, 1) end
+    r.bar:SetAlpha(0)
     r.icon = r:CreateTexture(nil, "ARTWORK")
     r.icon:SetSize(P.ROW - 4, P.ROW - 4)
     r.icon:SetPoint("LEFT", 2, 0)
@@ -461,7 +471,7 @@ function P.Build()
       P.Ignore(self.entry)
     end)
     r:SetScript("OnEnter", function(self)
-      self.lit:SetAlpha(0.15)
+      self.lit:SetAlpha(P.GLOW) self.bar:SetAlpha(1)
       local e = self.entry
       if e and GameTooltip then
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
@@ -470,7 +480,7 @@ function P.Build()
         GameTooltip:Show()
       end
     end)
-    r:SetScript("OnLeave", function(self) self.lit:SetAlpha(0) if GameTooltip then GameTooltip:Hide() end end)
+    r:SetScript("OnLeave", function(self) self.lit:SetAlpha(0) self.bar:SetAlpha(0) if GameTooltip then GameTooltip:Hide() end end)
     -- the button that disenchants: secure, aimed at one bag slot
     local a = CreateFrame("Button", "BiSToolsProcessingAct" .. i, r, "SecureActionButtonTemplate")
     a:SetSize(P.ROW - 2, P.ROW - 2)
@@ -666,7 +676,9 @@ function P.BoxButton()
 end
 
 function P.ShowBox()
-  return R:Enabled("processing") and not fighting() and (P.count or 0) > 0 and P.Knows() or false
+  -- in town only (Arn, 6 Nov: "so people arent questing with the button nagging them"): an inn or a city
+  local town = IsResting and IsResting() and true or false
+  return R:Enabled("processing") and town and not fighting() and (P.count or 0) > 0 and P.Knows() or false
 end
 
 --- On the profession window, beside its title.
@@ -683,7 +695,7 @@ end
 
 local ev = CreateFrame("Frame")
 for _, e in ipairs({ "BAG_UPDATE_DELAYED", "UNIT_SPELLCAST_SUCCEEDED", "UI_ERROR_MESSAGE", "PLAYER_REGEN_DISABLED",
-                     "PLAYER_REGEN_ENABLED", "TRADE_SKILL_SHOW", "CHAT_MSG_LOOT" }) do pcall(ev.RegisterEvent, ev, e) end
+                     "PLAYER_REGEN_ENABLED", "TRADE_SKILL_SHOW", "CHAT_MSG_LOOT", "PLAYER_UPDATE_RESTING" }) do pcall(ev.RegisterEvent, ev, e) end
 ev:SetScript("OnEvent", function(_, event, a1, a2, a3)
   if not R:Enabled("processing") then return end
   if event == "PLAYER_REGEN_DISABLED" then
@@ -693,6 +705,9 @@ ev:SetScript("OnEvent", function(_, event, a1, a2, a3)
   elseif event == "PLAYER_REGEN_ENABLED" then
     if P.reopen then P.reopen = nil P.frame:Show() P.dirty = true end
     if P.dirty then P.Recount() P.Paint() end
+    return
+  elseif event == "PLAYER_UPDATE_RESTING" then                -- into town or out of it: the box button follows
+    if not fighting() and NS.Box and NS.Box.Refresh then NS.Box.Refresh() end
     return
   elseif event == "TRADE_SKILL_SHOW" then
     P.TradeSkillButton()

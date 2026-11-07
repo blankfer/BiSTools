@@ -332,6 +332,9 @@ _G.CreateFrame = function(kind, name, parent, template)
     end
     function f:GetModelFileID() return self._file or 0 end
     function f:SetPortraitZoom(z) self._zoom = z end
+    -- an animation by the client's id, looped (BiS Shell plays them live: stand 0, wave 67, cheer 68, cry 77)
+    function f:SetAnimation(id) if type(id) ~= "number" then error("SetAnimation wants an animation id", 2) end self._anim = id end
+    function f:SetCamDistanceScale(s) self._cam = s end
   end
   -- ON FOREVER, REGISTERING THE COMBAT LOG IS A PROTECTED ACTION (6 Oct 2026, Arn's BugGrabber:
   -- "AddOn 'BiSTools' tried to call the protected function 'Frame:RegisterEvent()'"). The client
@@ -7549,6 +7552,9 @@ do
   }, { __index = keep.item })
   _G.ItemLocation = { CreateFromBagAndSlot = function(_, bag, slot) return { bag = bag, slot = slot } end }
   local KNOWN, SKILL = true, 60
+  local RESTING = true                                        -- in town (an inn or a city)
+  keep.resting = rawget(_G, "IsResting")
+  _G.IsResting = function() return RESTING end
   _G.IsPlayerSpell = function(id) return KNOWN and id == 13262 end
   _G.GetProfessions = function() return 1, 2 end
   _G.GetProfessionInfo = function(i)
@@ -7578,6 +7584,11 @@ do
   P.Toggle(true)
   local f = BiSToolsProcessing
   ok(f and f:IsShown(), "BiS> processing opens")
+  -- (Arn, 6 Nov live: "lets make 20% bigger its so small cant read" - and "esc does not close the window")
+  ok(f.scale == 1.2, "20% bigger, as the Tools list", f.scale)
+  local inEsc = false
+  for _, n in ipairs(UISpecialFrames) do if n == "BiSToolsProcessing" then inEsc = true end end
+  ok(inEsc, "Escape closes it")
   ok(math.abs(f.w / f.h - 1.43) < 0.02, "1.43:1, the BiSTheme shape", f.w / f.h)
   ok(f.title.text:find("PROCESSING", 1, true) and f.title.text:find("ENCHANTING", 1, true), "the page title: PROCESSING  ENCHANTING")
   ok(f.summary.text:find("5 READY", 1, true) and f.summary.text:find("1 ABOVE SKILL", 1, true), "the computed line", f.summary.text)
@@ -7603,6 +7614,15 @@ do
   ok(r1.entry and not r1.entry.above, "ready items first")
   local function rowFor(guid) for _, r in ipairs(rows) do if r.entry and r.entry.guid == guid then return r end end end
   local belt = rowFor("G-BELT-A")
+  -- THE ROW POPS UNDER THE MOUSE (Arn, 6 Nov live, the third time asked: "if you hover a row it should pop"): a
+  -- clear wash and a bar on the left - from the row itself and from its Disenchant button
+  belt.scripts.OnEnter(belt)
+  ok(belt.lit.alpha and belt.lit.alpha >= 0.3 and belt.bar.alpha == 1, "hover a row: it lights up, bar and all", belt.lit.alpha)
+  belt.scripts.OnLeave(belt)
+  ok(belt.lit.alpha == 0 and belt.bar.alpha == 0, "the mouse leaves: dark again")
+  belt.act.scripts.OnEnter(belt.act)
+  ok(belt.lit.alpha >= 0.3, "hovering its Disenchant button lights the row too")
+  belt.act.scripts.OnLeave(belt.act)
   ok(belt.act.template:find("SecureActionButtonTemplate") and belt.act.attrs.type1 == "spell" and belt.act.attrs.spell1 == "Disenchant"
      and belt.act.attrs["target-bag"] == 0 and belt.act.attrs["target-slot"] == 1, "a row's button: Disenchant on THAT bag slot")
   -- (Arn, 6 Nov live: "i tried to shift click another item and it no work only for soul bound gear should work for
@@ -7709,6 +7729,14 @@ do
   NS.Box.Refresh()
   local bb = P.BoxButton()
   ok(bb:IsShown() and bb:GetParent() == BiSToolsBox, "a processing button in the BiS> tools box")
+  -- TOWN ONLY (Arn, 6 Nov: "lets only pop out that button when we are in town so people arent questing with the button
+  -- nagging them"): out of a city or inn it goes; back in, it comes
+  RESTING = false
+  fire("PLAYER_UPDATE_RESTING")
+  ok(not P.ShowBox() and not bb:IsShown(), "out questing: no processing button")
+  RESTING = true
+  fire("PLAYER_UPDATE_RESTING")
+  ok(bb:IsShown(), "back in town: the button")
   bb.scripts.OnClick(bb, "LeftButton")
   ok(not f:IsShown(), "it toggles the window")
   -- the profession window: a button on it
@@ -7739,7 +7767,7 @@ do
 
   db.ignore, db.blocked = {}, {}
   _G.C_Container, _G.C_Item, _G.ItemLocation, _G.IsPlayerSpell = keep.cont, keep.item, keep.loc, keep.known
-  _G.GetProfessions, _G.GetProfessionInfo, _G.TradeSkillFrame = keep.profs, keep.info, keep.ts
+  _G.GetProfessions, _G.GetProfessionInfo, _G.TradeSkillFrame, _G.IsResting = keep.profs, keep.info, keep.ts, keep.resting
 end
 
 local allowed = { BiSTools = true, BiSToolsDB = true, SLASH_BISTOOLS1 = true, SLASH_BISTOOLS2 = true,
