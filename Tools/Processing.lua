@@ -32,7 +32,7 @@ NS.Proc = P
 
 P.SPELL, P.LINE = 13262, 333                    -- Disenchant; Enchanting's skill line
 P.W, P.H = 358, 250                             -- 1.43:1
-P.ROW, P.ROWS = 20, 8
+P.ROW, P.ROWS = 20, 7                         -- 7: room for the haul strip under them
 P.TAPE_W, P.TAPE_H = 50, 160
 P.PX = 1.0                                      -- tape pixels per skill point
 P.ICON = "Interface\\Icons\\INV_Enchant_Disenchant"
@@ -373,6 +373,10 @@ function P.Paint()
   end
   f.summary:SetText(("%d READY  -  %d ABOVE SKILL%s"):format(ready, above, blocked > 0 and ("  -  " .. blocked .. " NEED A ROD") or ""))
   f.ignored:SetText(ignored > 0 and (ignored .. " IGNORED (SHOW)") or (P.db and P.db.showIgnored and "HIDE IGNORED" or ""))
+  -- short enough to sit beside the title: "0.19.1  9e52109+ 1106-1841" (the branch is in the full stamp)
+  local sha = NS.BUILD and NS.BUILD:match("@(%S+)")
+  local when = NS.BUILD and NS.BUILD:match("(%S+)$")
+  f.build:SetText(sha and (tostring(NS.VERSION) .. "  " .. sha .. " " .. (when or "")) or tostring(NS.VERSION))
   P.PaintTape(list)
   P.RefreshTip()
 end
@@ -410,6 +414,11 @@ function P.Build()
   f.title:SetPoint("TOPLEFT", 8, -7)
   f.title:SetText("BiS> PROCESSING   ENCHANTING")
   f.close = textButton(f, "x", 16, function() P.Toggle(false) end)
+  -- the fingerprint: the version, and on a deployed test build its stamp - faint, beside the x
+  f.build = fs(f, 7, "dim")
+  f.build:SetJustifyH("RIGHT")
+  f.build:SetPoint("RIGHT", f.close, "LEFT", -6, 0)
+  f.build:SetAlpha(0.6)
   f.close:SetPoint("TOPRIGHT", -4, -4)
   -- the tape
   local t = CreateFrame("Frame", nil, f)
@@ -496,6 +505,36 @@ function P.Build()
     P.db.showIgnored = not P.db.showIgnored or nil
     P.Paint()
   end)
+  -- the haul: what disenchanting gave this session, icons with counts (hover: all time)
+  local haul = CreateFrame("Frame", nil, f)
+  haul:SetPoint("BOTTOMLEFT", 8, 30)
+  haul:SetPoint("BOTTOMRIGHT", -8, 30)
+  haul:SetHeight(18)
+  haul.label = fs(haul, 8, "muted")
+  haul.label:SetPoint("LEFT", 2, 0)
+  haul.label:SetText("THIS SESSION")
+  haul.slots = {}
+  for i = 1, P.HAUL_MAX do
+    local s = CreateFrame("Button", nil, haul)
+    s:SetSize(16, 16)
+    s:SetPoint("LEFT", 74 + (i - 1) * 38, 0)
+    s.icon = s:CreateTexture(nil, "ARTWORK")
+    s.icon:SetAllPoints()
+    s.count = fs(s, 9, "ink")
+    s.count:SetPoint("LEFT", s, "RIGHT", 2, 0)
+    s:SetScript("OnEnter", function(self)
+      if not (GameTooltip and self.id) then return end
+      GameTooltip:SetOwner(self, "ANCHOR_TOP")
+      GameTooltip:AddLine(P.haulName[self.id] or ("item " .. self.id))
+      GameTooltip:AddLine(("this session %d   all time %d"):format(P.haul[self.id] or 0,
+        (P.db and P.db.totals and P.db.totals[self.id]) or 0), 1, 1, 1)
+      GameTooltip:Show()
+    end)
+    s:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+    s:Hide()
+    haul.slots[i] = s
+  end
+  f.haul = haul
   local pad = CreateFrame("Frame", nil, f)
   pad:SetPoint("BOTTOMLEFT", 8, 8)
   pad:SetPoint("BOTTOMRIGHT", -8, 8)
@@ -546,8 +585,56 @@ function P.Toggle(want)
   if fighting() then NS.Print("processing: after the fight") return false end
   local f = P.Build()
   if want == nil then want = not f:IsShown() end
-  if want then f:Show() P.Paint() else f:Hide() end
+  if want then
+    if not f:IsShown() then P.haul, P.deAt = {}, nil end   -- a fresh open: a fresh session, no earlier disenchant
+    f:Show() P.Paint() P.PaintHaul()
+  else
+    f:Hide()
+  end
   return f:IsShown()
+end
+
+-- ------------------------------------------------------------------ the haul
+-- Arn, 6 Nov: "a pop up or a ticker of all the stuff we got in this session of disenchanting resets when we open
+-- window again maybe we keep track". This session = since the window opened (P.haul); all time = db.totals. Only
+-- loot within P.LOOT_WINDOW seconds of OUR disenchant counts - a mob's drop or the mail never does.
+P.HAUL_MAX, P.LOOT_WINDOW = 7, 6
+P.haul, P.haulName = {}, {}
+
+function P.Loot(msg)
+  if type(msg) ~= "string" or not P.deAt or now() - P.deAt > P.LOOT_WINDOW then return false end
+  if not msg:find("^You ") then return false end           -- mine, not a groupmate's ("You receive loot: ...")
+  local id = tonumber(msg:match("|Hitem:(%d+)"))
+  if not id then return false end
+  local n = tonumber(msg:match("|r%s*x(%d+)")) or 1
+  P.haul[id] = (P.haul[id] or 0) + n
+  P.haulName[id] = msg:match("|h%[(.-)%]|h") or P.haulName[id]
+  if P.db then
+    P.db.totals = P.db.totals or {}
+    P.db.totals[id] = (P.db.totals[id] or 0) + n
+  end
+  P.PaintHaul()
+  return true
+end
+
+function P.PaintHaul()
+  local f = P.frame
+  if not (f and f.haul) then return end
+  local ids = {}
+  for id in pairs(P.haul) do ids[#ids + 1] = id end
+  table.sort(ids, function(a, b) return (P.haul[a] or 0) > (P.haul[b] or 0) end)
+  for i, s in ipairs(f.haul.slots) do
+    local id = ids[i]
+    s.id = id
+    if id then
+      s.icon:SetTexture((C_Item and C_Item.GetItemIconByID and plain(ask(C_Item.GetItemIconByID, id))) or 134400)
+      s.count:SetText("x" .. P.haul[id])
+      s:Show()
+    else
+      s:Hide()
+    end
+  end
+  f.haul.label:SetText(#ids > 0 and "THIS SESSION" or "THIS SESSION: NOTHING YET")
 end
 
 -- ------------------------------------------------------------------ the doors
@@ -596,7 +683,7 @@ end
 
 local ev = CreateFrame("Frame")
 for _, e in ipairs({ "BAG_UPDATE_DELAYED", "UNIT_SPELLCAST_SUCCEEDED", "UI_ERROR_MESSAGE", "PLAYER_REGEN_DISABLED",
-                     "PLAYER_REGEN_ENABLED", "TRADE_SKILL_SHOW" }) do pcall(ev.RegisterEvent, ev, e) end
+                     "PLAYER_REGEN_ENABLED", "TRADE_SKILL_SHOW", "CHAT_MSG_LOOT" }) do pcall(ev.RegisterEvent, ev, e) end
 ev:SetScript("OnEvent", function(_, event, a1, a2, a3)
   if not R:Enabled("processing") then return end
   if event == "PLAYER_REGEN_DISABLED" then
@@ -624,9 +711,13 @@ ev:SetScript("OnEvent", function(_, event, a1, a2, a3)
     P.Recount()
     P.Paint()
     return
+  elseif event == "CHAT_MSG_LOOT" then
+    P.Loot(plain(a1))
+    return
   elseif event == "UNIT_SPELLCAST_SUCCEEDED" then
     if a1 ~= "player" then return end
     if plain(a3) == P.SPELL then
+      P.deAt = now()                                         -- its loot, arriving next, is the haul's
       -- it went through: any rod block at or under this item's level is answered
       local c = P.clicked
       if c and type(c.e.ilvl) == "number" and P.db and P.db.blocked then
@@ -646,7 +737,7 @@ R:Register({
   name = "processing",
   desc = "your professions' work in one cockpit page: disenchant (enchanting first)",
   usage = "/bist processing [ignored clear | rods clear]",
-  defaults = { ignore = {}, blocked = {} },
+  defaults = { ignore = {}, blocked = {}, totals = {} },
   OnInit = function(_, db) P.db = db end,
   OnLogin = function(_, db) P.db = db P.Recount() end,
   OnOpen = function(_, db, recenter)

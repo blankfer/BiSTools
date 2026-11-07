@@ -7671,6 +7671,40 @@ do
   cloak2.act.scripts.PreClick(cloak2.act, "LeftButton", true)
   fire("UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-9", 13262)
   ok(next(db.blocked) == nil, "a disenchant that went through: the block is forgotten")
+  -- THE HAUL (Arn, 6 Nov: "a pop up or a ticker of all the stuff we got in this session of disenchanting resets when we
+  -- open window again maybe we keep track"): what disenchanting gave, as icons with counts; this session = since the
+  -- window opened; all time kept in the saved table. Only loot just after OUR disenchant counts.
+  local DUST = "|cffffffff|Hitem:10940::::::::20:::::|h[Strange Dust]|h|r"
+  local ESS = "|cff1eff00|Hitem:10938::::::::20:::::|h[Lesser Magic Essence]|h|r"
+  P.Toggle(false) P.Toggle(true)                            -- a fresh open: a fresh session
+  ok(next(P.haul) == nil, "a fresh open: nothing in this session's haul")
+  fire("CHAT_MSG_LOOT", "You receive loot: " .. DUST .. "x3.")
+  ok(next(P.haul) == nil, "loot that is not from a disenchant (a mob, the mail): not counted")
+  local c3 = rowFor("G-CLOAK-1")
+  c3.act.scripts.PreClick(c3.act, "LeftButton", true)
+  fire("UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-10", 13262)
+  fire("CHAT_MSG_LOOT", "You receive loot: " .. DUST .. "x2.")
+  fire("CHAT_MSG_LOOT", "You receive loot: " .. ESS .. ".")
+  ok(P.haul[10940] == 2 and P.haul[10938] == 1, "after our disenchant: 2 Strange Dust and 1 Lesser Magic Essence", P.haul[10940])
+  ok(db.totals and db.totals[10940] == 2, "and kept for all time")
+  local strip = f.haul
+  ok(strip and strip.slots[1]:IsShown() and strip.slots[1].count.text ~= "", "the strip shows them as icons with counts")
+  W.now = W.now + 30
+  fire("CHAT_MSG_LOOT", "You receive loot: " .. DUST .. "x5.")
+  ok(P.haul[10940] == 2, "loot long after the disenchant: not counted", P.haul[10940])
+  P.Toggle(false) P.Toggle(true)
+  ok(next(P.haul) == nil and db.totals[10940] == 2, "opened again: this session starts fresh, all time stays")
+  -- THE FINGERPRINT (Arn, 6 Nov: "a small version number on all the windows or a finger print thing only you can see
+  -- so you know what version i am on"): deploy.sh stamps the copy's TOC (X-BiS-Build); the page shows it, faint
+  local keepBuild = NS.BUILD
+  NS.BUILD = "feat/processing@abc1234 1106-1841"
+  P.Toggle(false) P.Toggle(true)
+  ok(f.build and f.build.text:find("abc1234", 1, true) and f.build.text:find(NS.VERSION, 1, true),
+     "a deployed test build: its version and stamp, faint in the title bar", f.build and f.build.text)
+  NS.BUILD = nil
+  P.Toggle(false) P.Toggle(true)
+  ok(f.build.text == NS.VERSION, "a released build (no stamp): just the version", f.build.text)
+  NS.BUILD = keepBuild
   -- the tools box: a button while there is work
   NS.Box.Refresh()
   local bb = P.BoxButton()
