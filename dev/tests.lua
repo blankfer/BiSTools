@@ -129,6 +129,7 @@ _G.C_Map = {
 W.explored = {}
 _G.C_MapExplorationInfo = { GetExploredMapTextures = function() return W.explored end }
 _G.GameTooltip = { SetOwner = function() end, AddLine = function() end, AddDoubleLine = function() end, Show = function() end, Hide = function() end,
+  SetBagItem = function() end,                         -- the client's; a bag addon's slot calls it on hover
   IsShown = function() return W.tooltipShown end, GetOwner = function() return nil end }
 _G.wipe = function(t) for k in pairs(t) do t[k] = nil end return t end
 _G.InCombatLockdown = function() return W.combat end
@@ -496,6 +497,15 @@ local handlers = {}
 local realCF = _G.CreateFrame
 _G.CreateFrame = function(...)
   local f = realCF(...)
+  -- A FRAME KNOWS ITS CHILDREN AND HAS AN ID, as the client's do (6 Nov 2026, the disenchant glow: a bag window is
+  -- walked from the frame under the mouse, and a bag slot is the button's ID under its bag's ID). Children in the
+  -- order made; GetID answers 0 until SetID, as in the client.
+  local p = select(3, ...)
+  if type(p) == "table" then p.__kids = p.__kids or {} p.__kids[#p.__kids + 1] = f end
+  if not f.GetChildren then function f:GetChildren() return unpack(self.__kids or {}) end end
+  if not f.SetID then function f:SetID(i) if type(i) ~= "number" then error("SetID wants a number", 2) end self.__id = i end end
+  if not f.GetID then function f:GetID() return self.__id or 0 end end
+  if not f.GetObjectType then function f:GetObjectType() return self.kind end end
   local ss = f.SetScript
   f.SetScript = function(self, k, fn) ss(self, k, fn) if k == "OnEvent" then handlers[#handlers + 1] = { fn = fn, frame = self } end end
   return f
@@ -1880,7 +1890,7 @@ do
   -- left click: the Hub, one row per tool
   mm.scripts.OnClick(mm, "LeftButton")
   local hub = BiSToolsHub
-  ok(hub and hub:IsShown() and #hub.rows == 12, "left click opens the Hub with a row per registered tool")
+  ok(hub and hub:IsShown() and #hub.rows == 13, "left click opens the Hub with a row per registered tool")   -- +disenchant, 6 Nov
   ok(hub.scale == 1.2, "the Tools list is 20% bigger (Arn: \"lets make this 20% bigger\")")
   ok(hub.rows[1].key == "farm" and hub.rows[2].key == "summon" and hub.rows[3].key == "recap" and hub.rows[4].key == "rivals"
      and hub.rows[5].key == "social" and hub.rows[6].key == "threat" and hub.rows[7].key == "bg" and hub.rows[8].key == "map" and hub.rows[9].key == "party"
@@ -1889,12 +1899,12 @@ do
   -- RIVALS & PALS, their own tool (Arn, 14 Oct: "decouple from recap ... be its own thing")
   ok(hub.rows[4].name.text == "rivals & pals", "the rivals tool's row is titled rivals & pals")
   ok(hub.rows[1].name.text == "farm" and hub.rows[1].state.text:find("on", 1, true), "row: name + on")
-  ok(hub.con.slots.count and hub.con.slots.count.text == "10 of 12 on", "prompt slot counts the tools that are on (threat and party start off; rides, sounds and xp on)")
+  ok(hub.con.slots.count and hub.con.slots.count.text == "11 of 13 on", "prompt slot counts the tools that are on (threat and party start off; rides, sounds, xp and disenchant on)")
   ok(not R:Enabled("threat") and hub.rows[6].name.text == "threat (beta)" and hub.rows[6].state.text:find("off", 1, true),
      "the threat tool starts OFF and is shown as \"threat (beta)\"")
   ok(hub.con:Width() <= H.W - 15 - 8, "hub prompt fits its header budget")
   ok(hub.closeBtn.point[4] == -3, "only an x in the header, at -3")
-  ok(hub.foot and hub.foot.label.text == "options" and hub.h == 16 + 12 * 16 + 4 + 16, "footer 'options' button; height = header + rows + footer")
+  ok(hub.foot and hub.foot.label.text == "options" and hub.h == 16 + 13 * 16 + 4 + 16, "footer 'options' button; height = header + rows + footer")
   -- row click opens the tool window; shift-click drags it to the middle
   BiSToolsFarm:Hide() F.db.pos = { "TOPLEFT", 400, -300, "TOPLEFT" }
   hub.rows[1].scripts.OnClick(hub.rows[1], "LeftButton")
@@ -1944,7 +1954,7 @@ do
   for _, r in ipairs(BiSToolsOptions and BiSToolsOptions.rows or {}) do end
   -- right click toggles the tool; opening an off tool switches it on first
   hub.rows[2].scripts.OnClick(hub.rows[2], "RightButton")
-  ok(not R:Enabled("summon") and hub.rows[2].state.text:find("off", 1, true) and hub.con.slots.count.text == "9 of 12 on", "right click: summon off, row and count follow")
+  ok(not R:Enabled("summon") and hub.rows[2].state.text:find("off", 1, true) and hub.con.slots.count.text == "10 of 13 on", "right click: summon off, row and count follow")
   ok(lib:Enabled(), "and the lib is untouched by it")
   hub.rows[2].scripts.OnClick(hub.rows[2], "LeftButton")
   ok(R:Enabled("summon") and BiSToolsSummon:IsShown() and db_summon().mode == "on", "click on an off tool: switched on and its window pinned open")
@@ -1972,8 +1982,8 @@ do
   -- the party list, 15 Oct; the recruit crest, 21 Oct; the ride card, 21 Oct)
   -- (+5 in party, 21 Oct: accept from the guild / friends, invite on a keyword, the keyword, from whom)
   -- (+ sounds (1), 5 Nov: the explorer's open button - and its section header)
-  -- (+1 in xp, 6 Nov: the camp tent button)
-  ok(#opt.rows == 13 + 3 + 5 + 7 + 1 + 8 + 2 + 2 + 4 + 7 + 4 + 4 + 5 + 1 + 2 + 1, "one row per section header and per option", #opt.rows)
+  -- (+1 in xp, 6 Nov: the camp tent button; + disenchant (0), 6 Nov: its section header, the on/off)
+  ok(#opt.rows == 13 + 3 + 5 + 7 + 1 + 8 + 2 + 2 + 4 + 7 + 4 + 4 + 5 + 1 + 2 + 1 + 1, "one row per section header and per option", #opt.rows)
   -- THE BiSTheme STANDARD, 1.43:1 (Arn, 14 Oct): its sections poured into columns, the window that shape
   ok(math.abs(opt.w / opt.h - 1.43) < 0.01 and (opt.columns or 1) >= 2, "options: 1.43:1, in columns", opt.w .. "x" .. opt.h)
   local function find(label) for _, r in ipairs(opt.rows) do if r.name and r.name.text == label then return r end end end
@@ -2042,7 +2052,7 @@ do
   local farmHdr = opt.rows[5]
   ok(farmHdr.ctl and farmHdr.ctl.on == true, "farm section box shows on")
   farmHdr.ctl.scripts.OnClick(farmHdr.ctl)
-  ok(not R:Enabled("farm") and farmHdr.ctl.on == false and hub.con.slots.count.text == "9 of 12 on", "box off: farm off, hub count follows")
+  ok(not R:Enabled("farm") and farmHdr.ctl.on == false and hub.con.slots.count.text == "10 of 13 on", "box off: farm off, hub count follows")
   farmHdr.ctl.scripts.OnClick(farmHdr.ctl)
   ok(R:Enabled("farm"), "and back on")
   -- toggle: nag
@@ -7373,6 +7383,127 @@ do
   X.showBag, X.showFood = nil, nil
   X.token = (X.token or 0) + 1
   Bx.Refresh()
+end
+
+-- ------------------------------------------------------------ the disenchant glow (6 Nov 2026)
+-- Arn: "when i hold alt and my mouse is in my bags itll glow items that can be dienchanted purple items that are soul
+-- bound red so im more careful about disenchating gear" - and "i use ellemere ui but not everyone uses elleseme". So no
+-- bag addon is asked: every bag window (Blizzard's, EllesmereUI's, Baganator's) is built of the client's item buttons,
+-- each one's ID its slot and its parent's ID its bag. The window under the mouse is walked for them.
+do
+  local D = NS.DE
+  ok(D and R:Get("disenchant") and R:Enabled("disenchant"), "the disenchant tool, on by default")
+  local keep = { cont = _G.C_Container, item = _G.C_Item, foci = rawget(_G, "GetMouseFoci"), alt = rawget(_G, "IsAltKeyDown"),
+                 loc = rawget(_G, "ItemLocation"), cf1 = rawget(_G, "ContainerFrame1") }
+  -- items: id -> { quality, classID (2 weapon, 4 armor, 7 trade goods), equip slot }
+  local ITEMS = {
+    [1001] = { 2, 2, "INVTYPE_WEAPON" },      -- a green sword
+    [1002] = { 3, 4, "INVTYPE_CHEST" },       -- a blue chest (soulbound below)
+    [1003] = { 4, 4, "INVTYPE_FINGER" },      -- a purple ring (soulbound, and its bag answer leaves isBound out)
+    [1004] = { 0, 4, "INVTYPE_FEET" },        -- grey boots: nothing to get
+    [1005] = { 2, 7, "" },                    -- an uncommon herb: not gear
+    [1006] = { 2, 4, "INVTYPE_BODY" },        -- a green shirt: shirts do not disenchant
+    [1007] = { 1, 2, "INVTYPE_WEAPON" },      -- a white sword: nothing
+  }
+  local SLOTS = { [0] = { 1001, 1002, 1003, 1004, 1005, 1006, 1007 }, [1] = { 1001 } }
+  local BOUND = { ["0:2"] = true, ["0:3"] = true }
+  local asked = 0
+  _G.C_Container = setmetatable({
+    GetContainerItemInfo = function(bag, slot)
+      asked = asked + 1
+      local id = SLOTS[bag] and SLOTS[bag][slot]
+      if not id then return nil end
+      local t = { itemID = id, quality = ITEMS[id][1], isBound = BOUND[bag .. ":" .. slot] or false }
+      if id == 1003 then t.isBound = nil end                -- a client that leaves the field out: asked the other way
+      return t
+    end,
+    GetContainerItemID = function(bag, slot) return SLOTS[bag] and SLOTS[bag][slot] end,
+  }, { __index = keep.cont })
+  _G.C_Item = setmetatable({
+    GetItemInfoInstant = function(id)
+      local it = ITEMS[id]
+      if not it then return nil end
+      return id, "Type", "Sub", it[3], 134400, it[2], 0
+    end,
+    IsBound = function(loc) return type(loc) == "table" and BOUND[loc.bag .. ":" .. loc.slot] or false end,
+  }, { __index = keep.item })
+  _G.ItemLocation = { CreateFromBagAndSlot = function(_, bag, slot) return { bag = bag, slot = slot } end }
+  -- an EllesmereUI-shaped window: the window, a bag frame per bag (its ID the bag), the client's item buttons (ID = slot)
+  local win = CreateFrame("Frame", "FakeBagWindow", UIParent)
+  local bag0 = CreateFrame("Frame", nil, win)
+  bag0:SetID(0)
+  local btn = {}
+  for s = 1, 7 do
+    btn[s] = CreateFrame("ItemButton", nil, bag0, "ContainerFrameItemButtonTemplate")
+    btn[s]:SetID(s)
+  end
+  -- and one of Blizzard's own bags, open beside it (ContainerFrameN, each its own window)
+  local cf1 = CreateFrame("Frame", "ContainerFrame1", UIParent)
+  cf1:SetID(1)
+  local blz = CreateFrame("ItemButton", nil, cf1, "ContainerFrameItemButtonTemplate")
+  blz:SetID(1)
+  local other = CreateFrame("Frame", "SomethingElse", UIParent)
+  local ALT, FOCUS = false, btn[4]
+  _G.IsAltKeyDown = function() return ALT end
+  _G.GetMouseFoci = function() return { FOCUS } end
+  local function fire(...) D.events.scripts.OnEvent(D.events, ...) end
+  local function lit(b) return b.bisDE and b.bisDE.wash.shown ~= false and b.bisDE.on end
+  local function colour(b) return b.bisDE.wash.color end
+
+  ALT = true
+  fire("MODIFIER_STATE_CHANGED", "LALT", 1)
+  ok(lit(btn[1]) and colour(btn[1])[1] < 0.9 and colour(btn[1])[3] > 0.9, "alt over the bags: a green sword glows purple")
+  ok(lit(btn[2]) and colour(btn[2])[1] > 0.9 and colour(btn[2])[3] < 0.5, "a soulbound blue chest glows RED - careful")
+  ok(lit(btn[3]) and colour(btn[3])[1] > 0.9, "soulbound read the other way (C_Item.IsBound) when the bag answer leaves it out")
+  ok(not lit(btn[4]) and not lit(btn[5]) and not lit(btn[6]) and not lit(btn[7]),
+     "grey gear, an herb, a shirt, a white sword: no glow")
+  ok(lit(blz), "Blizzard's own bag open beside it glows too")
+  ok(btn[1].bisDE.top and btn[1].bisDE.top.shown ~= false, "an edge round the slot, not only a wash")
+  ALT = false
+  fire("MODIFIER_STATE_CHANGED", "LALT", 0)
+  ok(not lit(btn[1]) and not lit(btn[2]) and not lit(blz), "alt let go: every glow gone")
+  -- the mouse NOT in the bags: nothing
+  FOCUS = other
+  ALT = true
+  fire("MODIFIER_STATE_CHANGED", "LALT", 1)
+  ok(not lit(btn[1]) and not lit(blz), "alt with the mouse anywhere else: nothing")
+  -- alt already held, THEN the mouse comes onto a bag slot: its tooltip is the moment
+  FOCUS = btn[2]
+  GameTooltip:SetBagItem(0, 2)
+  ok(lit(btn[2]) and lit(btn[1]), "alt held first, then hovering a bag slot: the glow comes")
+  -- a bag change while alt is held: painted again (a bag addon reuses its buttons)
+  SLOTS[0][1] = 1004
+  fire("BAG_UPDATE_DELAYED")
+  ok(not lit(btn[1]), "the sword sold while alt is held: its slot goes dark")
+  SLOTS[0][1] = 1001
+  ALT = false
+  fire("MODIFIER_STATE_CHANGED", "LALT", 0)
+  -- switched off: nothing
+  R:SetEnabled("disenchant", false)
+  ALT, FOCUS = true, btn[1]
+  fire("MODIFIER_STATE_CHANGED", "LALT", 1)
+  ok(not lit(btn[1]), "the tool switched off: nothing")
+  ALT = false
+  fire("MODIFIER_STATE_CHANGED", "LALT", 0)
+  R:SetEnabled("disenchant", true)
+  -- LEAN: alt pressed away from the bags costs a walk up and nothing else; over the bags, one look per slot
+  local Cost = dofile("../_bisdev/dev/cost.lua")
+  FOCUS = other
+  local away = Cost.Count(function()
+    for _ = 1, 50 do ALT = true fire("MODIFIER_STATE_CHANGED", "LALT", 1) ALT = false fire("MODIFIER_STATE_CHANGED", "LALT", 0) end
+  end)
+  print(("   cost: disenchant glow, 50 alt presses away from the bags = %d calls"):format(away))
+  ok(away <= 50 * 12, "alt away from the bags: next to nothing", away)
+  FOCUS, asked = btn[1], 0
+  ALT = true
+  fire("MODIFIER_STATE_CHANGED", "LALT", 1)
+  ok(asked == 8, "over the bags: one item question per slot shown (7 + 1)", asked)
+  ALT = false
+  fire("MODIFIER_STATE_CHANGED", "LALT", 0)
+
+  _G.C_Container, _G.C_Item, _G.GetMouseFoci, _G.IsAltKeyDown = keep.cont, keep.item, keep.foci, keep.alt
+  _G.ItemLocation, _G.ContainerFrame1 = keep.loc, keep.cf1
+  win:Hide() cf1:Hide()
 end
 
 local allowed = { BiSTools = true, BiSToolsDB = true, SLASH_BISTOOLS1 = true, SLASH_BISTOOLS2 = true,

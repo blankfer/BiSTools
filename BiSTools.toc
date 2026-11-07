@@ -39,5 +39,6 @@ Tools\PartyAuto.lua
 Tools\Rides.lua
 Tools\Sounds.lua
 Tools\XP.lua
+Tools\Disenchant.lua
 API.lua
 Tools\Hub.lua
