@@ -1,4 +1,4 @@
-## Unreleased
+## 0.20.0
 
 - **The disenchant glow.** Hold Alt with your mouse over your bags: gear you can disenchant glows **purple**, and soulbound gear glows **red**, so you think twice before destroying something you might still want. Works with Blizzard's bags, EllesmereUI and Baganator. Let go of Alt and it's gone. Nothing runs until you press Alt. `/bist off disenchant` turns it off.
 - **BiS> processing (enchanting first).** One window lists every piece of gear in your bags you can disenchant, with a Disenchant button on each row. Built like a cockpit page: a skill tape down the left shows your enchanting skill boxed, a red-and-black pole above it for what you can't reach yet, a mark for each skill your items need, and a gold bracket where the game asked for a rod. One line counts what's ready; a line at the foot says what the game said. Opens from the BiS> tools box (when something is ready) or a button on your profession window.
@@ -8,7 +8,10 @@
   - **The build in the corner:** the window's title bar shows its version, faint.
   - **The hoard (ALL TIME).** Everything you've ever disenchanted, piled up in a little cave with you on top in 3D. Empty, you sit on the floor; as the pile grows you stand, wave, cheer, and at the end you flex on top of your mountain. Each piece of the pile is the item itself, cut round. Only your own disenchants count, never the mail or a trade.
   - Rows light up under the mouse, the window is 20% bigger, Escape closes it, and the tools-box button only shows in town.
+- **Short words for every tool:** `/bist proc`, `de`, `snd`, `ride`, `riv`, `rcap`, `soc`, `sum`, `thr`, `pty`. The long names still work; `/bist` lists both.
+- The XP food button no longer keeps a water it learned before 0.19.1: a favourite whose text has not loaded yet is checked again on the next look.
 - The camp tent's debuff is confirmed: Boosted Rest (1229451), as the tent button already checked.
+- Escape closes the windows; every button and row lights up under the mouse.
 
 ## 0.19.1
 

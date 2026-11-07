@@ -1,4 +1,4 @@
-# BiS Tools — CurseForge page text (0.19.0)
+# BiS Tools — CurseForge page text (0.20.0)
 
 Paste everything below the line into the project description
 (CurseForge → BiS Tools, project 1686340 → Edit → Description), in the Markdown editor.
@@ -14,7 +14,7 @@ there) **and threat** (a beta, off by default). The page is for Forever.
 
 # BiS Tools
 
-**Your XP buffs in one stop, what killed you, who to watch for, who heals them, and what to farm. For WoW Forever.**
+**Your XP buffs in one stop, your disenchanting in one window, what killed you, who to watch for, who heals them, and what to farm. For WoW Forever.**
 
 You're dead, and you never saw it coming. BiS Tools opens the game's own record of the hits that killed you: who landed the last one, who helped, with what, and how fast. Click a player on that screen and they're your rival. The next time they walk into view, you'll know.
 
@@ -27,6 +27,16 @@ Stop to eat, and BiS Tools has the whole stop ready. When an XP buff needs you, 
 - **Then your XP food.** Well Fed gone or under 2 minutes left. Any cooked food that gives the experience bonus will do, with nothing to set up; the one you last ate goes first. Vendor food is never picked.
 - **One stop for both.** Eat on the bag and you get both buffs at once. So when it's time to eat and Well-Rested would run low before your next meal, the bag comes too, and the other way round.
 - **Out of combat only, nothing at level 60.** No timer ticking: it looks when your buffs, bags or rested XP change. `/bist xp` says where everything stands.
+
+## Disenchanting, like a cockpit
+
+`/bist proc` (or the button in the BiS> tools box, in town, or on your profession window) opens one page with every piece of gear you can disenchant. Built like a flight display: simple, high contrast, everything on it has a job.
+
+- **A skill tape** down the left: your enchanting skill boxed, a red-and-black pole above it for what you can't reach yet, a mark for each skill your items need, a gold bracket where the game asked for a rod.
+- **One row per item**, its name in its quality's colour, a Disenchant button on the right. A plain click for gear that isn't soulbound; soulbound takes Shift-click.
+- **Never the wrong item.** Each row is one exact item. Just before the click it checks the item is still in that slot; if your bags moved, nothing is destroyed and the list refreshes. Enchanted gear says ENCHANTED, and two items of one name where one differs get a SAME NAME warning. Right-click hides an item you carry on purpose. Alt-click is never touched, so roll-out addons keep it.
+- **What you got:** this session's dust and essences in a strip, and **the hoard** (ALL TIME): everything you've ever disenchanted piled up in a little cave with you on top. Empty, you sit on the floor; at the top you flex on your mountain.
+- **The glow:** hold Alt over your bags (any bag addon) and gear you can disenchant glows purple, soulbound gear red.
 
 ## Death recap
 
@@ -126,6 +136,7 @@ Left-click the minimap button for the tools, right-click for the options. Hover 
 | `/bist farm key F5` | the skull key |
 | `/bist sounds` · `/bist sounds favs` | the sound explorer · your starred sounds |
 | `/bist xp` · `/bist xp tent off` · `/bist xp bag off` | where your XP buffs stand · drop a button |
+| `/bist proc` · `/bist off de` | the disenchanting page · the Alt glow off |
 | `/bist on <tool>` · `/bist off <tool>` | switch a tool on or off |
 
 ## Why it works the way it does
