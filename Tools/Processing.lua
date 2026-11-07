@@ -430,6 +430,7 @@ function P.Build()
   f:RegisterForDrag("LeftButton")
   f:SetScript("OnDragStart", f.StartMoving)
   f:SetScript("OnDragStop", f.StopMovingOrSizing)
+  f:SetScript("OnMouseDown", function(self) if self.Raise then self:Raise() end end)   -- a click brings it forward
   k.tex(f, "BACKGROUND", "frame", 0.97)
   k.border(f, "edge", 1)
   f.title = fs(f, 10, "accent")
@@ -725,6 +726,7 @@ function P.BuildHoard()
   h:RegisterForDrag("LeftButton")
   h:SetScript("OnDragStart", h.StartMoving)
   h:SetScript("OnDragStop", h.StopMovingOrSizing)
+  h:SetScript("OnMouseDown", function(self) if self.Raise then self:Raise() end end)   -- a click brings it forward
   if UISpecialFrames then table.insert(UISpecialFrames, "BiSToolsHoard") end
   k.tex(h, "BACKGROUND", "frame", 0.97)
   k.border(h, "edge", 1)
@@ -895,7 +897,13 @@ function P.ToggleHoard(want)
   if want == nil then want = not h:IsShown() end
   if want then
     h.fallRoll = P.FallRoll()                                    -- once per open: the joke holds while you look
+    -- BESIDE PROCESSING, NOT ON IT (Arn's screenshot, 6 Nov: both opened in the middle and mixed together)
+    if P.frame and P.frame:IsShown() and not h:IsShown() then
+      h:ClearAllPoints()
+      h:SetPoint("TOPLEFT", P.frame, "TOPRIGHT", 8, 0)
+    end
     h:Show() P.PaintHoard()
+    if h.Raise then h:Raise() end
   else
     h:Hide()
   end
