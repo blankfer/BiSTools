@@ -212,7 +212,8 @@ function X.Pick(db)
   db = db or X.db or {}
   local unsure = false
   local best, most
-  if db.food and count(db.food) > 0 then
+  -- yours, if it is XP food: a water learned by 0.19.0 is not (and a text still loading is given the benefit)
+  if db.food and count(db.food) > 0 and X.IsXPItem(db.food) ~= false then
     best = db.food
   else
     local C = C_Container
@@ -430,9 +431,12 @@ function X.ItemForSpell(spellId)
 end
 
 --- Learn the food: a cast of a bag item, then within X.FOOD_WINDOW an experience Well Fed on me.
+--- Only XP food counts (Arn, 6 Nov, 0.19.0: the button showed his WATER). You drink while you eat; the water's cast
+--- came after the food's and the Well Fed that followed taught the water. A cast of anything that is not XP food
+--- leaves the last XP food's cast standing.
 function X.Ate(spellId)
   local item = X.ItemForSpell(spellId)
-  if item then X.ate = { item = item, at = now() } end
+  if item and X.IsXPItem(item) then X.ate = { item = item, at = now() } end
   return item
 end
 
