@@ -680,10 +680,12 @@ end
 -- 3D. The pile is capped (P.TOKEN_MAX) - it shows the size of the haul, not every dust.
 P.HOARD_W, P.HOARD_H = 300, 210                  -- 1.43:1
 P.TOKEN_MAX, P.TOKEN = 90, 14
+P.FEET = 20                                     -- the 3D frame starts this far under the feet (Arn's first look: he floated)
 P.ROUND = "Interface\\AddOns\\BiSTools\\Media\\Round"
 -- the client's animation ids: stand 0, wave 67, cheer 68 are live in BiS Shell; sit-on-the-ground 97 and flex 82
 -- are UNVERIFIED (the classic table's EmoteSitGround / EmoteFlex)
-P.ANIM = { sit = 97, stand = 0, wave = 67, cheer = 68, flex = 82 }
+P.ANIM = { sit = 97, stand = 0, wave = 67, cheer = 68, flex = 82, fall = 40 }   -- fall 40: UNVERIFIED (the classic "Fall", arms flailing)
+P.FALL_ODDS, P.SINK, P.SPILL = 5, 40, 12          -- the joke: 1 open in 5 on a full mountain; sunk 40; 12 pieces in front
 P.MOODS = { { 1000, "flex" }, { 250, "cheer" }, { 100, "wave" }, { 1, "stand" }, { 0, "sit" } }
 
 function P.Mood(total)
@@ -742,7 +744,7 @@ function P.BuildHoard()
   h.floor:SetColorTexture(rgb("line2"))
   h.tokens = {}
   -- you, in 3D
-  local ok, m = pcall(CreateFrame, "PlayerModel", nil, h.cave)
+  local ok, m = pcall(CreateFrame, "DressUpModel", nil, h.cave)
   if ok and m then
     m:SetSize(90, 120)
     h.model = m
@@ -796,14 +798,17 @@ function P.PaintHoard()
   end
   -- rows: 15 wide at the floor, two fewer each row up, overlapping like a heap
   local floorY, step, gap = 10, 6, 9
-  local row, inRow, cap = 0, 0, 15
+  -- how many sit in each row, so every row is centred on what it HOLDS (Arn's first look: 3 dust sat to the left)
+  local rowsN, left, c = {}, n, 15
+  while left > 0 do rowsN[#rowsN + 1] = math.min(c, left) left = left - c c = math.max(1, c - 2) end
+  local row, inRow = 0, 0
   local top = floorY
   for i = 1, n do
-    if inRow >= cap then row, inRow, cap = row + 1, 0, math.max(1, cap - 2) end
+    if inRow >= rowsN[row + 1] then row, inRow = row + 1, 0 end
     local t = token(h, i)
     local id = deck[((i - 1) % math.max(1, #deck)) + 1]
     t:SetTexture((id and C_Item and C_Item.GetItemIconByID and plain(ask(C_Item.GetItemIconByID, id))) or 134400)
-    local x = (inRow - (cap - 1) / 2) * gap + ((row % 2 == 1) and gap / 2 or 0)
+    local x = (inRow - (rowsN[row + 1] - 1) / 2) * gap
     local y = floorY + row * step
     t:ClearAllPoints()
     t:SetPoint("BOTTOM", h.cave, "BOTTOM", x, y)
@@ -816,12 +821,19 @@ function P.PaintHoard()
     h.tokens[i]:Hide()
     if h.tokens[i].mask then h.tokens[i].mask:Hide() end
   end
-  -- you: on the floor while it is empty, on the summit after
+  -- you: on the floor while it is empty, your feet on the summit after
   local mood = P.Mood(total)
+  -- A JOKE, NOW AND THEN (Arn, 6 Nov: "if the window is very full we should be in the pile as if we are falling arms
+  -- flailing"): a full mountain, one open in P.FALL_ODDS - you sink to the waist, flailing, gold spilling up round you
+  if mood == "flex" and (h.fallRoll or P.FallRoll()) < 1 / P.FALL_ODDS then mood = "fall" end
+  h.mood = mood
   local m = h.model
+  local feet = n > 0 and (top - P.FEET) or (floorY - P.FEET)
+  if mood == "fall" then feet = top - P.FEET - P.SINK end
+  P.PaintSpill(h, mood == "fall", top, deck)
   if m then
     m:ClearAllPoints()
-    m:SetPoint("BOTTOM", h.cave, "BOTTOM", 0, n > 0 and (top - 6) or floorY)
+    m:SetPoint("BOTTOM", h.cave, "BOTTOM", 0, feet)
     if m.SetUnit then pcall(m.SetUnit, m, "player") end
     if m.SetPortraitZoom then pcall(m.SetPortraitZoom, m, 0) end
     if m.SetCamDistanceScale then pcall(m.SetCamDistanceScale, m, 1.1) end
@@ -833,10 +845,60 @@ function P.PaintHoard()
   h.next:SetText(nextAt and ("NEXT: %s AT %s"):format(nextAt[2]:upper(), commas(nextAt[1])) or "THE MOUNTAIN IS YOURS")
 end
 
+--- The fall's spill: pieces in FRONT of you (a frame over the model), heaped round your waist - so you are IN the pile.
+function P.PaintSpill(h, on, top, deck)
+  h.front = h.front or CreateFrame("Frame", nil, h.cave)
+  local fr = h.front
+  fr:SetAllPoints(h.cave)
+  if fr.SetFrameLevel and h.model and h.model.GetFrameLevel then
+    local lv = h.model:GetFrameLevel()
+    if type(lv) == "number" then fr:SetFrameLevel(lv + 2) end
+  end
+  fr.pieces = fr.pieces or {}
+  local want = on and P.SPILL or 0
+  for i = 1, want do
+    local t = fr.pieces[i]
+    if not t then
+      t = fr:CreateTexture(nil, "ARTWORK")
+      t:SetSize(P.TOKEN, P.TOKEN)
+      t:SetTexCoord(0.12, 0.88, 0.12, 0.88)
+      if fr.CreateMaskTexture and t.AddMaskTexture then
+        local okM, mk = pcall(fr.CreateMaskTexture, fr)
+        if okM and mk then
+          mk:SetTexture(P.ROUND, "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
+          mk:SetSize(P.TOKEN, P.TOKEN)
+          mk:SetPoint("CENTER", t, "CENTER")
+          t:AddMaskTexture(mk)
+          t.mask = mk
+        end
+      end
+      fr.pieces[i] = t
+    end
+    local id = deck[((i - 1) % math.max(1, #deck)) + 1]
+    t:SetTexture((id and C_Item and C_Item.GetItemIconByID and plain(ask(C_Item.GetItemIconByID, id))) or 134400)
+    -- two rows round the waist, a little uneven
+    local r = (i <= P.SPILL / 2) and 0 or 1
+    local k = r == 0 and i or (i - P.SPILL / 2)
+    local x = (k - (P.SPILL / 4 + 0.5)) * 9 + (r * 4)
+    t:ClearAllPoints()
+    t:SetPoint("BOTTOM", h.cave, "BOTTOM", x, top - 8 + r * 6)
+    t:Show()
+    if t.mask then t.mask:Show() end
+  end
+  for i = want + 1, #fr.pieces do fr.pieces[i]:Hide() if fr.pieces[i].mask then fr.pieces[i].mask:Hide() end end
+end
+
+function P.FallRoll() return math.random() end
+
 function P.ToggleHoard(want)
   local h = P.BuildHoard()
   if want == nil then want = not h:IsShown() end
-  if want then h:Show() P.PaintHoard() else h:Hide() end
+  if want then
+    h.fallRoll = P.FallRoll()                                    -- once per open: the joke holds while you look
+    h:Show() P.PaintHoard()
+  else
+    h:Hide()
+  end
   return h:IsShown()
 end
 

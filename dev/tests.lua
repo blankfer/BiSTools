@@ -7751,6 +7751,8 @@ do
      "the pile grows with the total - capped, never 500 dust in the window")
   local keepTotals = db.totals
   db.totals = {}
+  local keepRoll = P.FallRoll
+  P.FallRoll = function() return 0.99 end                  -- no joke, unless the test asks for it
   P.ToggleHoard(true)
   local h = BiSToolsHoard
   ok(h and h:IsShown() and math.abs(h.w / h.h - 1.43) < 0.02 and h.scale == 1.2, "the hoard opens: 1.43:1, 20% bigger")
@@ -7764,7 +7766,47 @@ do
   local tk = h.tokens[1]
   ok(tk.masks and tk.masks[1] and tostring(tk.masks[1].file):find("Round", 1, true), "each piece cut round by our own mask")
   ok(h.model._anim == P.ANIM.flex, "a mountain: you flex on top of it")
+  -- (Arn's first live look, 6 Nov: the pile sat off to the left and he floated above it; the bare look was his
+  -- transmog test - a dressed model anyway, the one BiS Shell's adventure proved)
+  local function meanX()
+    local s, c = 0, 0
+    for _, tk2 in ipairs(h.tokens) do if tk2.shown ~= false and tk2.anchor then s, c = s + tk2.anchor[4], c + 1 end end
+    return c > 0 and s / c or 0
+  end
+  ok(math.abs(meanX()) < 6, "the pile is centred under you", meanX())
+  ok(h.model.kind == "DressUpModel", "you in your gear (a dressed model, as BiS Shell's adventure)")
+  local summit = 0
+  for _, tk2 in ipairs(h.tokens) do if tk2.shown ~= false then summit = math.max(summit, tk2.anchor[5] + P.TOKEN - 4) end end
+  ok(math.abs(h.model.point[5] - (summit - P.FEET)) < 1, "your feet on the summit: the frame starts P.FEET under them")
+  local bigTotals = db.totals
+  db.totals = { [10940] = 1 }
+  P.PaintHoard()
+  ok(P.Tokens(1) == 3 and math.abs(meanX()) < 6, "three pieces (Arn's first dust): centred too", meanX())
+  db.totals = bigTotals
+  P.PaintHoard()
   ok(type(lowY) == "number" and h.model.point[5] > lowY, "standing on the summit, higher than the empty floor")
+  -- THE JOKE (Arn, 6 Nov: "if the window is very full we should be in the pile as if we are falling arms flailing"):
+  -- a full mountain, the roll comes up - you sink to the waist, flailing, pieces heaped in FRONT of you
+  h.fallRoll = 0
+  P.PaintHoard()
+  ok(h.mood == "fall" and h.model._anim == P.ANIM.fall, "the joke: falling into your own hoard, arms flailing")
+  ok(math.abs(h.model.point[5] - (summit - P.FEET - P.SINK)) < 1, "sunk to the waist")
+  local spill = 0
+  for _, pc in ipairs(h.front.pieces) do if pc.shown ~= false then spill = spill + 1 end end
+  ok(spill == P.SPILL and (h.front.level or 0) > (h.model.level or 0), "gold heaped in front of you, over the model", spill)
+  h.fallRoll = 0.99
+  P.PaintHoard()
+  spill = 0
+  for _, pc in ipairs(h.front.pieces) do if pc.shown ~= false then spill = spill + 1 end end
+  ok(h.mood == "flex" and spill == 0, "most of the time: you flex on top, nothing in front")
+  db.totals = { [10940] = 50 }
+  h.fallRoll = 0
+  P.PaintHoard()
+  ok(h.mood ~= "fall", "never on a small pile - the joke needs a mountain")
+  db.totals = bigTotals
+  h.fallRoll = 0.99
+  P.PaintHoard()
+  P.FallRoll = keepRoll
   ok(h.caption.text:find("1,020", 1, true), "the count, read like a number", h.caption.text)
   -- the door: a small all-time button in the session strip; Escape closes it
   P.ToggleHoard(false)
