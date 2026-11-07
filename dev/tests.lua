@@ -7167,6 +7167,16 @@ do
   db.food = 159
   fire("BAG_UPDATE_DELAYED")
   ok(X.pick == 5477 and food.attrs.item1 == "item:5477", "a learned water from before: ignored, the stew is picked", tostring(X.pick))
+  -- THE SAME, AT LOGIN (Arn, 6 Nov, 0.19.1 live: still a drink on the button). The water's text is not loaded yet,
+  -- so it gets the benefit of the doubt - and the bags must be read AGAIN on the next look, not only when the client
+  -- says the text loaded (that event may never come for it)
+  X.xpItem[159], X.blank[159], X.waiting[430] = nil, nil, nil
+  LATE[430] = true
+  fire("BAG_UPDATE_DELAYED")
+  ok(X.pick == 159, "at login, the water's text not loaded: it keeps the benefit of the doubt for now", tostring(X.pick))
+  LATE[430] = nil
+  fire("UNIT_AURA", "player")
+  ok(X.pick == 5477, "the next look reads it: not XP food, the stew is picked - no event needed", tostring(X.pick))
   db.food = 5477
   BAGS[159], SLOTS[0][4] = nil, false
   fire("BAG_UPDATE_DELAYED")
