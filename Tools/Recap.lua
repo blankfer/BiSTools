@@ -1450,6 +1450,73 @@ end
 
 --- Write the gold rivals into the button, show it when there is anyone to target, bind the key.
 --- In a fight: remembered, done when it ends.
+-- ---------------------------------------------------------------- only while it can matter
+-- Arn, 8 Nov 2026, the button up in the open world after adding a rival: "it should go away if i am not flagged for
+-- pvp and if i have not fought someone for 5 min". So it shows while you are flagged, inside a battleground or arena,
+-- or within RC.PVP_LINGER of a fight with a player - a duel included (a duel does not flag you). The clock starts when
+-- the fight ENDS. Watched by rare events only (RC.pvpWatch); nothing ticks.
+RC.PVP_LINGER = 300
+
+--- Your target an enemy PLAYER right now? Plain answers only - a hidden one is a no.
+function RC.TargetIsFoePlayer()
+  local okP, isP = pcall(UnitIsPlayer, "target")
+  if not okP or hidden(isP) or isP ~= true then return false end
+  local okA, foe = pcall(UnitCanAttack, "player", "target")
+  return okA and not hidden(foe) and foe == true
+end
+
+function RC.PvPReady()
+  if RC.InPvP() then return true end
+  local ok, flagged = pcall(UnitIsPVP, "player")
+  if ok and not hidden(flagged) and flagged == true then return true end
+  local t = GetTime and GetTime() or 0
+  return RC.lastFight ~= nil and t - RC.lastFight < RC.PVP_LINGER
+end
+
+--- Should the rival target button be up? One answer for the button and the box.
+function RC.WantButton(db)
+  local b = RC.tbtn
+  return (b and b.count or 0) > 0 and db.button ~= false and R:Enabled("rivals") and RC.PvPReady()
+end
+
+--- A fight with a player just ended (or a duel): the button for RC.PVP_LINGER, and a look again when that runs out.
+function RC.MarkFight()
+  RC.lastFight = GetTime and GetTime() or 0
+  RC.RefreshButton()
+  RC.fightToken = (RC.fightToken or 0) + 1
+  local token = RC.fightToken
+  if C_Timer and C_Timer.After then
+    C_Timer.After(RC.PVP_LINGER + 1, function() if RC.fightToken == token then RC.RefreshButton() end end)
+  end
+end
+
+function RC.RefreshButton()
+  if NS.Box and NS.Box.Refresh then return NS.Box.Refresh() end
+  local db = R:DBFor(R:Get("recap"))
+  if RC.tbtn and not (InCombatLockdown and InCombatLockdown()) then
+    if RC.WantButton(db) then RC.tbtn:Show() else RC.tbtn:Hide() end
+  end
+end
+
+RC.pvpWatch = CreateFrame("Frame")
+for _, e in ipairs({ "PLAYER_REGEN_DISABLED", "PLAYER_REGEN_ENABLED", "DUEL_FINISHED", "PLAYER_FLAGS_CHANGED",
+                     "UNIT_FACTION", "PLAYER_ENTERING_WORLD" }) do
+  pcall(RC.pvpWatch.RegisterEvent, RC.pvpWatch, e)
+end
+RC.pvpWatch:SetScript("OnEvent", function(_, event, unit)
+  if event == "PLAYER_REGEN_DISABLED" then
+    RC.pvpFight = RC.TargetIsFoePlayer()          -- who you went in against; the target can be gone by the end
+  elseif event == "PLAYER_REGEN_ENABLED" then
+    if RC.pvpFight then RC.pvpFight = nil RC.MarkFight() end
+  elseif event == "DUEL_FINISHED" then
+    RC.MarkFight()
+  elseif (event == "PLAYER_FLAGS_CHANGED" or event == "UNIT_FACTION") and unit ~= nil and unit ~= "player" then
+    return
+  else
+    RC.RefreshButton()
+  end
+end)
+
 function RC.ApplyButton(db)
   if InCombatLockdown and InCombatLockdown() then RC.btnDirty = true return false end
   RC.btnDirty = nil
@@ -1459,7 +1526,7 @@ function RC.ApplyButton(db)
   b.count = n
   -- shown, placed and hidden by the box; without one (it loads later), shown here
   if NS.Box and NS.Box.Refresh then NS.Box.Refresh()
-  elseif n > 0 and db.button ~= false and R:Enabled("rivals") then b:Show() else b:Hide() end
+  elseif RC.WantButton(db) then b:Show() else b:Hide() end
   ClearOverrideBindings(b)
   if db.key and n > 0 and R:Enabled("rivals") then SetOverrideBindingClick(b, true, db.key, "BiSToolsRivalTarget") end
   return true

@@ -172,6 +172,8 @@ _G.UnitCanAttack = function(_, u) local x = unit(u) return x and x.hostile ~= fa
 -- the client answers this for every unit (13 Oct 2026: the rival line became players-only; a mock
 -- without it refused every menu, which the client never does)
 _G.UnitIsPlayer = function(u) if u == "player" then return true end local x = unit(u) return x ~= nil and x.player == true end
+-- your own PvP flag (W.pvp), as the client answers it: true / false, never nil for "player"
+_G.UnitIsPVP = function(u) if u == "player" then return W.pvp == true end local x = unit(u) return x ~= nil and x.pvp == true end
 _G.SetRaidTarget = function(u, i)
   -- PROTECTED ON FOREVER (6 Oct 2026, Arn's BugGrabber: "AddOn 'BiSTools' tried to call the
   -- protected function 'SetRaidTarget()'", from the scanner's ticker). The client blames the addon
@@ -4050,7 +4052,8 @@ do
 
   -- THE RIVAL TARGET BUTTON (Arn: "i just did /tar Ford Knox and i was able to target an enemy
   -- player what about a small button that targets all our rivals"). The mock refuses an attribute
-  -- set in combat, as the client does.
+  -- set in combat, as the client does. (Flagged for PvP here: the button only shows while it can matter - below.)
+  W.pvp = true
   RC.SetActive(rdb2, "Hunting Moms", true)
   RC.SetActive(rdb2, "Légolas Thiliaere", false)
   local tb = RC.tbtn
@@ -4079,6 +4082,40 @@ do
   rdb2.button = false RC.ApplyButton(rdb2)
   ok(not tb.shown, "'rival target button' off: hidden")
   rdb2.button = nil RC.ApplyButton(rdb2)
+  -- ONLY WHILE IT CAN MATTER (Arn, 8 Nov, the button up in the open world after he added a rival: "it should go
+  -- away if i am not flagged for pvp and if i have not fought someone for 5 min"). Flagged, in a battleground or
+  -- arena, or within RC.PVP_LINGER of a fight with a player - a duel included, since a duel does not flag you.
+  do
+  local function wfire(event, ...) RC.pvpWatch.scripts.OnEvent(RC.pvpWatch, event, ...) end
+  W.pvp = false
+  wfire("PLAYER_FLAGS_CHANGED", "player")
+  ok(not tb.shown, "not flagged, no fight with a player: hidden, rival or not")
+  -- a fight with a mob: still hidden
+  local keepT = W.target
+  W.target = { name = "Kobold Miner", player = false, hostile = true }
+  wfire("PLAYER_REGEN_DISABLED") wfire("PLAYER_REGEN_ENABLED")
+  ok(not tb.shown, "a fight with a mob does not bring it")
+  -- a fight with a player: there for five minutes after it ends, then gone by itself
+  W.target = { name = "Hunting Moms", player = true, hostile = true }
+  wfire("PLAYER_REGEN_DISABLED")
+  W.target = nil                                    -- the target can be gone by the fight's end
+  wfire("PLAYER_REGEN_ENABLED")
+  ok(tb.shown, "a fight with an enemy player: the button comes")
+  W.runAfters(RC.PVP_LINGER - 10)
+  ok(tb.shown, "and stays through the five minutes")
+  W.runAfters(20)
+  ok(not tb.shown, "five minutes on, not flagged: gone by itself")
+  -- a duel does not flag you, but it is a fight with someone
+  wfire("DUEL_FINISHED")
+  ok(tb.shown, "a duel brings it too")
+  W.runAfters(RC.PVP_LINGER + 10)
+  ok(not tb.shown, "and it goes five minutes after")
+  -- flagged: there, whatever the clock says
+  W.pvp = true
+  wfire("PLAYER_FLAGS_CHANGED", "player")
+  ok(tb.shown, "flagged for PvP: there")
+  W.target = keepT
+  end
   -- THE BiS> TOOLS BOX (Arn: "lets keep all button neat maybe in a bis farm box, like the bis now, maybe if
   -- we have bis now it just puts the button there cross addon")
   local Bx = NS.Box
