@@ -14,9 +14,19 @@ there) **and threat** (a beta, off by default). The page is for Forever.
 
 # BiS Tools
 
-**What killed you, who to watch for, who heals them, and what to farm. For WoW Forever.**
+**Your XP buffs in one stop, what killed you, who to watch for, who heals them, and what to farm. For WoW Forever.**
 
 You're dead, and you never saw it coming. BiS Tools opens the game's own record of the hits that killed you: who landed the last one, who helped, with what, and how fast. Click a player on that screen and they're your rival. The next time they walk into view, you'll know.
+
+## XP buffs, while you level
+
+Stop to eat, and BiS Tools has the whole stop ready. When an XP buff needs you, its button comes into the BiS> tools box, glowing, and one click does it:
+
+- **Camp Tent first.** Your rested XP under 5% of a level, the tent off cooldown and its hour-long debuff off you: put it down (a campfire nearby).
+- **Then the Cozy Sleeping Bag.** Well-Rested gone, short of its 3 stacks, or under 10 minutes left.
+- **Then your XP food.** Well Fed gone or under 2 minutes left. Any cooked food that gives the experience bonus will do, with nothing to set up; the one you last ate goes first. Vendor food is never picked.
+- **One stop for both.** Eat on the bag and you get both buffs at once. So when it's time to eat and Well-Rested would run low before your next meal, the bag comes too, and the other way round.
+- **Out of combat only, nothing at level 60.** No timer ticking: it looks when your buffs, bags or rested XP change. `/bist xp` says where everything stands.
 
 ## Death recap
 
@@ -82,16 +92,6 @@ At a zeppelin tower, a boat dock or a Deeprun Tram platform, a small card pops u
 - **Your guild's clock.** Anyone with any BiS addon who rides once times that route for the whole guild. The card's last line says who timed it and how sure the countdown still is: **100% sure** just after a ride, lower with every lap since, 0% after six hours (a server restart resets every ride).
 - **RIDE-TRAK.** Shift-click the card and each ride gets a little line map under its announcer: here on the left, where it goes on the right, the ride a gold block moving between them - and your own face on it once you're aboard. The tram shows both of its cars.
 - **Close it for good** with the X; `/bist rides on` brings it back.
-
-## XP buffs, while you level
-
-Stop to eat, and BiS Tools has the whole stop ready. When an XP buff needs you, its button comes into the BiS> tools box, glowing, and one click does it:
-
-- **Camp Tent first.** Your rested XP under 5% of a level, the tent off cooldown and its hour-long debuff off you: put it down (a campfire nearby).
-- **Then the Cozy Sleeping Bag.** Well-Rested gone, short of its 3 stacks, or under 10 minutes left.
-- **Then your XP food.** Well Fed gone or under 2 minutes left. Any cooked food that gives the experience bonus will do, with nothing to set up; the one you last ate goes first. Vendor food is never picked.
-- **One stop for both.** Eat on the bag and you get both buffs at once. So when it's time to eat and Well-Rested would run low before your next meal, the bag comes too, and the other way round.
-- **Out of combat only, nothing at level 60.** No timer ticking: it looks when your buffs, bags or rested XP change. `/bist xp` says where everything stands.
 
 ## Sound explorer
 
