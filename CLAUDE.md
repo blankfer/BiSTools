@@ -56,6 +56,16 @@ Read ../_bisdev/CLAUDE.md first.
     client's item buttons (`D.Slot`: own ID = slot, parent's ID = bag 0-4), plus Blizzard's open ContainerFrameN.
     MODIFIER_STATE_CHANGED and a hooked `GameTooltip:SetBagItem` (Alt already down) paint; Alt up clears;
     BAG_UPDATE_DELAYED repaints while lit. Paint only - textures on their buttons, nothing secure. Loads after `XP.lua`.
+  - `Processing.lua`: the `processing` tool (`NS.Proc`, 6 Nov 2026; plan `dev/PROCESSING.md`), enchanting first: the
+    window `BiSToolsProcessing` (358x250, a COCKPIT PAGE - Arn: "a $1 billion jet fighter ... so simple and very
+    functional"): a skill tape (`P.PaintTape`, `P.TapeY`: skill boxed, red/black barber pole above, a bug per need,
+    gold brackets per rod refusal), rows of `P.Items` (one per item by GUID; `NS.DE.Kind`; ready first; ONE "same name"
+    warning per mixed name), each with a SECURE Disenchant button (`target-bag`/`target-slot`; soulbound = shift;
+    above skill = none) whose PreClick re-reads the slot's GUID and CANCELS on a mismatch without re-aiming. Skill
+    gates `P.GATES` = the classic table, UNVERIFIED; a "Requires ... Rod" UI_ERROR_MESSAGE after our click is the
+    scratchpad's and `db.blocked[ilvl]`; a success at that level forgets it. Right-click = `db.ignore[guid]`. Doors: a
+    tools-box button (`P.count` > 0, recounted on bag change) and a button on the profession window (TRADE_SKILL_SHOW).
+    Put away at PLAYER_REGEN_DISABLED, back after. Loads after `Disenchant.lua`.
     `C_Timer.After` for the next "low" (`X.token`). Loads after `Sounds.lua`.
   - `Hub.lua` (284 lines): `NS.Hub`. Not a Registry tool, so it cannot be switched off. It has the hand-rolled minimap button (no LibDBIcon), the Hub list of tools and the Options window (built with `BiSTheme.Options` from the embed), and it sets `NS.HubSlash`. Sections: db, minimap, shared bits, the Hub, Options, boot.
 - `Libs/`: embedded copies of `BiSTheme/Console.lua`, `BiSTheme/Options.lua`, `LibBiSComm-1.0` and `RezComm-1.0`, all listed in the TOC. Since 0.4.0 also three THIRD-PARTY libs, unmodified from upstream at pinned commits: `LibStub`, `CallbackHandler-1.0` (Ace3, BSD) and `HereBeDragons` (Nevcairiel, BSD) - sources, commits and the license text in `Libs/THIRD-PARTY.txt`. Never edit them; replace from upstream. bislint and the fence skip them, as they skip every non-BiS lib. `RezComm` starts itself at login from its TOC line; nothing in `Tools/` calls it. See the libs rules in `../_bisdev/CLAUDE.md`.

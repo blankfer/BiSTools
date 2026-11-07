@@ -193,6 +193,9 @@ function B.Buttons()
     out[#out + 1] = { b = bag, show = XP.ShowBag() }
     out[#out + 1] = { b = food, show = XP.ShowFood() }
   end
+  -- BiS> processing (Arn, 6 Nov): while something in the bags is ready for your profession (Processing.lua)
+  local PR = NS.Proc
+  if PR and PR.BoxButton then out[#out + 1] = { b = PR.BoxButton(), show = PR.ShowBox() } end
   return out
 end
 

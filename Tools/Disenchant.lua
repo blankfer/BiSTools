@@ -167,7 +167,9 @@ end)
 D.events = ev
 
 -- Alt already down when the mouse reaches a bag slot: the slot's tooltip is that moment, whichever bag addon drew it
-if GameTooltip and hooksecurefunc then
+-- (SetBagItem is the real GameTooltip's own - EllesmereUI and Baganator call it on Forever - but hooking a name that is
+-- not there throws at load, so it is asked first)
+if GameTooltip and hooksecurefunc and type(GameTooltip.SetBagItem) == "function" then
   hooksecurefunc(GameTooltip, "SetBagItem", function()
     if not D.on and IsAltKeyDown and IsAltKeyDown() then D.Show() end
   end)

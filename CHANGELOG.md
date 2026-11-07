@@ -1,6 +1,8 @@
 ## Unreleased
 
 - **The disenchant glow.** Hold Alt with your mouse over your bags: gear you can disenchant glows **purple**, and soulbound gear glows **red**, so you think twice before destroying something you might still want. Works with Blizzard's bags, EllesmereUI and Baganator. Let go of Alt and it's gone. Nothing runs until you press Alt. `/bist off disenchant` turns it off.
+- **BiS> processing (enchanting first).** One window lists every piece of gear in your bags you can disenchant, with a Disenchant button on each row. Built like a cockpit page: a skill tape down the left shows your enchanting skill boxed, a red-and-black pole above it for what you can't reach yet, a mark for each skill your items need, and a gold bracket where the game asked for a rod. One line counts what's ready; a line at the foot says what the game said. Opens from the BiS> tools box (when something is ready) or a button on your profession window.
+  - **Never the wrong item.** Each row is one exact item. Just before the click it checks that item is still in that slot; if your bags moved, the click is cancelled and the list refreshes. Enchanted items say ENCHANTED, two items of one name where one differs get one SAME NAME warning (ten identical greens get none), soulbound items take Shift-click, and right-click hides one item for good. Alt-click is never used, so Gargul's roll-outs are safe.
 - The camp tent's debuff is confirmed: Boosted Rest (1229451), as the tent button already checked.
 
 ## 0.19.1

@@ -40,5 +40,6 @@ Tools\Rides.lua
 Tools\Sounds.lua
 Tools\XP.lua
 Tools\Disenchant.lua
+Tools\Processing.lua
 API.lua
 Tools\Hub.lua
