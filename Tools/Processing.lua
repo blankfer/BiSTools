@@ -373,6 +373,21 @@ function P.Paint()
   f.summary:SetText(("%d READY  -  %d ABOVE SKILL%s"):format(ready, above, blocked > 0 and ("  -  " .. blocked .. " NEED A ROD") or ""))
   f.ignored:SetText(ignored > 0 and (ignored .. " IGNORED (SHOW)") or (P.db and P.db.showIgnored and "HIDE IGNORED" or ""))
   P.PaintTape(list)
+  P.RefreshTip()
+end
+
+--- The mouse on a row while the list moved under it (Arn, 6 Nov: "it moves the next item one spot but it still has
+--- old tooltip"): its tooltip again, for what the row holds now - or none, when the row is empty.
+function P.RefreshTip()
+  local f = P.frame
+  local owner = f and GameTooltip and GameTooltip.GetOwner and GameTooltip:GetOwner()
+  if not owner then return end
+  for _, r in ipairs(f.rows) do
+    if owner == r or owner == r.act then
+      if r.entry and r:IsShown() then r:GetScript("OnEnter")(r) else GameTooltip:Hide() end
+      return
+    end
+  end
 end
 
 function P.Build()

@@ -7628,6 +7628,26 @@ do
   ok(f.say.text:find("MOVED", 1, true), "the scratchpad says so", f.say.text)
   fire("BAG_UPDATE_DELAYED")
   ok(rowFor("G-BELT-A").act.attrs["target-slot"] == 8, "repainted: the belt's row aims at its new slot")
+  -- THE TOOLTIP FOLLOWS THE ROW (Arn, 6 Nov live: "when i disenchant it moves the next item one spot but it still has
+  -- old tooltip"): the mouse on a row while the list moves - the tooltip is drawn again for what the row holds now
+  do
+    local keepT = { owner = GameTooltip.GetOwner, set = GameTooltip.SetBagItem, hide = GameTooltip.Hide }
+    local shownFor, hidden
+    local r1 = rows[1]
+    GameTooltip.GetOwner = function() return r1.act end      -- the mouse is on the first row's Disenchant button
+    GameTooltip.SetBagItem = function(_, bag, slot) shownFor = bag .. ":" .. slot end
+    GameTooltip.Hide = function() hidden = true end
+    local first = r1.entry
+    local was = SLOT[first.slot]
+    SLOT[first.slot] = nil                                   -- it was disenchanted: gone from the bags
+    shownFor = nil
+    fire("BAG_UPDATE_DELAYED")
+    ok(r1.entry and r1.entry.guid ~= first.guid and shownFor == r1.entry.bag .. ":" .. r1.entry.slot,
+       "the next item moved up under the mouse: the tooltip is the NEW item's", tostring(shownFor))
+    SLOT[first.slot] = was
+    fire("BAG_UPDATE_DELAYED")
+    GameTooltip.GetOwner, GameTooltip.SetBagItem, GameTooltip.Hide = keepT.owner, keepT.set, keepT.hide
+  end
   -- IGNORE (Arn: "we don't want to always pop up their purple gear that they carry as extra gear")
   local eb = rowFor("G-BELT-B")
   eb.scripts.OnClick(eb, "RightButton")
