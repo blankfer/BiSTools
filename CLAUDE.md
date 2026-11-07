@@ -72,6 +72,17 @@ Read ../_bisdev/CLAUDE.md first.
     all time in db.totals), the fingerprint (NS.BUILD = the copy's X-BiS-Build, stamped by deploy.sh) and the HOARD
     (`BiSToolsHoard`: db.totals as a heap of round-masked pieces, Media/Round.tga, capped 90; you in 3D on the summit,
     mood by the total; a full mountain, 1 open in 5, you fall in).
+  - `Pups.lua`: the `pups` tool (`NS.Pups`, 6 Nov 2026; Arn: "a fidget spinner ... like a flight tower radar"), ON by
+    default: `BiSToolsPups` (343x240, scale 1.2, Escape closes) - a radar scope (north up, rings and a sweep drawn with
+    Lines painted WHITE8X8 + tint, blips = Media/Round) and a readout (NEAREST, what the pups say, FOUND list, SEND).
+    Pals (`P.Pals`): LibBiSComm spots (exact), your group on your map (exact), guild roster + friends (zone only);
+    `P.Place`: exact yards/bearing via HereBeDragons `GetZoneDistance` (its x grows WEST, y NORTH) or GetMapWorldSize
+    on the same map, "IN ZONE", a "~" guess at another zone's middle, or the zone's name. Three 3D pups (`P.PUPS` npc
+    ids, DressUpModel + SetCreature, asked again till drawn, paw icon after 3 tries) run out to each blip, sniff, run
+    back and report, nearest first, until all are found; a row click sends one again. OnUpdate at `P.FPS` only while
+    shown; roster events only mark it stale. Tools-box button while on a taxi or mounted, outside instances
+    (`P.ShowBox`, `db.button`). `NS.Stamp()` (Init.lua) = the faint fingerprint every window prints. Loads after
+    `Processing.lua`.
   - `Hub.lua` (284 lines): `NS.Hub`. Not a Registry tool, so it cannot be switched off. It has the hand-rolled minimap button (no LibDBIcon), the Hub list of tools and the Options window (built with `BiSTheme.Options` from the embed), and it sets `NS.HubSlash`. Sections: db, minimap, shared bits, the Hub, Options, boot.
 - `Libs/`: embedded copies of `BiSTheme/Console.lua`, `BiSTheme/Options.lua`, `LibBiSComm-1.0` and `RezComm-1.0`, all listed in the TOC. Since 0.4.0 also three THIRD-PARTY libs, unmodified from upstream at pinned commits: `LibStub`, `CallbackHandler-1.0` (Ace3, BSD) and `HereBeDragons` (Nevcairiel, BSD) - sources, commits and the license text in `Libs/THIRD-PARTY.txt`. Never edit them; replace from upstream. bislint and the fence skip them, as they skip every non-BiS lib. `RezComm` starts itself at login from its TOC line; nothing in `Tools/` calls it. See the libs rules in `../_bisdev/CLAUDE.md`.
 - `dev/tests.lua` (1755 lines): the headless harness (`lua5.1 dev/tests.lua`, run from the addon root). It reads `BiSTools.toc` for the version and the file list, then loads every listed file in order, with no stubs, and calls each one as `chunk("BiSTools", NS)`. It asserts the TOC lists at least 9 files and that it lists `Libs/BiSTheme/Options.lua`. Sections: WoW mock (`_G.__W`), load, checks, spawn zones + spots, comm lib + summon tool, a full 25-man, RezComm, the Hub, wrong-accent pass, embedded libs are the canonical bytes. The last section compares the four `Libs/` files byte for byte against `../_bisdev/` and `../BiSTheme/`.

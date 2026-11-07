@@ -196,6 +196,9 @@ function B.Buttons()
   -- BiS> processing (Arn, 6 Nov): while something in the bags is ready for your profession (Processing.lua)
   local PR = NS.Proc
   if PR and PR.BoxButton then out[#out + 1] = { b = PR.BoxButton(), show = PR.ShowBox() } end
+  -- BiS> pups (Arn, 6 Nov: "fidget spinner to press while traveling"): on a flight or mounted (Pups.lua)
+  local PU = NS.Pups
+  if PU and PU.BoxButton then out[#out + 1] = { b = PU.BoxButton(), show = PU.ShowBox() } end
   return out
 end
 
