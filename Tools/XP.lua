@@ -29,7 +29,7 @@ X.CAP = 60
 X.WELL_FED = "Well Fed"
 -- THE CAMP TENT (Arn, 6 Nov, its tooltip: ItemID 279978, IconID 134250, Leatherworking 20): "increase Rested experience
 -- to 5% of a level. No effect if Rested experience already exceeds that value. Requires a Campfire nearby." Then a
--- debuff blocks it an hour - "Boosted Rest" (1229451) by Warcraft Tavern's guide, UNVERIFIED live, so it is asked by
+-- debuff blocks it an hour - "Boosted Rest" (1229451) CONFIRMED live 6 Nov (Arn's tooltip: "You cannot gain more rested experience from a Camp Tent for 1 hour"), asked by
 -- id AND by name. Arn: "the ideal start is camp tent down, sleeping bag and food" - it joins that stop, first.
 X.TENT_ITEM, X.TENT_SHARE = 279978, 0.05
 X.BOOSTED, X.BOOSTED_NAME = 1229451, "Boosted Rest"

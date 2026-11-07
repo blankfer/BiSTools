@@ -1,3 +1,8 @@
+## Unreleased
+
+- **The disenchant glow.** Hold Alt with your mouse over your bags: gear you can disenchant glows **purple**, and soulbound gear glows **red**, so you think twice before destroying something you might still want. Works with Blizzard's bags, EllesmereUI and Baganator. Let go of Alt and it's gone. Nothing runs until you press Alt. `/bist off disenchant` turns it off.
+- The camp tent's debuff is confirmed: Boosted Rest (1229451), as the tent button already checked.
+
 ## 0.19.1
 
 - **The XP food button never offers water.** Drink while you eat and 0.19.0 could take your water for "the food you last ate" and put it on the button. It now learns only food whose own text gives the experience bonus, and a water it already learned is ignored.
