@@ -49,6 +49,7 @@ Read ../_bisdev/CLAUDE.md first.
     the food is due and Well-Rested would come due before the next meal (`X.MEAL`, from the buff's duration), the food
     when the bag is due and the food is within `X.PAIR` of low. Lookups fall back to the globals GetItemSpell /
     GetSpellDescription; a blank text asks RequestLoadSpellData and waits `X.LOAD_WAIT` (SPELL_DATA_LOAD_RESULT looks again).
+    `C_Timer.After` for the next "low" (`X.token`). Loads after `Sounds.lua`.
   - `Disenchant.lua`: the `disenchant` tool (`NS.DE`, 6 Nov 2026), ON by default, no options: hold Alt with the mouse
     over a bag window and gear you can disenchant (weapon/armor, green to epic, not a shirt/tabard: `D.Kind`) glows
     purple, soulbound gear red (`isBound` from the bag answer, else `C_Item.IsBound(ItemLocation)`). ANY bag UI - Arn:
@@ -56,7 +57,6 @@ Read ../_bisdev/CLAUDE.md first.
     client's item buttons (`D.Slot`: own ID = slot, parent's ID = bag 0-4), plus Blizzard's open ContainerFrameN.
     MODIFIER_STATE_CHANGED and a hooked `GameTooltip:SetBagItem` (Alt already down) paint; Alt up clears;
     BAG_UPDATE_DELAYED repaints while lit. Paint only - textures on their buttons, nothing secure. Loads after `XP.lua`.
-    `C_Timer.After` for the next "low" (`X.token`). Loads after `Sounds.lua`.
   - `Hub.lua` (284 lines): `NS.Hub`. Not a Registry tool, so it cannot be switched off. It has the hand-rolled minimap button (no LibDBIcon), the Hub list of tools and the Options window (built with `BiSTheme.Options` from the embed), and it sets `NS.HubSlash`. Sections: db, minimap, shared bits, the Hub, Options, boot.
 - `Libs/`: embedded copies of `BiSTheme/Console.lua`, `BiSTheme/Options.lua`, `LibBiSComm-1.0` and `RezComm-1.0`, all listed in the TOC. Since 0.4.0 also three THIRD-PARTY libs, unmodified from upstream at pinned commits: `LibStub`, `CallbackHandler-1.0` (Ace3, BSD) and `HereBeDragons` (Nevcairiel, BSD) - sources, commits and the license text in `Libs/THIRD-PARTY.txt`. Never edit them; replace from upstream. bislint and the fence skip them, as they skip every non-BiS lib. `RezComm` starts itself at login from its TOC line; nothing in `Tools/` calls it. See the libs rules in `../_bisdev/CLAUDE.md`.
 - `dev/tests.lua` (1755 lines): the headless harness (`lua5.1 dev/tests.lua`, run from the addon root). It reads `BiSTools.toc` for the version and the file list, then loads every listed file in order, with no stubs, and calls each one as `chunk("BiSTools", NS)`. It asserts the TOC lists at least 9 files and that it lists `Libs/BiSTheme/Options.lua`. Sections: WoW mock (`_G.__W`), load, checks, spawn zones + spots, comm lib + summon tool, a full 25-man, RezComm, the Hub, wrong-accent pass, embedded libs are the canonical bytes. The last section compares the four `Libs/` files byte for byte against `../_bisdev/` and `../BiSTheme/`.
