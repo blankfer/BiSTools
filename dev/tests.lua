@@ -242,7 +242,9 @@ local function Texture()
     self.masks = self.masks or {} self.masks[#self.masks + 1] = m
   end
   function t:SetTexCoord() end
-  function t:ClearAllPoints() end
+  -- the client's ClearAllPoints drops EVERY anchor, the stretch from SetAllPoints too; and a SetPoint after a
+  -- SetAllPoints ADDS an anchor without undoing the stretch (Arn, 8 Nov: an 8 px lamp painted its whole row)
+  function t:ClearAllPoints() self.anchor = nil self.all = nil end
   function t:SetRotation(r) if type(r) ~= "number" then error("SetRotation wants a number") end self.rot = r end
   function t:SetVertexColor(r, g, b, a)
     if not num3(r, g, b) then error("SetVertexColor wants r,g,b numbers") end
@@ -2392,6 +2394,29 @@ do
     ok(d.selected == "_general" and not d.detail.switch:IsShown() and #d.pages._general == 3,
        "BiS Tools itself: no on/off, its own three settings")
     -- every row and button pops under the mouse (the family rule)
+    -- THE LAMP IS A LAMP (Arn, 8 Nov live, the first look: every row solid cyan, the picked one solid pink - the
+    -- 8 px lamp and the 3 px bar were stretched over the whole row by the kit's SetAllPoints)
+    for _, r in ipairs(d.rows) do
+      ok(not r.lamp.all and r.lamp.w == 8 and not r.bar.all and r.bar.w == 3,
+         "a row's lamp and bar are their own size, not the whole row: " .. r.entry.title)
+    end
+    ok(d.detail.desc.justify == "LEFT" and d.detail.usage.justify == "LEFT", "the words on the right read left to right, not centred")
+    -- ONE COLUMN, ALWAYS (Arn, 8 Nov live, the party tool in two columns: "lots of stuff cut off"). Nine settings
+    -- in a short panel: shorter rows, every one full width
+    local partyRow
+    for _, r in ipairs(d.rows) do if r.entry.key == "party" then partyRow = r end end
+    local keepH = d.detail.h
+    d.detail.h = 330
+    partyRow.scripts.OnClick(partyRow, "LeftButton")
+    local prow = d.pages.party
+    local fullWidth, sameH = true, true
+    for _, r in ipairs(prow) do
+      if r.w ~= nil then fullWidth = false end
+      if r.h ~= d.step - 4 then sameH = false end
+    end
+    ok(#prow == 9 and fullWidth and sameH, "nine settings: one column, every row full width", #prow)
+    ok(d.step < 36 and d.step >= H.DASH.MIN_STEP, "rows a little shorter to fit, never under the floor", d.step)
+    d.detail.h = keepH
     pupsRow.scripts.OnEnter(pupsRow)
     ok(pupsRow.wash.alpha == 1 and d.help.text.text == R:Get("pups").desc, "a list row pops and reads what the tool does")
     pupsRow.scripts.OnLeave(pupsRow)

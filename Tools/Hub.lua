@@ -193,6 +193,7 @@ function H.BuildHub()
     r.wash:SetAllPoints()
     r.wash:SetAlpha(0)
     r.bar = K.tex(r, "ARTWORK", "accent", 1)
+    r.bar:ClearAllPoints()          -- K.tex stretches over the whole row; the bar is the left edge only
     r.bar:SetPoint("TOPLEFT") r.bar:SetPoint("BOTTOMLEFT") r.bar:SetWidth(2)
     r.bar:SetAlpha(0)
     r.name = K.fs(r, tool.title or tool.name, 9, "ink")
@@ -407,10 +408,14 @@ function H.BuildDash(body)
     r.wash = K.tex(r, "BORDER", "accent", 0.35)
     r.wash:SetAllPoints()
     r.wash:SetAlpha(0)
+    -- K.tex STRETCHES over the whole row (SetAllPoints): the bar and the lamp are cleared first, or the 8 px lamp
+    -- paints the row (Arn, 8 Nov live: every row solid cyan, the picked one solid pink)
     r.bar = K.tex(r, "ARTWORK", "accent", 1)
+    r.bar:ClearAllPoints()
     r.bar:SetPoint("TOPLEFT") r.bar:SetPoint("BOTTOMLEFT") r.bar:SetWidth(3)
     r.bar:SetAlpha(0)
     r.lamp = K.tex(r, "OVERLAY", "line2", 1)
+    r.lamp:ClearAllPoints()
     r.lamp:SetSize(8, 8)
     r.lamp:SetPoint("LEFT", 10, 0)
     r.name = K.fs(r, e.title, 12, "ink")
@@ -450,16 +455,24 @@ function H.BuildDash(body)
   p.desc = K.fs(p, "", 12, "ink2")
   dashFont(p.desc, 12)
   if p.desc.SetWordWrap then p.desc:SetWordWrap(true) end
+  if p.desc.SetJustifyH then p.desc:SetJustifyH("LEFT") end
   p.desc:SetPoint("TOPLEFT", p.name, "BOTTOMLEFT", 0, -8)
   p.desc:SetPoint("RIGHT", p, "RIGHT", -14, 0)
-  p.open = BT.DashButton(p, "open its window", 150, function()
+  -- the window button rides the name's row, beside the switch: no row of its own
+  p.open = BT.DashButton(p, "open its window", 130, function()
     local key = d.selected
     if BT.CloseSettingsPanel then BT.CloseSettingsPanel() end
     H.Open(key)
     H.PaintDash()
   end)
-  p.usage = K.fs(p, "", 11, "muted")
-  dashFont(p.usage, 11)
+  p.open:SetPoint("TOPRIGHT", p.switch, "TOPLEFT", -8, 0)
+  -- the command, small, at the FOOT of the panel (Arn, 8 Nov live: "lots of stuff cut off" - a long usage line
+  -- ran off both sides of the panel in the middle of it)
+  p.usage = K.fs(p, "", 10, "muted")
+  dashFont(p.usage, 10)
+  if p.usage.SetJustifyH then p.usage:SetJustifyH("LEFT") end
+  if p.usage.SetWordWrap then p.usage:SetWordWrap(true) end
+  p.usage:SetPoint("BOTTOMLEFT", p, "BOTTOMLEFT", 14, 10)
   p.usage:SetPoint("RIGHT", p, "RIGHT", -14, 0)
   p.none = K.fs(p, "Nothing to set: it just works while it is on.", 12, "muted")
   dashFont(p.none, 12)
@@ -496,30 +509,24 @@ function H.DashSwitch(key, on)
   H.PaintDash()
 end
 
---- Lay the picked entry's rows out: under its words, one column, or two when one will not fit the panel.
-function H.DashLayout(p, rows, top)
+--- Lay the picked entry's rows out under its words: ONE column, full width, always (Arn, 8 Nov live: two columns
+--- cut every label and put a choice over a switch). A tool with more settings than fit gets shorter rows instead,
+--- down to H.DASH.MIN_STEP; `bottom` is what the foot of the panel keeps (the command line).
+H.DASH.MIN_STEP = 27
+function H.DashLayout(p, rows, top, bottom)
   local D = BiSTheme.SETTINGS.DASH
   local step = D.ROW + 4
   local h = p.GetHeight and p:GetHeight() or 0
-  local w = p.GetWidth and p:GetWidth() or 0
-  local avail = (type(h) == "number" and h or 0) + top - 12
-  local cols = (avail > 0 and #rows * step > avail and type(w) == "number" and w > 0) and 2 or 1
-  local per = math.ceil(#rows / cols)
-  local colW = cols == 2 and (w - 28 - 10) / 2 or nil
+  local avail = (type(h) == "number" and h or 0) + top - (bottom or 0) - 8
+  if avail > 0 and #rows * step > avail then step = math.max(H.DASH.MIN_STEP, math.floor(avail / #rows)) end
   for i, r in ipairs(rows) do
-    local c = math.floor((i - 1) / per)
-    local y = top - ((i - 1) % per) * step
     r:ClearAllPoints()
-    if cols == 1 then
-      r:SetPoint("TOPLEFT", p, "TOPLEFT", 14, y)
-      r:SetPoint("RIGHT", p, "RIGHT", -14, 0)
-    else
-      r:SetPoint("TOPLEFT", p, "TOPLEFT", 14 + c * (colW + 10), y)
-      r:SetWidth(colW)
-    end
+    r:SetPoint("TOPLEFT", p, "TOPLEFT", 14, top - (i - 1) * step)
+    r:SetPoint("RIGHT", p, "RIGHT", -14, 0)
+    r:SetHeight(step - 4)
     r:Show()
   end
-  return cols
+  return step
 end
 
 function H.PaintDash()
@@ -554,22 +561,17 @@ function H.PaintDash()
   p.name:SetText(e.title)
   p.desc:SetText(e.desc or "")
   if e.tool then p.switch:Set(en) p.switch:Show() else p.switch:Hide() end
-  local top = -(12 + 24 + 8 + 48)                              -- under the name and two or three lines of words
-  local canOpen = e.tool and e.tool.OnOpen
-  if canOpen then
-    p.open:ClearAllPoints()
-    p.open:SetPoint("TOPLEFT", p, "TOPLEFT", 14, top)
-    p.open:Show()
-    top = top - 34
-  else
-    p.open:Hide()
-  end
+  -- the rows start right under the words, however many lines they took (measured; 2 lines when the client won't say)
+  local okH, descH = pcall(function() return p.desc:GetStringHeight() end)
+  descH = (okH and type(descH) == "number" and descH > 0) and descH or 30
+  local top = -(12 + 24 + 8) - math.ceil(descH) - 12
+  if e.tool and e.tool.OnOpen then p.open:Show() else p.open:Hide() end
+  local bottom = 0
   if e.tool and e.tool.usage then
-    p.usage:ClearAllPoints()
-    p.usage:SetPoint("TOPLEFT", p, "TOPLEFT", 14, top)
     p.usage:SetText("command:  " .. e.tool.usage)
     p.usage:Show()
-    top = top - 22
+    local okU, uh = pcall(function() return p.usage:GetStringHeight() end)
+    bottom = 10 + ((okU and type(uh) == "number" and uh > 0) and math.ceil(uh) or 26)
   else
     p.usage:Hide()
   end
@@ -580,7 +582,7 @@ function H.PaintDash()
     p.none:Show()
   else
     p.none:Hide()
-    d.cols = H.DashLayout(p, rows, top)
+    d.step = H.DashLayout(p, rows, top, bottom)
   end
   for _, r in ipairs(rows) do
     r:Paint()
