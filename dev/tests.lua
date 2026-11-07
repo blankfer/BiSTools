@@ -466,6 +466,8 @@ _G.CreateFrame = function(kind, name, parent, template)
   end
   function f:IsShown() return self.shown end
   function f:SetShown(v) if v then self:Show() else self:Hide() end end
+  -- every frame the client makes can say whether it is locked away from addons (a plain one: false)
+  function f:IsForbidden() return false end
   -- VISIBLE IS SHOWN ALL THE WAY UP (7 Oct 2026). A child whose parent hides stays IsShown() -
   -- that is how the Spawns shelf kept refreshing 4 times a second behind a closed farm window.
   function f:IsVisible()
@@ -7565,6 +7567,40 @@ do
   ok(asked == 8, "over the bags: one item question per slot shown (7 + 1)", asked)
   ALT = false
   fire("MODIFIER_STATE_CHANGED", "LALT", 0)
+  -- LOCKED AND HIDDEN FRAMES (Arn's BugSack, 7 Nov: 96 x "calling 'IsVisible' on bad self (Attempt to access forbidden
+  -- object from code tainted by an AddOn)" and 80 x "attempt to perform boolean test on a secret boolean value", both
+  -- Disenchant.lua:77). A window can hold frames the client locks away - every call on one throws, except IsForbidden -
+  -- and frames that answer IsVisible with a secret. Lua 5.1 cannot make `not secret` throw as the client does, so the
+  -- check is what the walk DOES with that answer: a frame it cannot read is not walked into.
+  do
+    local SECRET_BOOL = setmetatable({}, {})
+    local keepIs = rawget(_G, "issecretvalue")
+    _G.issecretvalue = function(v) return v == SECRET_BOOL or (keepIs ~= nil and keepIs(v)) or false end
+    local locked = CreateFrame("Frame", nil, win)
+    for _, m in ipairs({ "IsVisible", "IsShown", "GetChildren", "GetParent", "GetID", "GetObjectType" }) do
+      locked[m] = function() error("calling '" .. m .. "' on bad self (Attempt to access forbidden object from code tainted by an AddOn)", 2) end
+    end
+    locked.IsForbidden = function() return true end
+    local hush = CreateFrame("Frame", nil, win)
+    hush:SetID(1)
+    hush.IsVisible = function() return SECRET_BOOL end
+    local inHush = CreateFrame("ItemButton", nil, hush, "ContainerFrameItemButtonTemplate")
+    inHush:SetID(1)
+    ALT, FOCUS = true, btn[1]
+    local okE, err = pcall(fire, "MODIFIER_STATE_CHANGED", "LALT", 1)
+    ok(okE, "a locked frame in the bag window: no error", err)
+    ok(lit(btn[1]) and lit(btn[2]), "and the bag slots still glow")
+    ok(not lit(inHush), "a frame whose visibility is hidden from us is not walked into")
+    ALT = false
+    fire("MODIFIER_STATE_CHANGED", "LALT", 0)
+    -- the mouse ON a locked frame (a nameplate, a protected bar): nothing, and no error
+    ALT, FOCUS = true, locked
+    okE, err = pcall(fire, "MODIFIER_STATE_CHANGED", "LALT", 1)
+    ok(okE and not lit(btn[1]), "the mouse on a locked frame: nothing lit, no error", err)
+    ALT = false
+    fire("MODIFIER_STATE_CHANGED", "LALT", 0)
+    _G.issecretvalue = keepIs
+  end
 
   _G.C_Container, _G.C_Item, _G.GetMouseFoci, _G.IsAltKeyDown = keep.cont, keep.item, keep.foci, keep.alt
   _G.ItemLocation, _G.ContainerFrame1 = keep.loc, keep.cf1

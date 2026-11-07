@@ -71,23 +71,46 @@ function D.Slot(b)
   return bag, slot
 end
 
+--- LOCKED AND HIDDEN FRAMES (Arn's BugSack, 7 Nov 2026: 96 x "calling 'IsVisible' on bad self (Attempt to access
+--- forbidden object ...)" and 80 x "boolean test on a secret boolean", both here). A window can hold frames the client
+--- locks away from addons - every call on one throws, IsForbidden aside - and frames whose IsVisible is a secret. A
+--- frame we cannot read plainly is not ours to walk: skipped, never tested.
+function D.Readable(f)
+  if type(f) ~= "table" then return false end
+  if f.IsForbidden then
+    local ok, forbidden = pcall(f.IsForbidden, f)
+    if not ok or plain(forbidden) ~= false then return false end      -- locked, or it would not say
+  end
+  return true
+end
+
 local function collect(f, out, seen, depth)
   if depth > D.DEPTH or type(f) ~= "table" or seen[f] then return end
   seen[f] = true
-  if f.IsVisible and not f:IsVisible() then return end
+  if not D.Readable(f) then return end
+  if f.IsVisible then
+    local ok, vis = pcall(f.IsVisible, f)
+    if not ok or plain(vis) ~= true then return end                    -- hidden, locked, or a secret answer
+  end
   local bag, slot = D.Slot(f)
   if bag then out[#out + 1] = { b = f, bag = bag, slot = slot } return end
   if not f.GetChildren then return end
-  for _, c in ipairs({ f:GetChildren() }) do collect(c, out, seen, depth + 1) end
+  local ok, kids = pcall(function() return { f:GetChildren() } end)
+  if not ok then return end
+  for _, c in ipairs(kids) do collect(c, out, seen, depth + 1) end
 end
 
---- The window under the mouse: up from the frame there until the next step is the screen itself.
+--- The window under the mouse: up from the frame there until the next step is the screen itself. A locked frame
+--- (a nameplate, a protected bar) is no bag window: nil.
 function D.Window()
   local foci = GetMouseFoci and ask(GetMouseFoci)
   local f = type(foci) == "table" and foci[1] or (GetMouseFocus and ask(GetMouseFocus)) or nil
   for _ = 1, 30 do
-    if type(f) ~= "table" or not f.GetParent then return f end
-    local p = f:GetParent()
+    if type(f) ~= "table" then return nil end
+    if not D.Readable(f) then return nil end
+    if not f.GetParent then return f end
+    local ok, p = pcall(f.GetParent, f)
+    if not ok then return nil end
     if p == nil or p == UIParent then return f end
     f = p
   end
