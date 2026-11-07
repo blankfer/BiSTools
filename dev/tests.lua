@@ -8037,6 +8037,8 @@ do
   ok(#PU.Reported() == 5, "every pal found in the end", #PU.Reported())
   ok(f.near.text == "Kelvar" and f.nearAt.text == "120 YD NE", "NEAREST: the exact one", f.near.text .. " / " .. f.nearAt.text)
   ok(f.rows[1].shown and f.rows[1].name.text == "Kelvar" and f.rows[5].shown and not f.rows[6].shown, "the list: the found, nearest first")
+  -- ONE LINE A NAME (Arn's first look, 6 Nov: "Stupidpriest Floortank" wrapped onto the next row)
+  ok(f.rows[1].name.wrap == false and f.rows[1].at.wrap == false and f.near.wrap == false, "names never wrap: cut on one line")
   ok(PU.pups[1].drawn and PU.pups[1].icon.shown == false, "a pup drew on the second ask (the client fetches a creature first)")
   for _, p in ipairs(PU.pups) do ok(p.state == "idle" or p.state == "wander", "the pups home, pottering about", p.state) end
   ok(f.blips[1].dot.shown and f.blips[1].dot.anchor and math.abs(f.blips[1].dot.anchor[4] - kel.px) < 0.5
