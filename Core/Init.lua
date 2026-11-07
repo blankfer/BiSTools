@@ -5,9 +5,15 @@ _G.BiSTools = NS
 
 -- version from the TOC, never a literal that drifts (house law); the literal is the
 -- fallback only and the harness holds it equal to ## Version
-local VERSION_FALLBACK = "0.19.1"   -- == ## Version in the TOC; the harness scans for this
+local VERSION_FALLBACK = "0.20.0"   -- == ## Version in the TOC; the harness scans for this
 NS.VERSION = (C_AddOns and C_AddOns.GetAddOnMetadata and C_AddOns.GetAddOnMetadata(ADDON, "Version"))
   or (GetAddOnMetadata and GetAddOnMetadata(ADDON, "Version")) or VERSION_FALLBACK
+-- THE BUILD STAMP (Arn, 6 Nov 2026: "a finger print thing only you can see so you know what version i am on"):
+-- _bisdev/deploy.sh writes "## X-BiS-Build: <branch>@<commit> <MMDD-HHMM>" into the COPY it puts in the game; a
+-- released zip has none, so this is nil there. Windows show it faint beside the version.
+NS.BUILD = (C_AddOns and C_AddOns.GetAddOnMetadata and C_AddOns.GetAddOnMetadata(ADDON, "X-BiS-Build"))
+  or (GetAddOnMetadata and GetAddOnMetadata(ADDON, "X-BiS-Build")) or nil
+if NS.BUILD == "" then NS.BUILD = nil end
 
 -- Palette: prefer BiSTheme (loads before us? no - alphabetical, BiSTheme > BiSTools,
 -- so resolve lazily on first use), fall back to the inline BiS palette.

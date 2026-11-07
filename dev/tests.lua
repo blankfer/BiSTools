@@ -332,6 +332,9 @@ _G.CreateFrame = function(kind, name, parent, template)
     end
     function f:GetModelFileID() return self._file or 0 end
     function f:SetPortraitZoom(z) self._zoom = z end
+    -- an animation by the client's id, looped (BiS Shell plays them live: stand 0, wave 67, cheer 68, cry 77)
+    function f:SetAnimation(id) if type(id) ~= "number" then error("SetAnimation wants an animation id", 2) end self._anim = id end
+    function f:SetCamDistanceScale(s) self._cam = s end
   end
   -- ON FOREVER, REGISTERING THE COMBAT LOG IS A PROTECTED ACTION (6 Oct 2026, Arn's BugGrabber:
   -- "AddOn 'BiSTools' tried to call the protected function 'Frame:RegisterEvent()'"). The client
@@ -1890,7 +1893,7 @@ do
   -- left click: the Hub, one row per tool
   mm.scripts.OnClick(mm, "LeftButton")
   local hub = BiSToolsHub
-  ok(hub and hub:IsShown() and #hub.rows == 13, "left click opens the Hub with a row per registered tool")   -- +disenchant, 6 Nov
+  ok(hub and hub:IsShown() and #hub.rows == 14, "left click opens the Hub with a row per registered tool")   -- +disenchant, +processing, 6 Nov
   ok(hub.scale == 1.2, "the Tools list is 20% bigger (Arn: \"lets make this 20% bigger\")")
   ok(hub.rows[1].key == "farm" and hub.rows[2].key == "summon" and hub.rows[3].key == "recap" and hub.rows[4].key == "rivals"
      and hub.rows[5].key == "social" and hub.rows[6].key == "threat" and hub.rows[7].key == "bg" and hub.rows[8].key == "map" and hub.rows[9].key == "party"
@@ -1899,12 +1902,12 @@ do
   -- RIVALS & PALS, their own tool (Arn, 14 Oct: "decouple from recap ... be its own thing")
   ok(hub.rows[4].name.text == "rivals & pals", "the rivals tool's row is titled rivals & pals")
   ok(hub.rows[1].name.text == "farm" and hub.rows[1].state.text:find("on", 1, true), "row: name + on")
-  ok(hub.con.slots.count and hub.con.slots.count.text == "11 of 13 on", "prompt slot counts the tools that are on (threat and party start off; rides, sounds, xp and disenchant on)")
+  ok(hub.con.slots.count and hub.con.slots.count.text == "12 of 14 on", "prompt slot counts the tools that are on (threat and party start off; rides, sounds, xp, disenchant and processing on)")
   ok(not R:Enabled("threat") and hub.rows[6].name.text == "threat (beta)" and hub.rows[6].state.text:find("off", 1, true),
      "the threat tool starts OFF and is shown as \"threat (beta)\"")
   ok(hub.con:Width() <= H.W - 15 - 8, "hub prompt fits its header budget")
   ok(hub.closeBtn.point[4] == -3, "only an x in the header, at -3")
-  ok(hub.foot and hub.foot.label.text == "options" and hub.h == 16 + 13 * 16 + 4 + 16, "footer 'options' button; height = header + rows + footer")
+  ok(hub.foot and hub.foot.label.text == "options" and hub.h == 16 + 14 * 16 + 4 + 16, "footer 'options' button; height = header + rows + footer")
   -- row click opens the tool window; shift-click drags it to the middle
   BiSToolsFarm:Hide() F.db.pos = { "TOPLEFT", 400, -300, "TOPLEFT" }
   hub.rows[1].scripts.OnClick(hub.rows[1], "LeftButton")
@@ -1954,7 +1957,7 @@ do
   for _, r in ipairs(BiSToolsOptions and BiSToolsOptions.rows or {}) do end
   -- right click toggles the tool; opening an off tool switches it on first
   hub.rows[2].scripts.OnClick(hub.rows[2], "RightButton")
-  ok(not R:Enabled("summon") and hub.rows[2].state.text:find("off", 1, true) and hub.con.slots.count.text == "10 of 13 on", "right click: summon off, row and count follow")
+  ok(not R:Enabled("summon") and hub.rows[2].state.text:find("off", 1, true) and hub.con.slots.count.text == "11 of 14 on", "right click: summon off, row and count follow")
   ok(lib:Enabled(), "and the lib is untouched by it")
   hub.rows[2].scripts.OnClick(hub.rows[2], "LeftButton")
   ok(R:Enabled("summon") and BiSToolsSummon:IsShown() and db_summon().mode == "on", "click on an off tool: switched on and its window pinned open")
@@ -1983,7 +1986,7 @@ do
   -- (+5 in party, 21 Oct: accept from the guild / friends, invite on a keyword, the keyword, from whom)
   -- (+ sounds (1), 5 Nov: the explorer's open button - and its section header)
   -- (+1 in xp, 6 Nov: the camp tent button; + disenchant (0), 6 Nov: its section header, the on/off)
-  ok(#opt.rows == 13 + 3 + 5 + 7 + 1 + 8 + 2 + 2 + 4 + 7 + 4 + 4 + 5 + 1 + 2 + 1 + 1, "one row per section header and per option", #opt.rows)
+  ok(#opt.rows == 13 + 3 + 5 + 7 + 1 + 8 + 2 + 2 + 4 + 7 + 4 + 4 + 5 + 1 + 2 + 1 + 1 + 1, "one row per section header and per option", #opt.rows)
   -- THE BiSTheme STANDARD, 1.43:1 (Arn, 14 Oct): its sections poured into columns, the window that shape
   ok(math.abs(opt.w / opt.h - 1.43) < 0.01 and (opt.columns or 1) >= 2, "options: 1.43:1, in columns", opt.w .. "x" .. opt.h)
   local function find(label) for _, r in ipairs(opt.rows) do if r.name and r.name.text == label then return r end end end
@@ -2052,7 +2055,7 @@ do
   local farmHdr = opt.rows[5]
   ok(farmHdr.ctl and farmHdr.ctl.on == true, "farm section box shows on")
   farmHdr.ctl.scripts.OnClick(farmHdr.ctl)
-  ok(not R:Enabled("farm") and farmHdr.ctl.on == false and hub.con.slots.count.text == "10 of 13 on", "box off: farm off, hub count follows")
+  ok(not R:Enabled("farm") and farmHdr.ctl.on == false and hub.con.slots.count.text == "11 of 14 on", "box off: farm off, hub count follows")
   farmHdr.ctl.scripts.OnClick(farmHdr.ctl)
   ok(R:Enabled("farm"), "and back on")
   -- toggle: nag
@@ -7514,6 +7517,368 @@ do
   _G.C_Container, _G.C_Item, _G.GetMouseFoci, _G.IsAltKeyDown = keep.cont, keep.item, keep.foci, keep.alt
   _G.ItemLocation, _G.ContainerFrame1 = keep.loc, keep.cf1
   win:Hide() cf1:Hide()
+end
+
+-- ------------------------------------------------------------ BiS> processing (6 Nov 2026)
+-- Arn: "a processing [mode] ... lists all our stuff for our profession ... clicking it disenchants" - and the look:
+-- "a $1 billion jet fighter, yet our interface is so simple and very functional ... heads-up display". dev/PROCESSING.md.
+-- Enchanting first (Chainheal is the enchanter; no miner to test smelting on yet).
+do
+  local P = NS.Proc
+  local db = R:DBFor(R:Get("processing"))
+  ok(P and R:Get("processing") and R:Enabled("processing"), "the processing tool, on by default")
+  -- SHORT NAMES (Arn, 6 Nov: "any thing more than 3 or 4 letters cut it down /bist processing"): every tool whose
+  -- name is longer has a word of 4 letters or fewer; the long names still work
+  do
+    for key, tool in R:Each() do
+      ok(#key <= 4 or (tool.short and #tool.short <= 4 and R:Get(tool.short) == tool),
+         ("%s: a short word of 4 letters or fewer"):format(key), tool.short)
+    end
+    ok(R:Get("proc") == R:Get("processing") and R:Get("de") == R:Get("disenchant") and R:Get("snd") == R:Get("sounds"),
+       "proc, de, snd ... are the same tools")
+    SlashCmdList.BISTOOLS("off de")
+    ok(not R:Enabled("disenchant"), "/bist off de: the disenchant glow off")
+    SlashCmdList.BISTOOLS("on de")
+    ok(R:Enabled("disenchant"), "/bist on de: back on")
+    SlashCmdList.BISTOOLS("proc")
+    ok(BiSToolsProcessing and BiSToolsProcessing:IsShown(), "/bist proc opens the processing page")
+    SlashCmdList.BISTOOLS("proc")
+  end
+  local keep = { cont = _G.C_Container, item = _G.C_Item, loc = rawget(_G, "ItemLocation"), known = rawget(_G, "IsPlayerSpell"),
+                 profs = rawget(_G, "GetProfessions"), info = rawget(_G, "GetProfessionInfo"), ts = rawget(_G, "TradeSkillFrame") }
+  -- the bags, as Chainheal's could be: two belts of ONE name (one enchanted - "my gear"), two identical cloaks (ten
+  -- greens made levelling the profession), a soulbound shield, a high-level sword above the skill, an herb
+  local ITEMS = {   -- id: quality, class, equip slot, item level, name
+    [2001] = { 2, 4, "INVTYPE_WAIST", 18, "Runed Copper Belt" },
+    [2002] = { 2, 4, "INVTYPE_CLOAK", 12, "Linen Cloak" },
+    [2003] = { 3, 4, "INVTYPE_SHIELD", 24, "Bound Shield" },
+    [2004] = { 2, 2, "INVTYPE_WEAPON", 44, "Big Green Sword" },
+    [2005] = { 2, 7, "", 20, "Peacebloom Plus" },
+  }
+  local SLOT = {    -- bag 0: slot -> { id, guid, enchant, bound }
+    [1] = { 2001, "G-BELT-A", 0 }, [2] = { 2001, "G-BELT-B", 723 }, [3] = { 2002, "G-CLOAK-1", 0 },
+    [4] = { 2002, "G-CLOAK-2", 0 }, [5] = { 2003, "G-SHIELD", 0, true }, [6] = { 2004, "G-SWORD", 0 }, [7] = { 2005, "G-HERB", 0 },
+  }
+  local function link(s) local it = ITEMS[s[1]] return ("|cff1eff00|Hitem:%d:%d::::::::20:::::|h[%s]|h|r"):format(s[1], s[3], it[5]) end
+  _G.C_Container = setmetatable({
+    GetContainerNumSlots = function(bag) return bag == 0 and 8 or 0 end,
+    GetContainerItemID = function(bag, slot) local s = bag == 0 and SLOT[slot] return s and s[1] end,
+    GetContainerItemLink = function(bag, slot) local s = bag == 0 and SLOT[slot] return s and link(s) end,
+    GetContainerItemInfo = function(bag, slot)
+      local s = bag == 0 and SLOT[slot]
+      if not s then return nil end
+      return { itemID = s[1], quality = ITEMS[s[1]][1], isBound = s[4] or false, hyperlink = link(s), iconFileID = 130000 + s[1],
+               stackCount = 1 }
+    end,
+  }, { __index = keep.cont })
+  _G.C_Item = setmetatable({
+    GetItemInfoInstant = function(id) local it = ITEMS[id] if not it then return nil end return id, "T", "S", it[3], 134400, it[2], 0 end,
+    GetDetailedItemLevelInfo = function(l) local id = tonumber(tostring(l):match("item:(%d+)")) return id and ITEMS[id] and ITEMS[id][4] end,
+    GetItemGUID = function(loc) local s = loc and loc.bag == 0 and SLOT[loc.slot] return s and s[2] end,
+    DoesItemExist = function(loc) return loc and loc.bag == 0 and SLOT[loc.slot] ~= nil end,
+  }, { __index = keep.item })
+  _G.ItemLocation = { CreateFromBagAndSlot = function(_, bag, slot) return { bag = bag, slot = slot } end }
+  local KNOWN, SKILL = true, 60
+  local RESTING = true                                        -- in town (an inn or a city)
+  keep.resting = rawget(_G, "IsResting")
+  _G.IsResting = function() return RESTING end
+  _G.IsPlayerSpell = function(id) return KNOWN and id == 13262 end
+  _G.GetProfessions = function() return 1, 2 end
+  _G.GetProfessionInfo = function(i)
+    if i == 1 then return "Enchanting", 136244, SKILL, 75, 2, 0, 333 end
+    return "Leatherworking", 133611, 47, 75, 2, 0, 165
+  end
+  local function fire(...) P.events.scripts.OnEvent(P.events, ...) end
+
+  -- the reading: what each item needs, by the classic table
+  ok(P.Need(18) == 1 and P.Need(24) == 25 and P.Need(44) == 125, "the skill an item level needs (classic table, unverified on Forever)")
+  ok(P.Skill() == 60, "my enchanting skill, from the profession list", tostring(P.Skill()))
+  fire("BAG_UPDATE_DELAYED")
+  local list = P.Items(db)
+  local by = {}
+  for _, e in ipairs(list) do by[e.guid] = e end
+  ok(#list == 6 and not by["G-HERB"], "six to disenchant; the herb is not gear", #list)
+  ok(by["G-BELT-B"].enchanted and not by["G-BELT-A"].enchanted, "the enchanted belt is known as enchanted (my gear)")
+  ok(by["G-SHIELD"].kind == "bound" and by["G-SWORD"].above and not by["G-BELT-A"].above, "the shield is soulbound; the sword is above my skill")
+  -- ONE warning for the mixed name, none for the identical cloaks (Arn: "we don't want to keep saying it 10 times")
+  local warns = 0
+  for _, e in ipairs(list) do if e.warn then warns = warns + 1 end end
+  ok(warns == 1 and (by["G-BELT-A"].warn or by["G-BELT-B"].warn) and not by["G-CLOAK-1"].warn and not by["G-CLOAK-2"].warn,
+     "two belts of one name, one enchanted: ONE warning; two identical cloaks: none", warns)
+  ok(P.count == 5, "the tools box knows: five ready now (the sword is above my skill)", P.count)
+
+  -- the window: a cockpit page
+  P.Toggle(true)
+  local f = BiSToolsProcessing
+  ok(f and f:IsShown(), "BiS> processing opens")
+  -- (Arn, 6 Nov live: "lets make 20% bigger its so small cant read" - and "esc does not close the window")
+  ok(f.scale == 1.2, "20% bigger, as the Tools list", f.scale)
+  local inEsc = false
+  for _, n in ipairs(UISpecialFrames) do if n == "BiSToolsProcessing" then inEsc = true end end
+  ok(inEsc, "Escape closes it")
+  ok(math.abs(f.w / f.h - 1.43) < 0.02, "1.43:1, the BiSTheme shape", f.w / f.h)
+  ok(f.title.text:find("PROCESSING", 1, true) and f.title.text:find("ENCHANTING", 1, true), "the page title: PROCESSING  ENCHANTING")
+  ok(f.summary.text:find("5 READY", 1, true) and f.summary.text:find("1 ABOVE SKILL", 1, true), "the computed line", f.summary.text)
+  -- the tape: my skill boxed, the barber pole above it, a bug per item need
+  local t = f.tape
+  ok(t.box.text == "60", "the skill tape: 60 in the box", t.box.text)
+  ok(P.TapeY(85) > P.TapeY(60) and P.TapeY(60) > P.TapeY(35), "the tape: more skill higher up")
+  -- NO EMPTY HALF (Arn, 6 Nov, skill 7: "the left side are we only using half because we are not full enchanting
+  -- level?"): the tape never runs below 0 - while the skill is low its box sits low and the height shows what's ahead
+  local half = P.TAPE_H / 2 - 4
+  ok(math.abs(P.TapeY(0) + half) < 1, "skill 60: the tape's foot is 0, not empty space", P.TapeY(0))
+  ok(t.boxFrame.point and math.abs(t.boxFrame.point[5] - P.TapeY(60)) < 1, "the box sits at my skill on the tape")
+  SKILL = 300
+  P.PaintTape(P.list)
+  ok(math.abs(P.TapeY(300)) < 1, "a high skill: the box in the middle, as an airliner's speed tape")
+  SKILL = 60
+  P.PaintTape(P.list)
+  ok(t.pole and t.pole.shown ~= false and t.pole.from == 60, "the barber pole starts at my skill")
+  ok(t.bugs and #t.bugs >= 3, "a bug on the tape for each skill my items need", t.bugs and #t.bugs)
+  -- the rows: one item each, ready ones first; the button is secure and aims at that exact slot
+  local rows = f.rows
+  local r1 = rows[1]
+  ok(r1.entry and not r1.entry.above, "ready items first")
+  local function rowFor(guid) for _, r in ipairs(rows) do if r.entry and r.entry.guid == guid then return r end end end
+  local belt = rowFor("G-BELT-A")
+  -- THE ROW POPS UNDER THE MOUSE (Arn, 6 Nov live, the third time asked: "if you hover a row it should pop"): a
+  -- clear wash and a bar on the left - from the row itself and from its Disenchant button
+  belt.scripts.OnEnter(belt)
+  ok(belt.lit.alpha and belt.lit.alpha >= 0.3 and belt.bar.alpha == 1, "hover a row: it lights up, bar and all", belt.lit.alpha)
+  belt.scripts.OnLeave(belt)
+  ok(belt.lit.alpha == 0 and belt.bar.alpha == 0, "the mouse leaves: dark again")
+  belt.act.scripts.OnEnter(belt.act)
+  ok(belt.lit.alpha >= 0.3, "hovering its Disenchant button lights the row too")
+  belt.act.scripts.OnLeave(belt.act)
+  ok(belt.act.template:find("SecureActionButtonTemplate") and belt.act.attrs.type1 == "spell" and belt.act.attrs.spell1 == "Disenchant"
+     and belt.act.attrs["target-bag"] == 0 and belt.act.attrs["target-slot"] == 1, "a row's button: Disenchant on THAT bag slot")
+  -- (Arn, 6 Nov live: "i tried to shift click another item and it no work only for soul bound gear should work for
+  -- both left click only for non soulbound gear")
+  ok(belt.act.attrs["shift-type1"] == "spell" and belt.act.attrs["shift-spell1"] == "Disenchant",
+     "a free item: shift-click works too")
+  local shield = rowFor("G-SHIELD")
+  ok(shield.act.attrs.type1 == nil and shield.act.attrs["shift-type1"] == "spell", "soulbound: SHIFT-click only")
+  ok(shield.tag.text:find("SOULBOUND", 1, true), "and it says so", shield.tag.text)
+  -- THE NAME IN ITS QUALITY'S COLOUR (Arn, 6 Nov, the first live look: "the items names should reflect the quality
+  -- green items green name text epic epic name color"); soulbound is said in red by the tag and the button's edge
+  local function near(c, r, g, b) return c and math.abs(c[1] - r) < 0.02 and math.abs(c[2] - g) < 0.02 and math.abs(c[3] - b) < 0.02 end
+  ok(near(rowFor("G-CLOAK-1").name.color, 0x1e / 255, 1, 0), "a green cloak's name is green", rowFor("G-CLOAK-1").name.color)
+  ok(near(shield.name.color, 0, 0x70 / 255, 0xdd / 255), "a blue shield's name is blue - soulbound or not", shield.name.color)
+  ok(near(shield.tag.color, P.RED[1], P.RED[2], P.RED[3]), "its SOULBOUND tag is red")
+  ok(shield.act.edge and shield.act.edgeColor == "red", "and its Disenchant button wears a red edge")
+  ok(rowFor("G-CLOAK-1").act.edgeColor ~= "red", "a free one's does not")
+  ok(rowFor("G-BELT-B").tag.text:find("ENCHANTED", 1, true), "the enchanted belt says ENCHANTED")
+  local sword = rowFor("G-SWORD")
+  ok(sword.act.attrs.type1 == nil and sword.act.attrs["shift-type1"] == nil and sword.tag.text:find("SKILL 125", 1, true),
+     "above my skill: no click at all, and the skill it needs", sword.tag.text)
+  -- NEVER THE WRONG ITEM: the bags changed between paint and click - the click is cancelled
+  SLOT[1], SLOT[8] = SLOT[8], SLOT[1]                      -- a bag sort moved the belt away
+  SLOT[1] = { 2002, "G-CLOAK-3", 0 }
+  belt.act.scripts.PreClick(belt.act, "LeftButton", true)
+  ok(belt.act.attrs.type1 == nil, "the slot holds another item now: the click is cancelled before it casts")
+  ok(f.say.text:find("MOVED", 1, true), "the scratchpad says so", f.say.text)
+  fire("BAG_UPDATE_DELAYED")
+  ok(rowFor("G-BELT-A").act.attrs["target-slot"] == 8, "repainted: the belt's row aims at its new slot")
+  -- THE TOOLTIP FOLLOWS THE ROW (Arn, 6 Nov live: "when i disenchant it moves the next item one spot but it still has
+  -- old tooltip"): the mouse on a row while the list moves - the tooltip is drawn again for what the row holds now
+  do
+    local keepT = { owner = GameTooltip.GetOwner, set = GameTooltip.SetBagItem, hide = GameTooltip.Hide }
+    local shownFor, hidden
+    local r1 = rows[1]
+    GameTooltip.GetOwner = function() return r1.act end      -- the mouse is on the first row's Disenchant button
+    GameTooltip.SetBagItem = function(_, bag, slot) shownFor = bag .. ":" .. slot end
+    GameTooltip.Hide = function() hidden = true end
+    local first = r1.entry
+    local was = SLOT[first.slot]
+    SLOT[first.slot] = nil                                   -- it was disenchanted: gone from the bags
+    shownFor = nil
+    fire("BAG_UPDATE_DELAYED")
+    ok(r1.entry and r1.entry.guid ~= first.guid and shownFor == r1.entry.bag .. ":" .. r1.entry.slot,
+       "the next item moved up under the mouse: the tooltip is the NEW item's", tostring(shownFor))
+    SLOT[first.slot] = was
+    fire("BAG_UPDATE_DELAYED")
+    GameTooltip.GetOwner, GameTooltip.SetBagItem, GameTooltip.Hide = keepT.owner, keepT.set, keepT.hide
+  end
+  -- IGNORE (Arn: "we don't want to always pop up their purple gear that they carry as extra gear")
+  local eb = rowFor("G-BELT-B")
+  eb.scripts.OnClick(eb, "RightButton")
+  ok(db.ignore["G-BELT-B"] and not rowFor("G-BELT-B"), "right-click: ignored - by its own id, the other belt stays")
+  ok(not rowFor("G-BELT-A").entry.warn, "and with my gear ignored, the same-name warning goes")
+  ok(f.ignored.text:find("1 IGNORED", 1, true), "the foot: 1 IGNORED", f.ignored.text)
+  -- A REFUSAL, LEARNED: the game says a rod is needed - the scratchpad says it, the tape marks it
+  local cloak = rowFor("G-CLOAK-1")
+  cloak.act.scripts.PreClick(cloak.act, "LeftButton", true)
+  fire("UI_ERROR_MESSAGE", 50, "Requires Runed Silver Rod")
+  ok(f.say.text:find("REQUIRES RUNED SILVER ROD", 1, true), "the game's own refusal on the scratchpad", f.say.text)
+  ok(db.blocked and next(db.blocked) ~= nil, "and remembered against that item level")
+  ok(rowFor("G-CLOAK-1").tag.text:find("ROD", 1, true), "the row says a rod is needed", rowFor("G-CLOAK-1").tag.text)
+  ok(t.brackets and #t.brackets >= 1, "a gold bracket on the tape where the rod step is")
+  -- a disenchant that lands at that level clears it (the rod is in the bags now): clicked again, and it went through
+  local cloak2 = rowFor("G-CLOAK-1")
+  cloak2.act.scripts.PreClick(cloak2.act, "LeftButton", true)
+  fire("UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-9", 13262)
+  ok(next(db.blocked) == nil, "a disenchant that went through: the block is forgotten")
+  -- THE HAUL (Arn, 6 Nov: "a pop up or a ticker of all the stuff we got in this session of disenchanting resets when we
+  -- open window again maybe we keep track"): what disenchanting gave, as icons with counts; this session = since the
+  -- window opened; all time kept in the saved table. Only loot just after OUR disenchant counts.
+  local DUST = "|cffffffff|Hitem:10940::::::::20:::::|h[Strange Dust]|h|r"
+  local ESS = "|cff1eff00|Hitem:10938::::::::20:::::|h[Lesser Magic Essence]|h|r"
+  P.Toggle(false) P.Toggle(true)                            -- a fresh open: a fresh session
+  ok(next(P.haul) == nil, "a fresh open: nothing in this session's haul")
+  fire("CHAT_MSG_LOOT", "You receive loot: " .. DUST .. "x3.")
+  ok(next(P.haul) == nil, "loot that is not from a disenchant (a mob, the mail): not counted")
+  local c3 = rowFor("G-CLOAK-1")
+  c3.act.scripts.PreClick(c3.act, "LeftButton", true)
+  fire("UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-10", 13262)
+  fire("CHAT_MSG_LOOT", "You receive loot: " .. DUST .. "x2.")
+  fire("CHAT_MSG_LOOT", "You receive loot: " .. ESS .. ".")
+  ok(P.haul[10940] == 2 and P.haul[10938] == 1, "after our disenchant: 2 Strange Dust and 1 Lesser Magic Essence", P.haul[10940])
+  ok(db.totals and db.totals[10940] == 2, "and kept for all time")
+  local strip = f.haul
+  ok(strip and strip.slots[1]:IsShown() and strip.slots[1].count.text ~= "", "the strip shows them as icons with counts")
+  W.now = W.now + 30
+  fire("CHAT_MSG_LOOT", "You receive loot: " .. DUST .. "x5.")
+  ok(P.haul[10940] == 2, "loot long after the disenchant: not counted", P.haul[10940])
+  P.Toggle(false) P.Toggle(true)
+  ok(next(P.haul) == nil and db.totals[10940] == 2, "opened again: this session starts fresh, all time stays")
+  -- THE FINGERPRINT (Arn, 6 Nov: "a small version number on all the windows or a finger print thing only you can see
+  -- so you know what version i am on"): deploy.sh stamps the copy's TOC (X-BiS-Build); the page shows it, faint
+  local keepBuild = NS.BUILD
+  NS.BUILD = "feat/processing@abc1234 1106-1841"
+  P.Toggle(false) P.Toggle(true)
+  ok(f.build and f.build.text:find("abc1234", 1, true) and f.build.text:find(NS.VERSION, 1, true),
+     "a deployed test build: its version and stamp, faint in the title bar", f.build and f.build.text)
+  NS.BUILD = nil
+  P.Toggle(false) P.Toggle(true)
+  ok(f.build.text == NS.VERSION, "a released build (no stamp): just the version", f.build.text)
+  NS.BUILD = keepBuild
+  -- THE HOARD (Arn, 6 Nov, a picture of a dragon on its gold: "a small flavor of all time button and it stacks these
+  -- things we disenchant but as the items not the icons ... first few times sitting in an empty window the more we get
+  -- the more our character gets happy finally at the end we flex on top of our mountain")
+  ok(P.Mood(0) == "sit" and P.Mood(10) == "stand" and P.Mood(250) == "cheer" and P.Mood(1000) == "flex",
+     "the mood by the all-time total: sit, stand, cheer, flex")
+  ok(P.Tokens(0) == 0 and P.Tokens(10) > 0 and P.Tokens(400) > P.Tokens(40) and P.Tokens(1000000) == P.TOKEN_MAX,
+     "the pile grows with the total - capped, never 500 dust in the window")
+  local keepTotals = db.totals
+  db.totals = {}
+  local keepRoll = P.FallRoll
+  P.FallRoll = function() return 0.99 end                  -- no joke, unless the test asks for it
+  P.ToggleHoard(true)
+  local h = BiSToolsHoard
+  ok(h and h:IsShown() and math.abs(h.w / h.h - 1.43) < 0.02 and h.scale == 1.2, "the hoard opens: 1.43:1, 20% bigger")
+  ok(h.model._unit == "player" and h.model._anim == P.ANIM.sit, "an empty hoard: you, sitting on the floor")
+  local function shownTokens() local n = 0 for _, tk in ipairs(h.tokens) do if tk.shown ~= false then n = n + 1 end end return n end
+  ok(shownTokens() == 0, "no pile yet")
+  local lowY = h.model.point and h.model.point[5]
+  db.totals = { [10940] = 600, [10938] = 300, [10978] = 120 }
+  P.PaintHoard()
+  ok(shownTokens() == P.Tokens(1020), "a pile of pieces, as many as the total earns", shownTokens())
+  local tk = h.tokens[1]
+  ok(tk.masks and tk.masks[1] and tostring(tk.masks[1].file):find("Round", 1, true), "each piece cut round by our own mask")
+  ok(h.model._anim == P.ANIM.flex, "a mountain: you flex on top of it")
+  -- (Arn's first live look, 6 Nov: the pile sat off to the left and he floated above it; the bare look was his
+  -- transmog test - a dressed model anyway, the one BiS Shell's adventure proved)
+  local function meanX()
+    local s, c = 0, 0
+    for _, tk2 in ipairs(h.tokens) do if tk2.shown ~= false and tk2.anchor then s, c = s + tk2.anchor[4], c + 1 end end
+    return c > 0 and s / c or 0
+  end
+  ok(math.abs(meanX()) < 6, "the pile is centred under you", meanX())
+  ok(h.model.kind == "DressUpModel", "you in your gear (a dressed model, as BiS Shell's adventure)")
+  local summit = 0
+  for _, tk2 in ipairs(h.tokens) do if tk2.shown ~= false then summit = math.max(summit, tk2.anchor[5] + P.TOKEN - 4) end end
+  ok(math.abs(h.model.point[5] - (summit - P.FEET)) < 1, "your feet on the summit: the frame starts P.FEET under them")
+  local bigTotals = db.totals
+  db.totals = { [10940] = 1 }
+  P.PaintHoard()
+  ok(P.Tokens(1) == 3 and math.abs(meanX()) < 6, "three pieces (Arn's first dust): centred too", meanX())
+  db.totals = bigTotals
+  P.PaintHoard()
+  ok(type(lowY) == "number" and h.model.point[5] > lowY, "standing on the summit, higher than the empty floor")
+  -- THE JOKE (Arn, 6 Nov: "if the window is very full we should be in the pile as if we are falling arms flailing"):
+  -- a full mountain, the roll comes up - you sink to the waist, flailing, pieces heaped in FRONT of you
+  h.fallRoll = 0
+  P.PaintHoard()
+  ok(h.mood == "fall" and h.model._anim == P.ANIM.fall, "the joke: falling into your own hoard, arms flailing")
+  ok(math.abs(h.model.point[5] - (summit - P.FEET - P.SINK)) < 1, "sunk to the waist")
+  local spill = 0
+  for _, pc in ipairs(h.front.pieces) do if pc.shown ~= false then spill = spill + 1 end end
+  ok(spill == P.SPILL and (h.front.level or 0) > (h.model.level or 0), "gold heaped in front of you, over the model", spill)
+  h.fallRoll = 0.99
+  P.PaintHoard()
+  spill = 0
+  for _, pc in ipairs(h.front.pieces) do if pc.shown ~= false then spill = spill + 1 end end
+  ok(h.mood == "flex" and spill == 0, "most of the time: you flex on top, nothing in front")
+  db.totals = { [10940] = 50 }
+  h.fallRoll = 0
+  P.PaintHoard()
+  ok(h.mood ~= "fall", "never on a small pile - the joke needs a mountain")
+  db.totals = bigTotals
+  h.fallRoll = 0.99
+  P.PaintHoard()
+  P.FallRoll = keepRoll
+  ok(h.caption.text:find("1,020", 1, true), "the count, read like a number", h.caption.text)
+  -- the door: a small all-time button in the session strip; Escape closes it
+  P.ToggleHoard(false)
+  local door = f.haul.hoardBtn
+  door.scripts.OnClick(door)
+  ok(h:IsShown(), "the ALL TIME button in the strip opens it")
+  -- EVERY BUTTON POPS UNDER THE MOUSE (Arn, 6 Nov live: "hovering over all time and it no glow to let me know im good
+  -- to click it") - the strip's ALL TIME, the x, the ignored count
+  for _, b in ipairs({ door, f.close, f.ignoredBtn }) do
+    b.scripts.OnEnter(b)
+    ok(b.wash and b.wash.alpha >= 0.3, "hover a button: it lights up", b.wash and b.wash.alpha)
+    b.scripts.OnLeave(b)
+    ok(b.wash.alpha == 0, "and goes dark when the mouse leaves")
+  end
+  local hoardEsc = false
+  for _, n in ipairs(UISpecialFrames) do if n == "BiSToolsHoard" then hoardEsc = true end end
+  ok(hoardEsc, "Escape closes it")
+  P.ToggleHoard(false)
+  db.totals = keepTotals
+  -- the tools box: a button while there is work
+  NS.Box.Refresh()
+  local bb = P.BoxButton()
+  ok(bb:IsShown() and bb:GetParent() == BiSToolsBox, "a processing button in the BiS> tools box")
+  -- TOWN ONLY (Arn, 6 Nov: "lets only pop out that button when we are in town so people arent questing with the button
+  -- nagging them"): out of a city or inn it goes; back in, it comes
+  RESTING = false
+  fire("PLAYER_UPDATE_RESTING")
+  ok(not P.ShowBox() and not bb:IsShown(), "out questing: no processing button")
+  RESTING = true
+  fire("PLAYER_UPDATE_RESTING")
+  ok(bb:IsShown(), "back in town: the button")
+  bb.scripts.OnClick(bb, "LeftButton")
+  ok(not f:IsShown(), "it toggles the window")
+  -- the profession window: a button on it
+  _G.TradeSkillFrame = CreateFrame("Frame", "TradeSkillFrame", UIParent)
+  fire("TRADE_SKILL_SHOW")
+  ok(P.tsButton and P.tsButton:GetParent() == TradeSkillFrame, "the profession window gets a BiS> processing button")
+  P.tsButton.scripts.OnClick(P.tsButton, "LeftButton")
+  ok(f:IsShown(), "and it opens the window")
+  -- a fight: put away while the client still allows it, never painted in it
+  fire("PLAYER_REGEN_DISABLED")
+  ok(not f:IsShown(), "a fight starts: the window is put away")
+  W.combat = true
+  fire("BAG_UPDATE_DELAYED")
+  W.combat = false
+  fire("PLAYER_REGEN_ENABLED")
+  ok(f:IsShown(), "the fight ends: back, painted fresh")
+  -- not an enchanter: no button, no window work
+  KNOWN = false
+  fire("BAG_UPDATE_DELAYED")
+  ok(P.count == 0 and not P.ShowBox(), "a character without Disenchant: nothing to do, no button")
+  KNOWN = true
+  -- lean: a bag change while closed is one walk of the bags
+  P.Toggle(false)
+  local Cost = dofile("../_bisdev/dev/cost.lua")
+  local calls = Cost.Count(function() for _ = 1, 20 do fire("BAG_UPDATE_DELAYED") end end)
+  print(("   cost: processing, 20 bag changes, window closed = %d calls"):format(calls))
+  ok(calls <= 20 * 80, "a bag change costs one walk of the bags", calls)
+
+  db.ignore, db.blocked = {}, {}
+  _G.C_Container, _G.C_Item, _G.ItemLocation, _G.IsPlayerSpell = keep.cont, keep.item, keep.loc, keep.known
+  _G.GetProfessions, _G.GetProfessionInfo, _G.TradeSkillFrame, _G.IsResting = keep.profs, keep.info, keep.ts, keep.resting
 end
 
 local allowed = { BiSTools = true, BiSToolsDB = true, SLASH_BISTOOLS1 = true, SLASH_BISTOOLS2 = true,
