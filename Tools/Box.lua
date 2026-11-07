@@ -155,7 +155,8 @@ function B.Buttons()
   if RC and RC.tbtn then
     B.Colour(RC.tbtn, RC.MARK_RED)
     local db = R:DBFor(R:Get("recap"))
-    out[#out + 1] = { b = RC.tbtn, show = (RC.tbtn.count or 0) > 0 and db.button ~= false and R:Enabled("rivals") }
+    -- only while it can matter: flagged, in a battleground, or 5 minutes after a fight with a player (RC.WantButton)
+    out[#out + 1] = { b = RC.tbtn, show = RC.WantButton and RC.WantButton(db) or false }
   end
   -- the battleground "+ rival" button (Arn, 13 Oct: "a bg button that rivals someone"): only in a
   -- battleground or arena, where the right-click menu cannot carry "add rival"

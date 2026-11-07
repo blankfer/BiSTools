@@ -1,3 +1,7 @@
+## 1.0.1
+
+- **The "Target a rival" button only shows when it can matter:** while you're flagged for PvP, inside a battleground or arena, or for 5 minutes after a fight with another player (a duel counts). Out questing, unflagged, it stays out of your way - your rivals are still remembered, and it comes back the moment you flag or fight.
+
 ## 1.0.0 - Forever 1.0
 
 - **A quiet start.** A new install now starts with **every tool off** - no sounds, no windows opening by themselves, nothing on your screen until you ask for it. Left-click the minimap button for the tools list and click the ones you want (or tick them in the options). Already using BiS Tools? **Nothing changes for you** - every tool and setting stays exactly as you had it.
