@@ -213,7 +213,10 @@ function X.Pick(db)
   local unsure = false
   local best, most
   -- yours, if it is XP food: a water learned by 0.19.0 is not (and a text still loading is given the benefit)
-  if db.food and count(db.food) > 0 and X.IsXPItem(db.food) ~= false then
+  -- not known yet = look again next time (Arn, 0.19.1 live: a water stuck on the button when the load event never came)
+  local fav = db.food and count(db.food) > 0 and X.IsXPItem(db.food)
+  if db.food and count(db.food) > 0 and fav == nil then unsure = true end
+  if db.food and count(db.food) > 0 and fav ~= false then
     best = db.food
   else
     local C = C_Container
