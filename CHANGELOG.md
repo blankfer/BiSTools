@@ -1,4 +1,4 @@
-## Unreleased
+## 0.20.1
 
 - **Clearer windows.** In the options window every button, box and row lights up under the mouse, the window is 20% bigger, and the bottom strip shows which version you are on until you hover a setting.
 
