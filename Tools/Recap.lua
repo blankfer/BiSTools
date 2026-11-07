@@ -690,7 +690,7 @@ function RC.GuildAdd(db, name, class, by, fromGuild)
   if not name then return false end
   local g = RC.GuildRivals(db)
   local e = g[name] or { added = time and time() or 0 }
-  e.class = (type(class) == "string" and class ~= "" and not hidden(class)) and class or e.class
+  e.class = (not hidden(class) and type(class) == "string" and class ~= "") and class or e.class   -- hidden first
   e.by = e.by or by
   g[name] = e
   if not fromGuild then
@@ -1882,10 +1882,7 @@ function RC.Spot(db, unit)
   looked(unit, name, "called out")
   r.alertAt = now
   local cc = r.class and RAID_CLASS_COLORS and RAID_CLASS_COLORS[r.class]
-  if RaidNotice_AddMessage and RaidWarningFrame then
-    RaidNotice_AddMessage(RaidWarningFrame, "Rival nearby: " .. name,
-      cc and { r = cc.r, g = cc.g, b = cc.b } or (ChatTypeInfo and ChatTypeInfo.RAID_WARNING))
-  end
+  NS.Alert("Rival nearby: " .. name, cc and { r = cc.r, g = cc.g, b = cc.b } or nil)   -- our own line, not Blizzard's frame
   NS.Print("%s nearby%s", T.text("warn", name), (r.where and r.where ~= "") and (" - " .. r.where) or "")
   if db.sound ~= false and PlaySound then PlaySound(NS.Farm.PING, "Master") end
   RC.PaintRivals()

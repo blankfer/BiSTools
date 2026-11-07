@@ -20,6 +20,11 @@ NS.Registry:Register({
   title = "rivals & pals",
   desc = "rivals (enemies you hunt), pals (friends you find), surname crowns, guildmates",
   usage = "/bist rivals [rival | pal [name surname] | pals | surname <word> | forget <name> | key <key> | style <name> | why]",
+  -- 1.0 (Arn: a new user must not wonder "what's making that noise"): a new install's guildmate crest, recruit
+  -- crest and rival ping start off - each has its tick below. They live in recap's table, read as `~= false`;
+  -- an existing save's untouched ones are frozen ON by Registry R:Forever10.
+  quiet = { mates = false, recruits = false, sound = false },
+  quietIn = "recap",
   options = {
     { kind = "toggle", label = "sound when a rival is near", rivalPreview = true, help = "A ping with the warning when a gold rival - or a kept surname - comes into sight.",
       get = function() return D().sound ~= false end,

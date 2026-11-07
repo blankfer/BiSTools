@@ -11,7 +11,15 @@
 --                                  -- the Hub's click on an open one closes it (19 Oct)
 --     options = { { kind = "toggle"|"seg"|"step"|"button", label, get(db), set(db, v),
 --                   values (seg) | min, max, step, show(db) (step) | button, action(db) } },
---     slashWhenOff = true }   -- OnSlash still runs while the tool is off
+--     slashWhenOff = true,    -- OnSlash still runs while the tool is off
+--     quiet = { key = value },  -- 1.0: settings a NEW install gets quiet (see R:Forever10); quietIn = "recap"
+--                               -- when they live in another tool's table
+--     defaultOff = true }     -- PRE-1.0 ONLY: how a save from before 1.0 read a missing switch (a beta: off)
+--
+-- ON / OFF SINCE 1.0 (Arn, 7 Nov 2026: "start with everything off"). BiSToolsDB.enabled[name] is true or false,
+-- written; a MISSING switch is OFF - so a new install, and a tool added in a later version, start off and the user
+-- turns on what they want from the Hub. Before 1.0 nil meant ON (and SetEnabled stored nil for on), so the one-time
+-- R:Forever10 writes every old save's switches out as they were before this rule reads them.
 local _, NS = ...
 local R = { tools = {}, order = {}, alias = {} }
 NS.Registry = R
@@ -46,28 +54,51 @@ end
 
 function R:Enabled(name)
   local key = self:Key(name)
-  local en = NS.DB().enabled[key]
-  -- a tool marked defaultOff (a beta: Arn, 13 Oct, the threat tool "in releases, off") is off until
-  -- someone turns it on; every other tool is on until someone turns it off
-  if en == nil then
-    local t = self.tools[key]
-    return not (t and t.defaultOff)
-  end
-  return en
+  return NS.DB().enabled[key] == true          -- written true, or off (missing = off since 1.0)
 end
 
 function R:SetEnabled(name, on)
   local key = self:Key(name)
   local was = self:Enabled(key)
-  -- not "on and nil or false": that is false both ways (Lua's and/or with nil)
-  -- on = "nothing saved" for a normal tool; a defaultOff tool must REMEMBER it was turned on
-  local t = self.tools[key]
-  if on then NS.DB().enabled[key] = (t and t.defaultOff) and true or nil else NS.DB().enabled[key] = false end
+  NS.DB().enabled[key] = on and true or false  -- always written: a missing key means off
   local tool = self.tools[key]
   if tool and was ~= (on and true or false) then
     local h = on and tool.OnEnable or tool.OnDisable
     if h then h(tool, self:DBFor(tool)) end
   end
+end
+
+--- THE 1.0 STAMP, once per saved table (Init's NS.OpenDB calls it at ADDON_LOADED, after every tool registered,
+--- before any tool reads its table). Arn, 7 Nov 2026: new users start with everything off - "everybody that already
+--- has the addons installed, I don't wanna change default settings that they have on".
+---   isNew (the client handed back no table): every tool OFF, and each tool's `quiet` values written.
+---   an existing save: FROZEN - every switch written as the old rule read it (nil = on, unless defaultOff), and every
+---   `quiet` key that is nil written TRUE (nil read as on: `x ~= false`, or a default of true), so nothing it did
+---   before changes. Then stamped (sv.forever10), so neither runs twice.
+function R:Forever10(sv, isNew)
+  if sv.forever10 then return false end
+  sv.enabled = type(sv.enabled) == "table" and sv.enabled or {}
+  sv.tools = type(sv.tools) == "table" and sv.tools or {}
+  for _, key in ipairs(self.order) do
+    local tool = self.tools[key]
+    if isNew then
+      sv.enabled[key] = false
+    elseif sv.enabled[key] == nil then
+      sv.enabled[key] = not tool.defaultOff
+    else
+      sv.enabled[key] = sv.enabled[key] and true or false
+    end
+    if tool.quiet then
+      local home = (tool.quietIn or key):lower()
+      sv.tools[home] = type(sv.tools[home]) == "table" and sv.tools[home] or {}
+      local t = sv.tools[home]
+      for k, v in pairs(tool.quiet) do
+        if isNew then t[k] = v elseif t[k] == nil then t[k] = true end
+      end
+    end
+  end
+  sv.forever10 = true
+  return true
 end
 
 function R:DBFor(tool)
