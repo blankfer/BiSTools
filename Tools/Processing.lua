@@ -393,9 +393,7 @@ function P.Paint()
   f.summary:SetText(("%d READY  -  %d ABOVE SKILL%s"):format(ready, above, blocked > 0 and ("  -  " .. blocked .. " NEED A ROD") or ""))
   f.ignored:SetText(ignored > 0 and (ignored .. " IGNORED (SHOW)") or (P.db and P.db.showIgnored and "HIDE IGNORED" or ""))
   -- short enough to sit beside the title: "0.19.1  9e52109+ 1106-1841" (the branch is in the full stamp)
-  local sha = NS.BUILD and NS.BUILD:match("@(%S+)")
-  local when = NS.BUILD and NS.BUILD:match("(%S+)$")
-  f.build:SetText(sha and (tostring(NS.VERSION) .. "  " .. sha .. " " .. (when or "")) or tostring(NS.VERSION))
+  f.build:SetText(NS.Stamp())
   P.PaintTape(list)
   P.RefreshTip()
 end
@@ -735,6 +733,12 @@ function P.BuildHoard()
   h.title:SetText("BiS> HOARD")
   h.close = textButton(h, "x", 16, function() P.ToggleHoard(false) end)
   h.close:SetPoint("TOPRIGHT", -4, -4)
+  -- the fingerprint here too (Arn's screenshot, 6 Nov: the hoard covered Processing's, so nobody could tell the copy)
+  h.build = fs(h, 7, "dim")
+  h.build:SetJustifyH("RIGHT")
+  h.build:SetPoint("RIGHT", h.close, "LEFT", -6, 0)
+  h.build:SetAlpha(0.6)
+  h.build:SetText(NS.Stamp())
   -- the cave: a dark inset, its floor a line
   h.cave = CreateFrame("Frame", nil, h)
   h.cave:SetPoint("TOPLEFT", 8, -24)
@@ -786,6 +790,7 @@ end
 function P.PaintHoard()
   local h = P.hoard
   if not (h and h:IsShown()) then return end
+  if h.build then h.build:SetText(NS.Stamp()) end
   local totals = (P.db and P.db.totals) or {}
   local total = P.Total()
   local n = P.Tokens(total)

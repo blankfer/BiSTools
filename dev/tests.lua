@@ -342,6 +342,8 @@ _G.CreateFrame = function(kind, name, parent, template)
     -- an animation by the client's id, looped (BiS Shell plays them live: stand 0, wave 67, cheer 68, cry 77)
     function f:SetAnimation(id) if type(id) ~= "number" then error("SetAnimation wants an animation id", 2) end self._anim = id end
     function f:SetCamDistanceScale(s) self._cam = s end
+    -- which way it looks, in radians (BiS Shell turns its runners with it, live since 21 Oct)
+    function f:SetFacing(r) if type(r) ~= "number" or r ~= r then error("SetFacing wants radians", 2) end self._facing = r end
   end
   -- ON FOREVER, REGISTERING THE COMBAT LOG IS A PROTECTED ACTION (6 Oct 2026, Arn's BugGrabber:
   -- "AddOn 'BiSTools' tried to call the protected function 'Frame:RegisterEvent()'"). The client
@@ -1903,7 +1905,7 @@ do
   -- left click: the Hub, one row per tool
   mm.scripts.OnClick(mm, "LeftButton")
   local hub = BiSToolsHub
-  ok(hub and hub:IsShown() and #hub.rows == 14, "left click opens the Hub with a row per registered tool")   -- +disenchant, +processing, 6 Nov
+  ok(hub and hub:IsShown() and #hub.rows == 15 and hub.rows[15].key == "pups", "left click opens the Hub with a row per registered tool")   -- +disenchant, +processing, +pups, 6 Nov
   ok(hub.scale == 1.2, "the Tools list is 20% bigger (Arn: \"lets make this 20% bigger\")")
   ok(hub.rows[1].key == "farm" and hub.rows[2].key == "summon" and hub.rows[3].key == "recap" and hub.rows[4].key == "rivals"
      and hub.rows[5].key == "social" and hub.rows[6].key == "threat" and hub.rows[7].key == "bg" and hub.rows[8].key == "map" and hub.rows[9].key == "party"
@@ -1912,12 +1914,12 @@ do
   -- RIVALS & PALS, their own tool (Arn, 14 Oct: "decouple from recap ... be its own thing")
   ok(hub.rows[4].name.text == "rivals & pals", "the rivals tool's row is titled rivals & pals")
   ok(hub.rows[1].name.text == "farm" and hub.rows[1].state.text:find("on", 1, true), "row: name + on")
-  ok(hub.con.slots.count and hub.con.slots.count.text == "12 of 14 on", "prompt slot counts the tools that are on (threat and party start off; rides, sounds, xp, disenchant and processing on)")
+  ok(hub.con.slots.count and hub.con.slots.count.text == "13 of 15 on", "prompt slot counts the tools that are on (threat and party start off; rides, sounds, xp, disenchant, processing and pups on)")
   ok(not R:Enabled("threat") and hub.rows[6].name.text == "threat (beta)" and hub.rows[6].state.text:find("off", 1, true),
      "the threat tool starts OFF and is shown as \"threat (beta)\"")
   ok(hub.con:Width() <= H.W - 15 - 8, "hub prompt fits its header budget")
   ok(hub.closeBtn.point[4] == -3, "only an x in the header, at -3")
-  ok(hub.foot and hub.foot.label.text == "options" and hub.h == 16 + 14 * 16 + 4 + 16, "footer 'options' button; height = header + rows + footer")
+  ok(hub.foot and hub.foot.label.text == "options" and hub.h == 16 + 15 * 16 + 4 + 16, "footer 'options' button; height = header + rows + footer")
   -- row click opens the tool window; shift-click drags it to the middle
   BiSToolsFarm:Hide() F.db.pos = { "TOPLEFT", 400, -300, "TOPLEFT" }
   hub.rows[1].scripts.OnClick(hub.rows[1], "LeftButton")
@@ -1967,7 +1969,7 @@ do
   for _, r in ipairs(BiSToolsOptions and BiSToolsOptions.rows or {}) do end
   -- right click toggles the tool; opening an off tool switches it on first
   hub.rows[2].scripts.OnClick(hub.rows[2], "RightButton")
-  ok(not R:Enabled("summon") and hub.rows[2].state.text:find("off", 1, true) and hub.con.slots.count.text == "11 of 14 on", "right click: summon off, row and count follow")
+  ok(not R:Enabled("summon") and hub.rows[2].state.text:find("off", 1, true) and hub.con.slots.count.text == "12 of 15 on", "right click: summon off, row and count follow")
   ok(lib:Enabled(), "and the lib is untouched by it")
   hub.rows[2].scripts.OnClick(hub.rows[2], "LeftButton")
   ok(R:Enabled("summon") and BiSToolsSummon:IsShown() and db_summon().mode == "on", "click on an off tool: switched on and its window pinned open")
@@ -1995,8 +1997,9 @@ do
   -- the party list, 15 Oct; the recruit crest, 21 Oct; the ride card, 21 Oct)
   -- (+5 in party, 21 Oct: accept from the guild / friends, invite on a keyword, the keyword, from whom)
   -- (+ sounds (1), 5 Nov: the explorer's open button - and its section header)
+  -- (+ pups (2), 6 Nov: the travel button switch, the radar's open button - and its section header)
   -- (+1 in xp, 6 Nov: the camp tent button; + disenchant (0), 6 Nov: its section header, the on/off)
-  ok(#opt.rows == 13 + 3 + 5 + 7 + 1 + 8 + 2 + 2 + 4 + 7 + 4 + 4 + 5 + 1 + 2 + 1 + 1 + 1, "one row per section header and per option", #opt.rows)
+  ok(#opt.rows == 13 + 3 + 5 + 7 + 1 + 8 + 2 + 2 + 4 + 7 + 4 + 4 + 5 + 1 + 2 + 1 + 1 + 1 + 3, "one row per section header and per option", #opt.rows)
   -- THE BiSTheme STANDARD, 1.43:1 (Arn, 14 Oct): its sections poured into columns, the window that shape
   ok(math.abs(opt.w / opt.h - 1.43) < 0.01 and (opt.columns or 1) >= 2, "options: 1.43:1, in columns", opt.w .. "x" .. opt.h)
   local function find(label) for _, r in ipairs(opt.rows) do if r.name and r.name.text == label then return r end end end
@@ -2083,7 +2086,7 @@ do
   local farmHdr = opt.rows[5]
   ok(farmHdr.ctl and farmHdr.ctl.on == true, "farm section box shows on")
   farmHdr.ctl.scripts.OnClick(farmHdr.ctl)
-  ok(not R:Enabled("farm") and farmHdr.ctl.on == false and hub.con.slots.count.text == "11 of 14 on", "box off: farm off, hub count follows")
+  ok(not R:Enabled("farm") and farmHdr.ctl.on == false and hub.con.slots.count.text == "12 of 15 on", "box off: farm off, hub count follows")
   farmHdr.ctl.scripts.OnClick(farmHdr.ctl)
   ok(R:Enabled("farm"), "and back on")
   -- toggle: nag
@@ -7938,6 +7941,169 @@ do
   db.ignore, db.blocked = {}, {}
   _G.C_Container, _G.C_Item, _G.ItemLocation, _G.IsPlayerSpell = keep.cont, keep.item, keep.loc, keep.known
   _G.GetProfessions, _G.GetProfessionInfo, _G.TradeSkillFrame, _G.IsResting = keep.profs, keep.info, keep.ts, keep.resting
+end
+
+-- ---------------------------------------------------------------- the pup finder (Arn, 6 Nov: "sending the pups to
+-- find friends nearby ... like a flight tower radar")
+do
+  local PU = NS.Pups
+  local lib = _G.LibBiSComm
+  local keep = { spots = lib.spots, ig = _G.IsInGuild, gn = _G.GetNumGuildMembers, gr = _G.GetGuildRosterInfo,
+                 fl = _G.C_FriendList, map = W.map, px = W.px, py = W.py, taxi = _G.UnitOnTaxi, mnt = _G.IsMounted,
+                 inst = _G.IsInInstance, zone = W.me.zone, gi = _G.C_GuildInfo, lcn = _G.LOCALIZED_CLASS_NAMES_MALE }
+  ok(PU and R:Get("pups") and R:Enabled("pups"), "the pups tool is there and on")
+  local pdb = R:DBFor(R:Get("pups"))
+  PU.db = pdb
+  W.map, W.px, W.py, W.me.zone = 1952, 0.5, 0.5, "Netherstorm"
+  -- a guildmate sharing their spot (BiS addon) 100 yd east, 66 north of me on this 5000 x 3300 map; one far away
+  lib.spots = { ["Kelvar-Dreamscythe"] = { map = 1952, x = 0.52, y = 0.48, at = GetTime() },
+                ["Faraway"] = { map = 9999, x = 0.5, y = 0.5, at = GetTime() } }
+  local roster = { { "Me", "Netherstorm", true, "SHAMAN" }, { "Kelvar-Dreamscythe", "Netherstorm", true, "HUNTER" },
+                   { "Zoner", "Netherstorm", true, "MAGE" }, { "Sleepy", "Netherstorm", false, "MAGE" },
+                   { "Distant", "Durotar", true, "ROGUE" } }
+  local asked = 0
+  _G.IsInGuild = function() return true end
+  _G.GetNumGuildMembers = function() return #roster end
+  _G.GetGuildRosterInfo = function(i) local m = roster[i]
+    return m[1], "Raider", 2, 30, "Class", m[2], "", "", m[3], 0, m[4] end
+  _G.C_GuildInfo = { GuildRoster = function() asked = asked + 1 end }
+  _G.LOCALIZED_CLASS_NAMES_MALE = { PALADIN = "Paladin" }
+  local friends = { { name = "Pally-Realm", connected = true, area = "Netherstorm", className = "Paladin" },
+                    { name = "Gone", connected = false, area = "Netherstorm" } }
+  _G.C_FriendList = { GetNumFriends = function() return #friends end, GetFriendInfoByIndex = function(i) return friends[i] end,
+                      ShowFriends = function() asked = asked + 1 end }
+
+  -- the words
+  ok(PU.Short("Kelvar-Dreamscythe") == "Kelvar" and PU.Short("Darth Sithlord") == "Darth Sithlord", "a realm comes off, a surname stays")
+  ok(PU.Dir(100, 66) == "NE" and PU.Dir(0, -5) == "S" and PU.Dir(-5, 0.1) == "W", "bearings in words")
+  ok(PU.Yards(119.8) == "120" and PU.Yards(2300) == "2.3K", "yards, short")
+  local list = PU.Gather(true)
+  local keys = {}
+  for i, e in ipairs(list) do keys[i] = e.key end
+  ok(table.concat(keys, ",") == "kelvar,pally,zoner,distant,faraway",
+    "everyone online but me, once each: the exact spot first, then my zone, then the rest", table.concat(keys, ","))
+  local kel = list[1]
+  ok(kel.exact and kel.srcs.bis and kel.srcs.guild and kel.classFile == "HUNTER" and kel.src == "bis",
+    "a guildmate who shares their spot is ONE pal, with the spot and the roster's class")
+  ok(math.abs(kel.east - 100) < 0.01 and math.abs(kel.north - 66) < 0.01 and PU.Where(kel) == "120 YD NE", "exact: yards and a bearing", PU.Where(kel))
+  ok(list[2].same and PU.Where(list[2]) == "IN ZONE" and list[2].classFile == "PALADIN", "a friend in my zone: IN ZONE, the class from its name")
+  ok(PU.Where(list[4]) == "DUROTAR" and PU.Where(list[5]) == "SOMEWHERE", "no map answer: the zone's name, or somewhere")
+  ok(PU.range == 250 and math.abs(kel.px - 40) < 0.5 and math.abs(kel.py - 26.4) < 0.5 and not kel.rim,
+    "range: the step past the nearest (250); the blip 40 right, 26 up", kel.px)
+  ok(PU.ToScope({ east = 3000, north = 0, yd = 3000 }, 250).rim and PU.ToScope({ east = 3000, north = 0, yd = 3000 }, 250).px == PU.RIM,
+    "out of range: on the rim, still pointing the right way")
+
+  -- ACROSS ZONES, by HereBeDragons' own arithmetic (x = left - width * mapX: its x grows WEST, its y NORTH)
+  do
+    local maps = { [1] = { 1000, 800, 5000, 3000, name = "Home" }, [2] = { 1200, 900, 4000, 3100, name = "Durotar" } }
+    local H = {}
+    local function world(x, y, z) local d = maps[z] if not d then return nil end return d[3] - d[1] * x, d[4] - d[2] * y, 0 end
+    function H:GetZoneDistance(oz, ox, oy, dz, dx, dy)
+      local ax, ay = world(ox, oy, oz) local bx, by = world(dx, dy, dz)
+      if not (ax and bx) then return nil end
+      local ddx, ddy = bx - ax, by - ay
+      return math.sqrt(ddx * ddx + ddy * ddy), ddx, ddy
+    end
+    function H:GetAllMapIDs() return { 1, 2 } end
+    function H:GetLocalizedMap(id) return maps[id] and maps[id].name end
+    function H:GetZoneSize(id) return maps[id] and maps[id][1] or 0, maps[id] and maps[id][2] or 0 end
+    local keepHBD = PU.HBD
+    PU.HBD = function() return H end
+    PU.zones = nil
+    local e = PU.Place({ map = 2, mx = 0.5, my = 0.3 }, { map = 1, x = 0.5, y = 0.5 })
+    ok(e.exact and math.abs(e.east - 1100) < 0.01 and math.abs(e.north - 230) < 0.01 and PU.Dir(e.east, e.north) == "E",
+      "a pal in the zone to the east: 1100 yd east, 230 north", e.east)
+    local g = PU.Place({ zone = "Durotar" }, { map = 1, x = 0.5, y = 0.5, zone = "Home" })
+    ok(g.guess and PU.Where(g):find("^~1%.1K E"), "a zone name only: a guess at its middle, marked ~", PU.Where(g))
+    PU.HBD = keepHBD
+    PU.zones = nil
+  end
+
+  -- THE RADAR: open, the pups go out
+  PU.Toggle(true)
+  local f = BiSToolsPups
+  ok(f and f:IsShown() and f.scale == 1.2 and math.abs(f.w / f.h - 1.43) < 0.01, "the radar: 1.43:1, 20% bigger", f.w .. "x" .. f.h)
+  local esc = false
+  for _, n in ipairs(UISpecialFrames) do if n == "BiSToolsPups" then esc = true end end
+  ok(esc, "Escape closes it")
+  ok(asked == 2, "opening asks the game for a fresh guild roster and friends list", asked)
+  ok(f.sweep[1].file == "Interface\\Buttons\\WHITE8X8" and f.sweep[1].color and f.sweep[1].color[4] > 0.9,
+    "the beam: a white texture and a tint, the way a Line takes paint", f.sweep[1].file)
+  ok(#PU.pups == 3 and PU.pups[1].m._creature == 2958 and PU.pups[2].m._creature == 1547, "three pups, the client's own creatures")
+  ok(PU.pups[1].job == kel or (PU.pups[1].job and PU.pups[1].job.key == "kelvar"), "pup 1 goes for the nearest")
+  ok(PU.pups[1].state == "out" and PU.pups[1].m._anim == PU.ANIM.run and type(PU.pups[1].m._facing) == "number", "running, turned toward the blip")
+  ok(f.near.text == "SNIFFING..." and #PU.Reported() == 0, "nothing reported before a pup is back")
+  for _ = 1, 30 * 40 do PU.Step(1 / 30) end
+  ok(#PU.Reported() == 5, "every pal found in the end", #PU.Reported())
+  ok(f.near.text == "Kelvar" and f.nearAt.text == "120 YD NE", "NEAREST: the exact one", f.near.text .. " / " .. f.nearAt.text)
+  ok(f.rows[1].shown and f.rows[1].name.text == "Kelvar" and f.rows[5].shown and not f.rows[6].shown, "the list: the found, nearest first")
+  -- ONE LINE A NAME (Arn's first look, 6 Nov: "Stupidpriest Floortank" wrapped onto the next row)
+  ok(f.rows[1].name.wrap == false and f.rows[1].at.wrap == false and f.near.wrap == false, "names never wrap: cut on one line")
+  ok(PU.pups[1].drawn and PU.pups[1].icon.shown == false, "a pup drew on the second ask (the client fetches a creature first)")
+  for _, p in ipairs(PU.pups) do ok(p.state == "idle" or p.state == "wander", "the pups home, pottering about", p.state) end
+  ok(f.blips[1].dot.shown and f.blips[1].dot.anchor and math.abs(f.blips[1].dot.anchor[4] - kel.px) < 0.5
+     and f.blips[1].name.shown and f.blips[1].name.text == "Kelvar", "a found blip: at its spot, with its name")
+  ok(not f.blips[2].dot.shown, "a pal with no spot gets no blip")
+  -- every row POPS under the mouse; a click sends a pup again
+  f.rows[1].scripts.OnEnter(f.rows[1])
+  ok(f.rows[1].wash.alpha >= 0.3 and f.rows[1].bar.alpha == 1, "a row pops under the mouse")
+  f.rows[1].scripts.OnLeave(f.rows[1])
+  f.send.scripts.OnEnter(f.send)
+  ok(f.send.wash.alpha >= 0.3, "and SEND does too")
+  f.send.scripts.OnLeave(f.send)
+  f.rows[1].scripts.OnClick(f.rows[1])
+  local sent
+  for _, p in ipairs(PU.pups) do if p.job and p.job.key == "kelvar" and p.state == "out" then sent = p end end
+  ok(sent and PU.say:find("AFTER KELVAR"), "click a pal: a pup runs to them again", PU.say)
+  -- THE FINGERPRINT on every window (Arn, 6 Nov: "print the version number somewhere so you can see on the
+  -- screenshots ... faint out of the way"): the radar, and the hoard - which had covered Processing's
+  do
+    local keepBuild = NS.BUILD
+    NS.BUILD = "feat/pups@abc1234 1106-2300"
+    PU.Paint()
+    ok(f.build.text == NS.VERSION .. "  abc1234 1106-2300" and f.build.alpha and f.build.alpha < 1, "the radar: version and stamp, faint", f.build.text)
+    NS.Proc.ToggleHoard(true)
+    local hb = BiSToolsHoard.build
+    ok(hb and hb.text == NS.VERSION .. "  abc1234 1106-2300" and hb.alpha < 1, "the hoard: the same, faint", hb and hb.text)
+    NS.Proc.ToggleHoard(false)
+    NS.BUILD = keepBuild
+    PU.Paint()
+  end
+
+  -- lean: open, a second of radar; closed, nothing
+  local Cost = dofile("../_bisdev/dev/cost.lua")
+  local open = Cost.Count(function() for _ = 1, 30 do PU.Step(1 / 30) end end)
+  print(("   cost: pups, 1 s of radar open = %d calls"):format(open))
+  ok(open <= 30 * 160, "one second of radar stays in its budget", open)
+  PU.Toggle(false)
+  local shut = Cost.Count(function() for _ = 1, 30 do PU.Step(1 / 30) end fireAll("GUILD_ROSTER_UPDATE") end)
+  ok(shut <= 30 * 4 and not PU.stale, "closed: a step and a roster change cost nothing", shut)
+
+  -- nobody online: the pups run about anyway and say so
+  lib.spots, roster, friends = {}, { roster[1] }, {}
+  PU.Toggle(true)
+  ok(#PU.list == 0 and PU.pups[1].state == "search" and PU.say:find("NOBODY ONLINE"), "nobody: the pups search anyway")
+  for _ = 1, 30 * 20 do PU.Step(1 / 30) end
+  ok(PU.say:find("NOBODY OUT THERE") and f.near.text == "NOBODY", "and come back with nobody", PU.say)
+  PU.Toggle(false)
+
+  -- the door: a tools-box button while you travel
+  _G.UnitOnTaxi, _G.IsMounted = function() return false end, function() return false end
+  ok(not PU.ShowBox(), "on foot: no pup button")
+  _G.UnitOnTaxi = function() return true end
+  ok(PU.ShowBox(), "on a flight: the pup button")
+  local inBox
+  for _, e in ipairs(NS.Box.Buttons()) do if e.b == PU.box then inBox = e.show end end
+  ok(inBox == true, "in the BiS> tools box")
+  _G.IsInInstance = function() return true, "party" end
+  ok(not PU.ShowBox(), "never inside an instance")
+  _G.IsInInstance = keep.inst
+  W.combat = true ok(not PU.ShowBox(), "never in a fight") W.combat = false
+  pdb.button = false ok(not PU.ShowBox(), "switched off in options: gone") pdb.button = true
+
+  lib.spots, _G.IsInGuild, _G.GetNumGuildMembers, _G.GetGuildRosterInfo = keep.spots, keep.ig, keep.gn, keep.gr
+  _G.C_FriendList, W.map, W.px, W.py, _G.UnitOnTaxi, _G.IsMounted = keep.fl, keep.map, keep.px, keep.py, keep.taxi, keep.mnt
+  W.me.zone, _G.C_GuildInfo, _G.LOCALIZED_CLASS_NAMES_MALE = keep.zone, keep.gi, keep.lcn
 end
 
 local allowed = { BiSTools = true, BiSToolsDB = true, SLASH_BISTOOLS1 = true, SLASH_BISTOOLS2 = true,

@@ -14,6 +14,13 @@ NS.VERSION = (C_AddOns and C_AddOns.GetAddOnMetadata and C_AddOns.GetAddOnMetada
 NS.BUILD = (C_AddOns and C_AddOns.GetAddOnMetadata and C_AddOns.GetAddOnMetadata(ADDON, "X-BiS-Build"))
   or (GetAddOnMetadata and GetAddOnMetadata(ADDON, "X-BiS-Build")) or nil
 if NS.BUILD == "" then NS.BUILD = nil end
+--- What a window prints, faint, so a screenshot says which copy it is: "0.20.2  d5b473d 1106-2221" on a test build
+--- (Arn, 6 Nov: "print the version number somewhere so you can see on the screenshots"), the version alone on a release.
+function NS.Stamp()
+  local sha = NS.BUILD and NS.BUILD:match("@(%S+)")
+  local when = NS.BUILD and NS.BUILD:match("(%S+)$")
+  return sha and (tostring(NS.VERSION) .. "  " .. sha .. " " .. (when or "")) or tostring(NS.VERSION)
+end
 
 -- Palette: prefer BiSTheme (loads before us? no - alphabetical, BiSTheme > BiSTools,
 -- so resolve lazily on first use), fall back to the inline BiS palette.

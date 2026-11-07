@@ -41,5 +41,6 @@ Tools\Sounds.lua
 Tools\XP.lua
 Tools\Disenchant.lua
 Tools\Processing.lua
+Tools\Pups.lua
 API.lua
 Tools\Hub.lua
