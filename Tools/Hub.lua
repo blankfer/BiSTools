@@ -344,8 +344,8 @@ end
 -- ---------------------------------------------------------------- the BiS> page
 -- ONE OPTIONS HOME (Forever 1.0, Arn 7 Nov: "when they open the options, they go to add-ons ... they'll just see
 -- BiS> ... click into that add-on"): "BiS> Tools" under the game's own AddOns options (Libs\BiSTheme\Settings.lua),
--- holding the options window - every tool's on/off tick and its settings. A new install has every tool off, so this
--- (and the Hub) is where a player switches on what they want.
+-- drawn as the kit's dashboard (below) - every tool's on/off and its settings. A new install has every tool off, so
+-- this (and the Hub) is where a player switches on what they want.
 
 --- What is on, in a few words (the BiS> front page shows it): "3 of 15 tools on".
 function H.Status()
@@ -360,245 +360,57 @@ end
 -- ---------------------------------------------------------------- the dashboard
 -- THE PAGE IS A COCKPIT, NOT THE OLD WINDOW IN A BOX (Arn, 7 Nov, the first live look: "we esentially just took
 -- the old option window kept it the same size and nestels it inside a bigger window not taking advantage of the
--- bigger side" / "dont just shrink remake them all"). The whole page:
---   left    TOOLS - a row per tool, its lamp lit when on. Click = look at it; right-click = on / off.
---   right   the tool you picked: its name, a big ON/OFF switch, what it does in full words, a button to its
---           window, its commands, and every one of its settings as a big row (two columns when they will not fit)
+-- bigger side" / "dont just shrink remake them all"). Since 8 Nov it is the KIT's page: BiSTheme.Dashboard
+-- (Libs\BiSTheme\Settings.lua, minor 3) was ported FROM the hand-built one that lived here, and every BiS addon's
+-- BiS> page is now that one dashboard (Arn: "its a theme so itll keep all the pages looking the same"):
+--   left    TOOLS - BiS Tools itself, then a row per tool, its lamp lit when on. Click = look; right-click = on / off.
+--   right   the picked one: its name, a big ON/OFF switch, "open its window" beside it, what it does in full words,
+--           every one of its settings as a big row in ONE column, its command at the foot
 --   bottom  the help strip: what the row under the mouse does
--- Built from the same Registry tables the Hub and the Options window read, so nothing is listed twice.
-H.DASH = { LIST_W = 220, LIST_ROW = 26, GAP = 12, GENERAL = "_general" }
+-- Fed the same Registry tables the Hub and the Options window read, so nothing is listed twice.
+H.DASH = { GENERAL = "_general" }
 
-local function dashFont(s, size) if BiSTheme.SetFont then BiSTheme.SetFont(s, size) end end
-
---- Every entry of the list: the addon's own settings first, then each tool in the Registry's order.
+--- Every section of the page, in the kit's shape: the addon's own settings first, then each tool in the Registry's
+--- order. A tool's switch is the same R:SetEnabled the Hub, the Options window and /bist on|off use.
 function H.DashEntries()
   local out = { { key = H.DASH.GENERAL, title = "BiS Tools", desc = "The addon itself: its minimap button, the shared "
     .. "BiS channel every BiS addon talks over, and putting every BiS Tools window back on the screen.",
     options = H.OwnOptions(), general = true } }
   for key, tool in R:Each() do
-    out[#out + 1] = { key = key, tool = tool, title = tool.title or tool.name, desc = tool.desc, options = tool.options or {} }
+    local e = { key = key, tool = tool, title = tool.title or tool.name, desc = tool.desc, options = tool.options or {},
+      db = R:DBFor(tool), usage = tool.usage,
+      switch = { get = function() return R:Enabled(key) end, set = function(on) R:SetEnabled(key, on) end } }
+    if tool.OnOpen then e.open = { label = "open its window", func = function() H.Open(key) end } end
+    out[#out + 1] = e
   end
   return out
 end
 
-function H.BuildDash(body)
-  local BT, D = BiSTheme, H.DASH
-  local d = { body = body, entries = H.DashEntries(), rows = {}, pages = {} }
-  body.dash = d
-  H.dash = d
-  d.help = BT.DashHelp(body, "Point at a tool or a setting to read what it does. Right-click a tool in the list to switch it on or off.")
-  d.help:SetPoint("BOTTOMLEFT", body, "BOTTOMLEFT", 0, 0)
-  d.help:SetPoint("BOTTOMRIGHT", body, "BOTTOMRIGHT", 0, 0)
-  -- left: the list
-  d.list = BT.DashPanel(body, "TOOLS")
-  d.list:SetPoint("TOPLEFT", body, "TOPLEFT", 0, 0)
-  d.list:SetPoint("BOTTOMLEFT", d.help, "TOPLEFT", 0, D.GAP)
-  d.list:SetWidth(D.LIST_W)
-  d.count = K.fs(d.list, "", 11, "ink2")
-  dashFont(d.count, 11)
-  d.count:SetPoint("TOPRIGHT", d.list, "TOPRIGHT", -10, -10)
-  for i, e in ipairs(d.entries) do
-    local r = CreateFrame("Button", nil, d.list)
-    r:RegisterForClicks("LeftButtonUp", "RightButtonUp")
-    r:SetHeight(D.LIST_ROW)
-    r:SetPoint("TOPLEFT", d.list, "TOPLEFT", 6, -(d.list.HEAD + (i - 1) * (D.LIST_ROW + 2)))
-    r:SetPoint("RIGHT", d.list, "RIGHT", -6, 0)
-    r.bg = K.tex(r, "BACKGROUND", "sunken", 0.7)
-    r.bg:SetAllPoints()
-    r.wash = K.tex(r, "BORDER", "accent", 0.35)
-    r.wash:SetAllPoints()
-    r.wash:SetAlpha(0)
-    -- K.tex STRETCHES over the whole row (SetAllPoints): the bar and the lamp are cleared first, or the 8 px lamp
-    -- paints the row (Arn, 8 Nov live: every row solid cyan, the picked one solid pink)
-    r.bar = K.tex(r, "ARTWORK", "accent", 1)
-    r.bar:ClearAllPoints()
-    r.bar:SetPoint("TOPLEFT") r.bar:SetPoint("BOTTOMLEFT") r.bar:SetWidth(3)
-    r.bar:SetAlpha(0)
-    r.lamp = K.tex(r, "OVERLAY", "line2", 1)
-    r.lamp:ClearAllPoints()
-    r.lamp:SetSize(8, 8)
-    r.lamp:SetPoint("LEFT", 10, 0)
-    r.name = K.fs(r, e.title, 12, "ink")
-    dashFont(r.name, 12)
-    r.name:SetPoint("LEFT", 26, 0)
-    r.state = K.fs(r, "", 11, "muted")
-    dashFont(r.state, 11)
-    r.state:SetPoint("RIGHT", -8, 0)
-    r.entry = e
-    r:SetScript("OnClick", function(self, button)
-      if button == "RightButton" and self.entry.tool then
-        H.DashSwitch(self.entry.key, not R:Enabled(self.entry.key))
-      else
-        H.DashSelect(self.entry.key)
-      end
-    end)
-    r:SetScript("OnEnter", function(self)
-      self.wash:SetAlpha(1) self.bar:SetAlpha(1)
-      d.help:Say(self.entry.desc)
-    end)
-    r:SetScript("OnLeave", function(self)
-      self.wash:SetAlpha(0) self.bar:SetAlpha(self.entry.key == d.selected and 1 or 0)
-      d.help:Idle()
-    end)
-    d.rows[i] = r
-  end
-  -- right: the picked tool
-  local p = BT.DashPanel(body, "")
-  d.detail = p
-  p:SetPoint("TOPLEFT", d.list, "TOPRIGHT", D.GAP, 0)
-  p:SetPoint("BOTTOMRIGHT", d.help, "TOPRIGHT", 0, D.GAP)
-  p.name = K.fs(p, "", 20, "accent")
-  dashFont(p.name, 20)
-  p.name:SetPoint("TOPLEFT", p, "TOPLEFT", 14, -12)
-  p.switch = BT.DashSwitch(p, function() if d.selected ~= H.DASH.GENERAL then H.DashSwitch(d.selected, not R:Enabled(d.selected)) end end)
-  p.switch:SetPoint("TOPRIGHT", p, "TOPRIGHT", -12, -12)
-  p.desc = K.fs(p, "", 12, "ink2")
-  dashFont(p.desc, 12)
-  if p.desc.SetWordWrap then p.desc:SetWordWrap(true) end
-  if p.desc.SetJustifyH then p.desc:SetJustifyH("LEFT") end
-  p.desc:SetPoint("TOPLEFT", p.name, "BOTTOMLEFT", 0, -8)
-  p.desc:SetPoint("RIGHT", p, "RIGHT", -14, 0)
-  -- the window button rides the name's row, beside the switch: no row of its own
-  p.open = BT.DashButton(p, "open its window", 130, function()
-    local key = d.selected
-    if BT.CloseSettingsPanel then BT.CloseSettingsPanel() end
-    H.Open(key)
-    H.PaintDash()
-  end)
-  p.open:SetPoint("TOPRIGHT", p.switch, "TOPLEFT", -8, 0)
-  -- the command, small, at the FOOT of the panel (Arn, 8 Nov live: "lots of stuff cut off" - a long usage line
-  -- ran off both sides of the panel in the middle of it)
-  p.usage = K.fs(p, "", 10, "muted")
-  dashFont(p.usage, 10)
-  if p.usage.SetJustifyH then p.usage:SetJustifyH("LEFT") end
-  if p.usage.SetWordWrap then p.usage:SetWordWrap(true) end
-  p.usage:SetPoint("BOTTOMLEFT", p, "BOTTOMLEFT", 14, 10)
-  p.usage:SetPoint("RIGHT", p, "RIGHT", -14, 0)
-  p.none = K.fs(p, "Nothing to set: it just works while it is on.", 12, "muted")
-  dashFont(p.none, 12)
-  H.DashSelect(d.selected or d.entries[2] and d.entries[2].key or H.DASH.GENERAL)
-  return d
-end
-
---- The settings rows of one entry, built the first time it is picked.
-function H.DashPage(e)
-  local d = H.dash
-  if d.pages[e.key] then return d.pages[e.key] end
-  local db = e.tool and R:DBFor(e.tool) or nil
-  local ctx = { help = d.help, onChange = function() H.PaintHub() H.PaintOptions() H.PaintDash() end }
-  local rows = {}
-  for i, opt in ipairs(e.options) do rows[i] = BiSTheme.DashControl(d.detail, opt, db, ctx) end
-  d.pages[e.key] = rows
-  return rows
-end
-
-function H.DashSelect(key)
-  local d = H.dash
-  if not d then return end
-  d.selected = key
-  for k, rows in pairs(d.pages) do
-    if k ~= key then for _, r in ipairs(rows) do r:Hide() end end
-  end
-  H.PaintDash()
-end
-
-function H.DashSwitch(key, on)
-  R:SetEnabled(key, on)
-  H.PaintHub()
-  H.PaintOptions()
-  H.PaintDash()
-end
-
---- Lay the picked entry's rows out under its words: ONE column, full width, always (Arn, 8 Nov live: two columns
---- cut every label and put a choice over a switch). A tool with more settings than fit gets shorter rows instead,
---- down to H.DASH.MIN_STEP; `bottom` is what the foot of the panel keeps (the command line).
-H.DASH.MIN_STEP = 27
-function H.DashLayout(p, rows, top, bottom)
-  local D = BiSTheme.SETTINGS.DASH
-  local step = D.ROW + 4
-  local h = p.GetHeight and p:GetHeight() or 0
-  local avail = (type(h) == "number" and h or 0) + top - (bottom or 0) - 8
-  if avail > 0 and #rows * step > avail then step = math.max(H.DASH.MIN_STEP, math.floor(avail / #rows)) end
-  for i, r in ipairs(rows) do
-    r:ClearAllPoints()
-    r:SetPoint("TOPLEFT", p, "TOPLEFT", 14, top - (i - 1) * step)
-    r:SetPoint("RIGHT", p, "RIGHT", -14, 0)
-    r:SetHeight(step - 4)
-    r:Show()
-  end
-  return step
-end
-
-function H.PaintDash()
-  local d = H.dash
-  if not d then return end
-  local on, all = 0, 0
-  for _, r in ipairs(d.rows) do
-    local e = r.entry
-    local en = e.tool and R:Enabled(e.key)
-    if e.tool then
-      all = all + 1
-      if en then on = on + 1 end
-      r.lamp:SetColorTexture(K.color(en and "good" or "line2"))
-      r.state:SetText(en and "ON" or "off")
-      r.state:SetTextColor(K.color(en and "good" or "muted"))
-      r.name:SetTextColor(K.color(en and "ink" or "ink2"))
-    else
-      r.lamp:SetColorTexture(K.color("accent"))
-      r.state:SetText("")
-    end
-    local picked = e.key == d.selected
-    r.bar:SetAlpha(picked and 1 or 0)
-    r.bg:SetColorTexture(K.color(picked and "line2" or "sunken"))
-  end
-  d.count:SetText(on .. " of " .. all .. " on")
-  -- the picked one
-  local e
-  for _, x in ipairs(d.entries) do if x.key == d.selected then e = x end end
-  if not e then return end
-  local p = d.detail
-  local en = e.tool and R:Enabled(e.key)
-  p.name:SetText(e.title)
-  p.desc:SetText(e.desc or "")
-  if e.tool then p.switch:Set(en) p.switch:Show() else p.switch:Hide() end
-  -- the rows start right under the words, however many lines they took (measured; 2 lines when the client won't say)
-  local okH, descH = pcall(function() return p.desc:GetStringHeight() end)
-  descH = (okH and type(descH) == "number" and descH > 0) and descH or 30
-  local top = -(12 + 24 + 8) - math.ceil(descH) - 12
-  if e.tool and e.tool.OnOpen then p.open:Show() else p.open:Hide() end
-  local bottom = 0
-  if e.tool and e.tool.usage then
-    p.usage:SetText("command:  " .. e.tool.usage)
-    p.usage:Show()
-    local okU, uh = pcall(function() return p.usage:GetStringHeight() end)
-    bottom = 10 + ((okU and type(uh) == "number" and uh > 0) and math.ceil(uh) or 26)
-  else
-    p.usage:Hide()
-  end
-  local rows = H.DashPage(e)
-  if #rows == 0 then
-    p.none:ClearAllPoints()
-    p.none:SetPoint("TOPLEFT", p, "TOPLEFT", 14, top - 4)
-    p.none:Show()
-  else
-    p.none:Hide()
-    d.step = H.DashLayout(p, rows, top, bottom)
-  end
-  for _, r in ipairs(rows) do
-    r:Paint()
-    r:SetDim(e.tool ~= nil and not en)
-  end
+--- What the kit draws the page from. A change on the page repaints the Hub and the Options window (the kit repaints
+--- the page itself).
+function H.DashModel()
+  return {
+    entries = H.DashEntries,
+    list = "TOOLS",
+    idle = "Point at a tool or a setting to read what it does. Right-click a tool in the list to switch it on or off.",
+    onChange = function() H.PaintHub() H.PaintOptions() end,
+  }
 end
 
 function H.RegisterSettings()
-  if not (BiSTheme and BiSTheme.SettingsPage) then return nil end
+  if not (BiSTheme and BiSTheme.SettingsPage and BiSTheme.Dashboard) then return nil end
   return BiSTheme.SettingsPage("BiSTools", {
     title = "Tools",
     about = "Small tools, each with its own switch - a new install starts with every one off. Pick a tool on the "
       .. "left to see what it does, switch it on, and set it up.",
     status = H.Status,
-    build = function(body) H.BuildDash(body) end,
-    refresh = function() H.PaintDash() end,
+    build = function(body)
+      local d = BiSTheme.Dashboard(body, H.DashModel())
+      H.dash = d
+      d.detail.none:SetText("Nothing to set: it just works while it is on.")
+      if d.entries[2] then d:Select(d.entries[2].key) end   -- it opens on the first tool, as it always has
+    end,
+    refresh = function() if H.dash then H.dash:Paint() end end,
     open = { label = "the tools list", func = function() H.ToggleHub(true) end },
     api = { name = "BiSToolsAPI", about = "party list, rivals and the ride clock, read-only (API.lua, version "
       .. tostring(rawget(_G, "BiSToolsAPI") and BiSToolsAPI.version or "?") .. ")" },

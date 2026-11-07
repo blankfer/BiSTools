@@ -2350,6 +2350,24 @@ do
     ok(optParent ~= page.frame.body and not BiSToolsOptions:IsShown(), "the options window stays where it lives, hidden")
     local d = page.frame.body.dash
     ok(d and #d.rows == 16 and d.rows[1].entry.general, "the list: BiS Tools itself, then all 15 tools", d and #d.rows)
+    -- THE FAMILY RULE (Arn, 8 Nov: "its a theme so itll keep all the pages looking the same"): the page is the kit's
+    -- BiSTheme.Dashboard, fed the Registry's own tables; the hand-built copy in Hub.lua is gone
+    ok(d.model and d.model.list == "TOOLS" and d.list.head.text == "TOOLS" and type(d.Paint) == "function"
+       and type(d.Select) == "function", "the page is the kit's dashboard, its list titled TOOLS")
+    ok(H.BuildDash == nil and H.PaintDash == nil and H.DashSelect == nil and H.DashPage == nil and H.DashLayout == nil
+       and H.DashSwitch == nil, "no hand-built dashboard left in Hub.lua")
+    ok(d.selected == d.rows[2].entry.key and d.rows[2].entry.switch and not d.rows[1].entry.switch,
+       "it opens on the first tool; BiS Tools itself has no switch", d.selected)
+    do
+      local okEntries = true
+      for i = 2, #d.rows do
+        local e = d.rows[i].entry
+        local tool = R:Get(e.key)
+        if not (tool and e.db == R:DBFor(tool) and e.options == (tool.options or e.options) and e.usage == tool.usage
+                and ((e.open ~= nil) == (tool.OnOpen ~= nil))) then okEntries = false end
+      end
+      ok(okEntries, "each tool's entry: its own options, its saved table, its command, a window button only with a window")
+    end
     local xpRow
     for _, r in ipairs(d.rows) do if r.entry.key == "xp" then xpRow = r end end
     xpRow.scripts.OnClick(xpRow, "LeftButton")
@@ -2360,8 +2378,12 @@ do
     ok(d.detail.desc.text == xpTool.desc, "with what it does in full words")
     ok(d.detail.usage.text:find(xpTool.usage, 1, true), "and its command")
     local was = R:Enabled("xp")
+    local keepSet, setCalls = R.SetEnabled, {}
+    R.SetEnabled = function(self, key, on) setCalls[#setCalls + 1] = key return keepSet(self, key, on) end
     d.detail.switch.scripts.OnClick(d.detail.switch)
+    R.SetEnabled = keepSet
     ok(R:Enabled("xp") == not was and d.detail.switch.on == not was, "the big switch turns it on / off")
+    ok(#setCalls == 1 and setCalls[1] == "xp", "through R:SetEnabled, the same setter /bist on|off uses", #setCalls)
     ok(xpRow.state.text == (not was and "ON" or "off"), "and the list says so at once")
     ok(xpRows[1].label.alpha == (not was and 1 or 0.45), "its settings grey out while it is off")
     xpRow.scripts.OnClick(xpRow, "RightButton")
@@ -2373,7 +2395,21 @@ do
     local bagWas = xdb.bag ~= false
     xpRows[1].sw.scripts.OnClick(xpRows[1].sw)
     ok((xdb.bag ~= false) == not bagWas, "a setting's switch changes the tool's saved setting")
+    do
+      -- the SAME saved value the options window shows: its row for that option agrees once it paints
+      local optWin = H.BuildOptions()
+      local winRow
+      for _, r in ipairs(optWin.rows) do if r.opt == xpTool.options[1] then winRow = r end end
+      optWin:Paint()
+      ok(winRow and winRow.ctl and winRow.ctl.on == (xdb.bag ~= false), "the options window's row says the same after its Paint")
+    end
     xpRows[1].sw.scripts.OnClick(xpRows[1].sw)
+    -- a tool with nothing to set says so (the page's own words)
+    local deRow
+    for _, r in ipairs(d.rows) do if r.entry.key == "disenchant" then deRow = r end end
+    deRow.scripts.OnClick(deRow, "LeftButton")
+    ok(d.detail.none:IsShown() and d.detail.none.text == "Nothing to set: it just works while it is on.",
+       "a tool with no settings: nothing to set, it just works", d.detail.none.text)
     -- a tool with a window: a button opens it, after putting the game's options away
     local pupsRow
     for _, r in ipairs(d.rows) do if r.entry.key == "pups" then pupsRow = r end end
@@ -2415,7 +2451,7 @@ do
       if r.h ~= d.step - 4 then sameH = false end
     end
     ok(#prow == 9 and fullWidth and sameH, "nine settings: one column, every row full width", #prow)
-    ok(d.step < 36 and d.step >= H.DASH.MIN_STEP, "rows a little shorter to fit, never under the floor", d.step)
+    ok(d.step < 36 and d.step >= BiSTheme.SETTINGS.DASH.MIN_STEP, "rows a little shorter to fit, never under the floor", d.step)
     d.detail.h = keepH
     pupsRow.scripts.OnEnter(pupsRow)
     ok(pupsRow.wash.alpha == 1 and d.help.text.text == R:Get("pups").desc, "a list row pops and reads what the tool does")
