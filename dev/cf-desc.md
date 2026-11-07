@@ -1,4 +1,4 @@
-# BiS Tools — CurseForge page text (0.20.0)
+# BiS Tools — CurseForge page text (1.0.0)
 
 Paste everything below the line into the project description
 (CurseForge → BiS Tools, project 1686340 → Edit → Description), in the Markdown editor.
@@ -9,6 +9,11 @@ and lists stay flat.
 
 **Deliberately NOT on the page: summon** (Forever has no summoning stones, the tool does not load
 there) **and threat** (a beta, off by default). The page is for Forever.
+
+Changed since the previous text (8 Nov, 1.0.0 - Forever 1.0): "Settings" rewritten - a new install starts with
+every tool off (existing players keep theirs), the options dashboard (Esc > Options > AddOns > BiS> > BiS> Tools),
+and the minimap button (right-click again closes the options). Rivals: the ping and the guildmate crest start off on
+a new install, each with its own tick - the "you hear it" and crest lines say so.
 
 ---
 
@@ -51,7 +56,7 @@ When you die, a small window opens on the faces of whoever did it.
 
 Click a player on your recap, or right-click an enemy player and pick **BiS: add rival**. They're gold now: hunted.
 
-- **They walk into view, you hear it.** A warning in the middle of your screen, a sound, and where you are. Once a minute at most.
+- **They walk into view, you know it.** A warning in the middle of your screen, and where you are. Once a minute at most. Tick "sound when a rival is near" and a ping comes with it.
 - **A crosshair on their body**, pinned under their nameplate, pulsing. Eight shapes to pick from, or none. It needs enemy nameplates on; the options have a button for that.
 - **One button targets them**, even across the map. It sits in the BiS> tools box and takes a key if you want one.
 - **Enemies only.** A friend can't be a rival, and a "Terry Lin" on your list never marks a "Terry Daviss": whole names and player IDs are checked.
@@ -80,7 +85,7 @@ Right-click a player and pick **BiS: add guild rival**, and every guildmate runn
 
 ## Guildmates in passing
 
-Out in the world on your own, a guildmate gets a small teal **guild crest** under their nameplate. Nothing else: no sound, no text. Join a party, a raid or a battleground and it's gone.
+Tick "guildmates" in the options and, out in the world on your own, a guildmate gets a small teal **guild crest** under their nameplate. Nothing else: no sound, no text. Join a party, a raid or a battleground and it's gone.
 
 ## A thank-you for buffs
 
@@ -118,7 +123,11 @@ The farm's skull, the rival target button, the XP buff buttons, and in battlegro
 
 ## Settings
 
-Left-click the minimap button for the tools, right-click for the options. Hover any setting and the strip at the bottom of the window says what it does. Or type:
+**A quiet start.** A new install starts with every tool off: no sounds, no windows opening by themselves, nothing on your screen until you ask for it. Switch on the ones you want. The tools you switch on start quiet too: the farm window waits for a click instead of opening at every login, and the rival ping and the guildmate crest each have their own tick. Already using BiS Tools? Nothing changes for you: every tool and setting stays as you had it.
+
+**One dashboard for every tool.** Esc > Options > AddOns > **BiS>** > **BiS> Tools**: every tool down the left with its lamp, the one you pick big on the right, with an ON/OFF switch, what it does in full words, a button to its window and all its settings. Point at anything and the strip along the bottom says what it does.
+
+**The minimap button:** left-click for the tools, right-click for the options window (right-click again closes it), drag to move it. Or type:
 
 | command | does |
 |---|---|
