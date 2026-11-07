@@ -1,3 +1,14 @@
+## 1.0.0 - Forever 1.0
+
+- **A quiet start.** A new install now starts with **every tool off** - no sounds, no windows opening by themselves, nothing on your screen until you ask for it. Left-click the minimap button for the tools list and click the ones you want (or tick them in the options). Already using BiS Tools? **Nothing changes for you** - every tool and setting stays exactly as you had it.
+- **The tools you switch on later start quiet too:** the farm window waits for a click instead of opening at every login, the summon nag, the rival ping and the guildmate / recruit crests start off (each has its own tick in the options).
+- **One options home.** Esc > Options > AddOns > **BiS>** > **BiS> Tools**: every tool's on/off and all its settings, plus a button to the tools list. The BiS> front page shows "N of 15 tools on".
+- **Minimap button, same as every BiS addon:** left-click = the tools, right-click = options, drag = move.
+- **The summon nag listens to the summon tool's switch.** Turn the tool off and the reminder (warning, sound and voice) stops too.
+- **Fixed: a Blizzard raid warning error** ("RaidWarning.lua:233 ... tainted by BiSTools"). Rival and summon call-outs now use BiS Tools' own big fading line in the same spot.
+- **Fixed: errors from hidden game values** in the summon list (in raid fights, at the summoning stone's tooltip) and the minimap button.
+- Rows in the tools list light up under the mouse.
+
 ## 0.20.2
 
 - **Which BiS versions your guild runs:** `/biscomm ver` lists every BiS addon around you, who has the newest, and which release is marked critical. Nothing is said unless an update is critical (or your copy is too old to talk to a guildmate's) - then one line, once, never in a fight.
