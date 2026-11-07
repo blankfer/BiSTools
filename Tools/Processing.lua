@@ -311,8 +311,9 @@ local function arm(r, e)
   a:SetAttribute("target-slot", e and e.slot or nil)
   a:SetAttribute("type1", free and "spell" or nil)
   a:SetAttribute("spell1", free and name or nil)
-  a:SetAttribute("shift-type1", bound and "spell" or nil)
-  a:SetAttribute("shift-spell1", bound and name or nil)
+  -- shift-click disenchants anything in reach; a plain click only what is not soulbound (Arn, 6 Nov)
+  a:SetAttribute("shift-type1", (free or bound) and "spell" or nil)
+  a:SetAttribute("shift-spell1", (free or bound) and name or nil)
   a.entry = e
 end
 

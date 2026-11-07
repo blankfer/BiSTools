@@ -7605,6 +7605,10 @@ do
   local belt = rowFor("G-BELT-A")
   ok(belt.act.template:find("SecureActionButtonTemplate") and belt.act.attrs.type1 == "spell" and belt.act.attrs.spell1 == "Disenchant"
      and belt.act.attrs["target-bag"] == 0 and belt.act.attrs["target-slot"] == 1, "a row's button: Disenchant on THAT bag slot")
+  -- (Arn, 6 Nov live: "i tried to shift click another item and it no work only for soul bound gear should work for
+  -- both left click only for non soulbound gear")
+  ok(belt.act.attrs["shift-type1"] == "spell" and belt.act.attrs["shift-spell1"] == "Disenchant",
+     "a free item: shift-click works too")
   local shield = rowFor("G-SHIELD")
   ok(shield.act.attrs.type1 == nil and shield.act.attrs["shift-type1"] == "spell", "soulbound: SHIFT-click only")
   ok(shield.tag.text:find("SOULBOUND", 1, true), "and it says so", shield.tag.text)
