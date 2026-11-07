@@ -195,7 +195,7 @@ local ev = CreateFrame("Frame")
 ev:RegisterEvent("UNIT_AURA")
 ev:SetScript("OnEvent", function(_, _, unit, info)
   -- one string compare first: your own auras only, everyone else's change for free
-  if unit ~= "player" or hidden(unit) then return end
+  if hidden(unit) or unit ~= "player" then return end      -- hidden FIRST: even == is refused on a secret
   if not R:Enabled("social") then return end
   local db = R:DBFor(R:Get("social"))
   if not db.thanks then return end

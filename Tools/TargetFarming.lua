@@ -764,8 +764,11 @@ NS.Registry:Register({
   name = "farm",
   desc = "click a kill; skull auto-follows a free copy nearby",
   usage = "/bist farm [clear | add <name> | key <KEY>|none | sound first|always|off | spots [clear] | pins on|off|why | arrow on|off | guide on|off | radius <yd> | burst <sec> | prune <sec>|off]",
-  defaults = { last = nil, custom = nil, shown = true, collapsed = false, pos = { "CENTER", 300, 0 },
+  -- shown = false since 1.0: a new install's farm window waits for a click in the Hub (it opened at every login;
+  -- an existing save keeps its own value - Registry R:Forever10 froze it)
+  defaults = { last = nil, custom = nil, shown = false, collapsed = false, pos = { "CENTER", 300, 0 },
     active = nil, interval = 0.5, key = nil, sound = "off", finds = 0 },
+  quiet = { shown = false },
   OnInit = function(self, db)
     -- ONCE: the old default "first" was written into every saved table, so a new default alone changes nobody.
     -- "first" becomes "off"; "always" (somebody chose it) stays. Back on: /bist farm sound first

@@ -5,7 +5,7 @@ _G.BiSTools = NS
 
 -- version from the TOC, never a literal that drifts (house law); the literal is the
 -- fallback only and the harness holds it equal to ## Version
-local VERSION_FALLBACK = "0.20.2"   -- == ## Version in the TOC; the harness scans for this
+local VERSION_FALLBACK = "1.0.0"   -- == ## Version in the TOC; the harness scans for this
 NS.VERSION = (C_AddOns and C_AddOns.GetAddOnMetadata and C_AddOns.GetAddOnMetadata(ADDON, "Version"))
   or (GetAddOnMetadata and GetAddOnMetadata(ADDON, "Version")) or VERSION_FALLBACK
 -- THE BUILD STAMP (Arn, 6 Nov 2026: "a finger print thing only you can see so you know what version i am on"):
@@ -56,10 +56,58 @@ function NS.Print(fmt, ...)
   DEFAULT_CHAT_FRAME:AddMessage(NS.PREFIX .. ": " .. msg)
 end
 
+--- OUR OWN RAID-WARNING LINE (7 Nov 2026, Arn's BugGrabber, 19x: "RaidWarning.lua:233 attempt to perform arithmetic
+--- on a secret number (tainted by BiSTools)"). RaidNotice_AddMessage put our text into Blizzard's RaidWarningFrame,
+--- and from then on its own fade ran as OUR code. So BiS Tools draws its call-outs (a rival nearby, a summon) in a
+--- MessageFrame of its own, laid ON the raid warning's spot with the same big, fading look. Blizzard's frame is only
+--- anchored to, never written into. rgb: { r, g, b } (default: the raid warning's orange).
+NS.ALERT = { size = 26, visible = 5, fade = 2, y = -260 }
+function NS.Alert(text, rgb)
+  if text == nil then return false end
+  local f = NS.alertFrame
+  if not f then
+    f = CreateFrame("MessageFrame", "BiSToolsAlert", UIParent)
+    f:SetSize(512, 70)
+    local rw = rawget(_G, "RaidWarningFrame")
+    if not pcall(f.SetPoint, f, "TOP", rw or UIParent, "TOP", 0, rw and 0 or NS.ALERT.y) then
+      f:SetPoint("TOP", UIParent, "TOP", 0, NS.ALERT.y)
+    end
+    if f.SetFrameStrata then f:SetFrameStrata("HIGH") end
+    f:SetFont(STANDARD_TEXT_FONT, NS.ALERT.size, "THICKOUTLINE")
+    if f.SetJustifyH then f:SetJustifyH("CENTER") end
+    f:SetInsertMode("TOP")
+    f:SetFading(true)
+    f:SetTimeVisible(NS.ALERT.visible)
+    f:SetFadeDuration(NS.ALERT.fade)
+    NS.alertFrame = f
+  end
+  local c = type(rgb) == "table" and rgb or (ChatTypeInfo and ChatTypeInfo.RAID_WARNING) or nil
+  local r, g, b = 1, 0.5, 0
+  if type(c) == "table" and type(c.r) == "number" and type(c.g) == "number" and type(c.b) == "number" then
+    r, g, b = c.r, c.g, c.b
+  end
+  f:AddMessage(text, r, g, b)
+  return true
+end
+
 -- Saved variables. Each tool keeps its own sub-table: NS.DB().tools[name].
 local DEFAULTS = { tools = {}, enabled = {} }
 function NS.DB()
   return BiSToolsDB
+end
+
+--- The saved table as the client hands it back at ADDON_LOADED -> the table to use. NOTHING handed back (nil) is a
+--- NEW install: Forever 1.0 starts it with every tool off (Registry R:Forever10). Anything handed back is an
+--- existing save: frozen as it was, once. Caveat: Forever was measured once handing back no SavedVariables for an
+--- existing user; BiS Tools keeps no per-character mirror, so that load comes up quiet - the safe side.
+function NS.OpenDB(saved)
+  local isNew = type(saved) ~= "table"
+  local db = isNew and {} or saved
+  for k, v in pairs(DEFAULTS) do
+    if db[k] == nil then db[k] = type(v) == "table" and {} or v end
+  end
+  if not db.forever10 and NS.Registry then NS.Registry:Forever10(db, isNew) end
+  return db
 end
 
 -- The shared BiS channel (Libs/LibBiSComm-1.0, embedded from _bisdev). It is
@@ -89,10 +137,7 @@ f:RegisterEvent("PLAYER_LOGIN")
 f:RegisterEvent("PLAYER_LOGOUT")
 f:SetScript("OnEvent", function(_, event, name)
   if event == "ADDON_LOADED" and name == ADDON then
-    BiSToolsDB = BiSToolsDB or {}
-    for k, v in pairs(DEFAULTS) do
-      if BiSToolsDB[k] == nil then BiSToolsDB[k] = type(v) == "table" and {} or v end
-    end
+    BiSToolsDB = NS.OpenDB(rawget(_G, "BiSToolsDB"))   -- nil here = a new install (looked at BEFORE any default)
     NS.Comm.Boot()
     NS.Registry:InitAll()
   elseif event == "PLAYER_LOGIN" then
