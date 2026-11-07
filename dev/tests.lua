@@ -7517,6 +7517,23 @@ do
   local P = NS.Proc
   local db = R:DBFor(R:Get("processing"))
   ok(P and R:Get("processing") and R:Enabled("processing"), "the processing tool, on by default")
+  -- SHORT NAMES (Arn, 6 Nov: "any thing more than 3 or 4 letters cut it down /bist processing"): every tool whose
+  -- name is longer has a word of 4 letters or fewer; the long names still work
+  do
+    for key, tool in R:Each() do
+      ok(#key <= 4 or (tool.short and #tool.short <= 4 and R:Get(tool.short) == tool),
+         ("%s: a short word of 4 letters or fewer"):format(key), tool.short)
+    end
+    ok(R:Get("proc") == R:Get("processing") and R:Get("de") == R:Get("disenchant") and R:Get("snd") == R:Get("sounds"),
+       "proc, de, snd ... are the same tools")
+    SlashCmdList.BISTOOLS("off de")
+    ok(not R:Enabled("disenchant"), "/bist off de: the disenchant glow off")
+    SlashCmdList.BISTOOLS("on de")
+    ok(R:Enabled("disenchant"), "/bist on de: back on")
+    SlashCmdList.BISTOOLS("proc")
+    ok(BiSToolsProcessing and BiSToolsProcessing:IsShown(), "/bist proc opens the processing page")
+    SlashCmdList.BISTOOLS("proc")
+  end
   local keep = { cont = _G.C_Container, item = _G.C_Item, loc = rawget(_G, "ItemLocation"), known = rawget(_G, "IsPlayerSpell"),
                  profs = rawget(_G, "GetProfessions"), info = rawget(_G, "GetProfessionInfo"), ts = rawget(_G, "TradeSkillFrame") }
   -- the bags, as Chainheal's could be: two belts of ONE name (one enchanted - "my gear"), two identical cloaks (ten

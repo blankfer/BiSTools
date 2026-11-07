@@ -9,8 +9,9 @@ local function List()
   NS.Print("v%s - tools:", NS.VERSION)
   for key, tool in R:Each() do
     local state = R:Enabled(key) and T.text("good", "on") or T.text("warn", "off")
-    DEFAULT_CHAT_FRAME:AddMessage(("  %s %s - %s  %s"):format(
-      state, T.text("accent", key), tool.desc or "", T.text("muted", tool.usage or "")))
+    DEFAULT_CHAT_FRAME:AddMessage(("  %s %s%s - %s  %s"):format(
+      state, T.text("accent", key), tool.short and T.text("gold", " (" .. tool.short .. ")") or "", tool.desc or "",
+      T.text("muted", tool.usage or "")))
   end
   DEFAULT_CHAT_FRAME:AddMessage(T.text("muted", "  /bist on|off <tool> to toggle  |  /bist hub | options | minimap  (or the minimap button)"))
 end

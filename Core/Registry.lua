@@ -13,8 +13,14 @@
 --                   values (seg) | min, max, step, show(db) (step) | button, action(db) } },
 --     slashWhenOff = true }   -- OnSlash still runs while the tool is off
 local _, NS = ...
-local R = { tools = {}, order = {} }
+local R = { tools = {}, order = {}, alias = {} }
 NS.Registry = R
+
+-- SHORT WORDS (Arn, 6 Nov 2026: "any thing more than 3 or 4 letters cut it down /bist processing"): every tool whose
+-- name is longer than 4 letters answers to a word of 4 or fewer too. The long names keep working - a macro or a habit
+-- never breaks - and the saved settings stay under the long name.
+R.SHORT = { processing = "proc", disenchant = "de", recap = "rcap", rides = "ride", rivals = "riv", social = "soc",
+            sounds = "snd", summon = "sum", threat = "thr", party = "pty" }
 
 function R:Register(tool)
   assert(tool and tool.name, "BiSTools: tool needs a name")
@@ -22,15 +28,24 @@ function R:Register(tool)
   if self.tools[key] then error("BiSTools: duplicate tool '" .. key .. "'") end
   self.tools[key] = tool
   self.order[#self.order + 1] = key
+  tool.short = tool.short or R.SHORT[key]
+  if tool.short then self.alias[tool.short:lower()] = key end
   return tool
 end
 
+--- The tool's own key for a long name or a short one ("proc" -> "processing").
+function R:Key(name)
+  if not name then return nil end
+  local n = name:lower()
+  return self.tools[n] and n or self.alias[n] or n
+end
+
 function R:Get(name)
-  return name and self.tools[name:lower()]
+  return name and self.tools[self:Key(name)]
 end
 
 function R:Enabled(name)
-  local key = name:lower()
+  local key = self:Key(name)
   local en = NS.DB().enabled[key]
   -- a tool marked defaultOff (a beta: Arn, 13 Oct, the threat tool "in releases, off") is off until
   -- someone turns it on; every other tool is on until someone turns it off
@@ -42,7 +57,7 @@ function R:Enabled(name)
 end
 
 function R:SetEnabled(name, on)
-  local key = name:lower()
+  local key = self:Key(name)
   local was = self:Enabled(key)
   -- not "on and nil or false": that is false both ways (Lua's and/or with nil)
   -- on = "nothing saved" for a normal tool; a defaultOff tool must REMEMBER it was turned on
