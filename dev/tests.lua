@@ -113,7 +113,11 @@ _G.GetSummonConfirmTimeLeft = function() return W.offer and W.offer.left or 0 en
 _G.ConfirmSummon = function() W.accepted = true end
 W.notices = {}
 _G.RaidWarningFrame = {}
-_G.RaidNotice_AddMessage = function(_, text) W.notices[#W.notices + 1] = text end
+-- RAIDNOTICE TAINTS BLIZZARD'S RAID WARNING (7 Nov 2026, Arn's BugGrabber, 19x: "RaidWarning.lua:233 attempt to
+-- perform arithmetic on a secret number (tainted by BiSTools)"). Our text in THEIR frame makes their next fade our
+-- fault. The client lets the call through and breaks later; the mock refuses it outright, so no test can lean on it.
+-- Our own alerts go through NS.Alert, a MessageFrame of our own; its AddMessage lands in W.notices (below).
+_G.RaidNotice_AddMessage = function() error("RaidNotice_AddMessage: BiSTools must not write into Blizzard's RaidWarningFrame (it taints it) - use NS.Alert", 2) end
 _G.ChatTypeInfo = { RAID_WARNING = { r = 1, g = 0.5, b = 0 } }
 W.tooltipShown, W.tooltipText = false, nil
 _G.GameTooltipTextLeft1 = { GetText = function() return W.tooltipText end }
@@ -238,7 +242,9 @@ local function Texture()
     self.masks = self.masks or {} self.masks[#self.masks + 1] = m
   end
   function t:SetTexCoord() end
-  function t:ClearAllPoints() end
+  -- the client's ClearAllPoints drops EVERY anchor, the stretch from SetAllPoints too; and a SetPoint after a
+  -- SetAllPoints ADDS an anchor without undoing the stretch (Arn, 8 Nov: an 8 px lamp painted its whole row)
+  function t:ClearAllPoints() self.anchor = nil self.all = nil end
   function t:SetRotation(r) if type(r) ~= "number" then error("SetRotation wants a number") end self.rot = r end
   function t:SetVertexColor(r, g, b, a)
     if not num3(r, g, b) then error("SetVertexColor wants r,g,b numbers") end
@@ -344,6 +350,24 @@ _G.CreateFrame = function(kind, name, parent, template)
     function f:SetCamDistanceScale(s) self._cam = s end
     -- which way it looks, in radians (BiS Shell turns its runners with it, live since 21 Oct)
     function f:SetFacing(r) if type(r) ~= "number" or r ~= r then error("SetFacing wants radians", 2) end self._facing = r end
+  end
+  -- A MESSAGE FRAME (7 Nov 2026, NS.Alert - our own big fading line where the raid warning sits): lines in, the
+  -- client fades them itself. The colour must be three numbers, as the client's AddMessage wants; each line lands in
+  -- W.notices (what the old RaidNotice stand-in recorded) and W.alerts (with its colour).
+  if kind == "MessageFrame" then
+    function f:AddMessage(text, r, g, b)
+      if text == nil then error("AddMessage wants text", 2) end
+      if r ~= nil and not num3(r, g, b) then error("AddMessage wants r,g,b numbers", 2) end
+      W.notices[#W.notices + 1] = text
+      W.alerts = W.alerts or {}
+      W.alerts[#W.alerts + 1] = { text = text, r = r, g = g, b = b, frame = self }
+    end
+    function f:SetFading(v) self.fading = v end
+    function f:SetFadeDuration(s) if type(s) ~= "number" then error("SetFadeDuration wants seconds", 2) end self.fade = s end
+    function f:SetTimeVisible(s) if type(s) ~= "number" then error("SetTimeVisible wants seconds", 2) end self.visible = s end
+    function f:SetInsertMode(m) if m ~= "TOP" and m ~= "BOTTOM" then error("SetInsertMode wants TOP or BOTTOM", 2) end self.insert = m end
+    function f:SetJustifyH(j) self.justify = j end
+    function f:Clear() end
   end
   -- ON FOREVER, REGISTERING THE COMBAT LOG IS A PROTECTED ACTION (6 Oct 2026, Arn's BugGrabber:
   -- "AddOn 'BiSTools' tried to call the protected function 'Frame:RegisterEvent()'"). The client
@@ -466,6 +490,8 @@ _G.CreateFrame = function(kind, name, parent, template)
   end
   function f:IsShown() return self.shown end
   function f:SetShown(v) if v then self:Show() else self:Hide() end end
+  -- every frame the client makes can say whether it is locked away from addons (a plain one: false)
+  function f:IsForbidden() return false end
   -- VISIBLE IS SHOWN ALL THE WAY UP (7 Oct 2026). A child whose parent hides stays IsShown() -
   -- that is how the Spawns shelf kept refreshing 4 times a second behind a closed farm window.
   function f:IsVisible()
@@ -502,6 +528,12 @@ end
 _G.Minimap = CreateFrame("Frame", "Minimap")
 _G.Minimap.cx, _G.Minimap.cy = 1000, 500
 -- ------------------------------------------------------------ load
+-- THE SUITE'S CHARACTER IS AN EXISTING USER (Forever 1.0, 7 Nov 2026). A new install starts with every tool off (Arn:
+-- "start with everything off"), so the 8000 lines below - written for tools that are on - play the player who had
+-- 0.20.2 and updates: a save from before 1.0, nothing switched, nothing stamped. The 1.0 load freezes what that
+-- save meant (every tool as it was) and stamps it. The new-install road has its own section ("a new install starts
+-- quiet") and is walked there from a nil save.
+_G.BiSToolsDB = { tools = {}, enabled = {} }
 local before = {} for k in pairs(_G) do before[k] = true end
 local NS = {}
 -- load exactly what the TOC lists, in TOC order (libs included, no stubs); a bogus
@@ -633,6 +665,21 @@ do
   ok(again.sound == "first", "\"first\" picked again after the switch stays", again.sound)
 end
 S("farm sound first")                            -- the find-sound checks below were written for "first"
+-- THE 1.0 LOAD OF AN EXISTING SAVE (the suite's character, see "load"): every tool exactly as 0.20.2 read it - a
+-- missing switch was ON, except the betas marked defaultOff - now WRITTEN, so a missing key can mean off from here on
+do
+  local sv = NS.DB()
+  local wrote, wrong = 0, {}
+  for key, tool in R:Each() do
+    local want = not tool.defaultOff
+    if sv.enabled[key] ~= want then wrong[#wrong + 1] = key .. "=" .. tostring(sv.enabled[key]) end
+    wrote = wrote + 1
+  end
+  ok(sv.forever10 == true and wrote == 15 and #wrong == 0, "an existing save at the 1.0 load: every tool frozen as it was, written out", table.concat(wrong, " "))
+  ok(R:DBFor(R:Get("farm")).shown == true and R:DBFor(R:Get("summon")).nag == true, "and the farm window and the summon nag as they were (on)")
+  local rc = R:DBFor(R:Get("recap"))
+  ok(rc.mates == true and rc.recruits == true and rc.sound == true, "and the rivals' crests and ping as they were (on)")
+end
 
 -- ------------------------------------------------------------ checks
 ok(BiSToolsFarm and BiSToolsFarm:IsShown(), "window shown on login (db.shown default)")
@@ -828,7 +875,7 @@ S("off farm")
 ok(not BiSToolsFarm:IsShown() and next(F.events.events) == nil and not F.ticker, "off: hidden, unhooked, scanner stopped")
 S("on farm")
 ok(BiSToolsFarm:IsShown() and F.events.events.COMBAT_LOG_EVENT_UNFILTERED and F.ticker and F.ticker.alive, "on: back, listening, scanner resumed for saved active")
-ok(NS.Registry:Enabled("farm") == true and BiSToolsDB.enabled.farm == nil, "on actually clears the off flag (and/or-nil trap)")
+ok(NS.Registry:Enabled("farm") == true and BiSToolsDB.enabled.farm == true, "on is WRITTEN as true since 1.0 (a missing switch means off now)")
 
 -- ---------------------------------------------------------------- spawn zones + spots
 -- radius 20 (zone), 7 (sub). world 5000 wide: 0.001 = 5 yd, 0.004 = 20 yd
@@ -1128,7 +1175,7 @@ ok(BiSToolsSummon and not BiSToolsSummon:IsShown(), "summon window built, hidden
 S("summon show") ok(BiSToolsSummon:IsShown() and db_summon().mode == "on", "/bt summon show pins it")
 S("off summon")
 ok(not BiSToolsSummon:IsShown(), "off: window gone")
-ok(lib:Enabled() and next(SM.nagFrame.events) ~= nil, "off: lib still on, nag still listening")
+ok(lib:Enabled() and next(SM.nagFrame.events) ~= nil, "off: lib still on (the nag's frame still listens - it asks the switch itself, 1.0)")
 S("on summon") ok(BiSToolsSummon:IsShown(), "on: window back (mode was on)")
 
 -- /biscomm off is the user's own switch, and BiSTools remembers it
@@ -1687,6 +1734,65 @@ W.tooltipShown, W.tooltipText = true, "Some NPC"
 W.now = 7000 SM.Watch(db_summon(), 0.2)
 ok(not BiSToolsSummon:IsShown(), "a non-stone tooltip does nothing")
 W.tooltipShown = false
+-- FOREVER HIDES THINGS FROM THE STONE WATCHER (the 7 Nov sweep). The tooltip's first line can be a SECRET string:
+-- type() says "string", and a comparison, a :lower(), a :find all throw. The tooltip's owner can be a frame the
+-- client locks away: even LOOKING UP its GetParent throws. And in a raid fight a member's position, visibility and
+-- name can come back hidden; a hidden name used as a table key throws too.
+do
+  local secretMeta = { __index = function(_, k) error("attempt to use a secret value (" .. tostring(k) .. ")", 2) end,
+    __sub = function() error("attempt to perform arithmetic on a secret value", 2) end,
+    __lt = function() error("attempt to compare a secret value", 2) end,
+    __le = function() error("attempt to compare a secret value", 2) end,
+    __concat = function() error("attempt to concatenate a secret value", 2) end }
+  local function secret() return setmetatable({}, secretMeta) end
+  local realType = type
+  local keep = { type = _G.type, is = _G.issecretvalue, owner = GameTooltip.GetOwner, pos = _G.UnitPosition,
+                 vis = _G.UnitIsVisible, roster = _G.GetRaidRosterInfo, chat = DEFAULT_CHAT_FRAME.AddMessage }
+  _G.type = function(v) if getmetatable(v) == secretMeta then return "string" end return realType(v) end
+  _G.issecretvalue = function(v) return getmetatable(v) == secretMeta end
+  local s = secret()
+  local okS, isStone = pcall(SM.IsStoneText, s)
+  ok(okS and isStone == false, "Forever: a SECRET tooltip line is not a stone, and does not throw", tostring(isStone))
+  W.tooltipShown, W.tooltipText = true, s
+  local okL, looking = pcall(SM.LookingAtStone, db_summon())
+  ok(okL and looking == false, "Forever: the stone watcher over a hidden tooltip: no error, no stone", tostring(looking))
+  db_summon().stone = nil
+  local said = {}
+  DEFAULT_CHAT_FRAME.AddMessage = function(_, m) said[#said + 1] = m end
+  ok(pcall(S, "summon stone") and db_summon().stone == nil and table.concat(said):find("hover the stone first", 1, true),
+     "Forever: /bist summon stone over a hidden line: nothing learned, no error")
+  DEFAULT_CHAT_FRAME.AddMessage = keep.chat
+  -- a locked-away owner: the method lookup itself is refused
+  local locked = setmetatable({}, { __index = function(_, k) error("Attempt to access forbidden object from code tainted by an AddOn (" .. tostring(k) .. ")", 2) end })
+  GameTooltip.GetOwner = function() return locked end
+  W.tooltipText = "Meeting Stone"
+  local okO, seen = pcall(SM.LookingAtStone, db_summon())
+  ok(okO and seen == true, "Forever: a tooltip owned by a forbidden frame: the owner check gives up quietly, the stone still counts", tostring(seen))
+  GameTooltip.GetOwner = keep.owner
+  W.tooltipShown, W.tooltipText = false, nil
+  -- the roster, hidden in a fight: a member the client will not tell us about is left out, never thrown on
+  local keepRaid, keepIn, keepStones = W.raid, W.inRaid, db_summon().stones
+  W.raid = { { name = "Me" }, { name = "Plainy", zone = "Netherstorm", x = 1100, y = 1000, inst = 530 },
+             { name = "Hidpos", zone = "Netherstorm", x = 1200, y = 1000, inst = 530 },
+             { name = "Hidvis", zone = "Netherstorm", x = 1300, y = 1000, inst = 530 },
+             { name = "Hidname", zone = "Netherstorm", x = 1400, y = 1000, inst = 530 } }
+  W.inRaid = true
+  db_summon().stones = { ["530|Netherstorm"] = { map = 530, zone = "Netherstorm", x = 1000, y = 1000 } }
+  _G.UnitPosition = function(u) if u == "raid3" then return secret(), secret(), 0, 530 end return keep.pos(u) end
+  _G.UnitIsVisible = function(u) if u == "raid4" then return secret() end return keep.vis(u) end
+  _G.GetRaidRosterInfo = function(i)
+    if i == 5 then local a, b, c, d, e, f2, z, o = keep.roster(i) return secret(), b, c, d, e, f2, z, o end
+    return keep.roster(i)
+  end
+  local okG, entries = pcall(SM.Gather)
+  ok(okG, "Forever: gathering a raid with hidden positions, visibility and names does not throw", tostring(entries))
+  local names = {}
+  for _, e in ipairs(okG and entries or {}) do names[#names + 1] = tostring(e.name) end
+  ok(okG and #entries == 1 and entries[1].name == "Plainy", "only the member the client answered for is listed", table.concat(names, " "))
+  _G.UnitPosition, _G.UnitIsVisible, _G.GetRaidRosterInfo = keep.pos, keep.vis, keep.roster
+  W.raid, W.inRaid, db_summon().stones = keepRaid, keepIn, keepStones
+  _G.type, _G.issecretvalue = keep.type, keep.is
+end
 
 -- combat: Show/Hide queued, flushed on regen
 S("summon show")
@@ -1717,17 +1823,30 @@ lib:OnConfirmSummon() nagFrame.scripts.OnEvent(nagFrame, "CONFIRM_SUMMON") W.run
 ok(SM.nag.active, "second offer nags")
 nagFrame.scripts.OnEvent(nagFrame, "CANCEL_SUMMON")
 ok(not SM.nag.active, "cancel stops it")
--- tool off, nag on
+-- THE NAG RESPECTS THE SWITCH (Forever 1.0, 7 Nov 2026 - it used to outlive /bist off summon, "the reward for
+-- installing and touching nothing"; a new install now touches nothing and must hear nothing): tool off = silent
 S("off summon")
+W.soundsOff = #W.sounds
 W.offer = { summoner = "Warlock", area = "Karazhan", left = 120 }
 lib:OnConfirmSummon() nagFrame.scripts.OnEvent(nagFrame, "CONFIRM_SUMMON") W.runAfters()
-ok(SM.nag.active and #W.notices == notices0 + 4, "nag works with the summon tool switched off")
+ok(not SM.nag.active and #W.notices == notices0 + 3 and #W.sounds == W.soundsOff, "summon tool off: no nag - no warning, no sound, no voice")
+W.now = W.now + 20 W.tick()
+ok(#W.notices == notices0 + 3 and #W.sounds == W.soundsOff, "and nothing 20 s later either")
 nagFrame.scripts.OnEvent(nagFrame, "CANCEL_SUMMON")
+-- a nag already running stops when the tool is switched off
+S("on summon")
+lib:OnConfirmSummon() nagFrame.scripts.OnEvent(nagFrame, "CONFIRM_SUMMON") W.runAfters()
+ok(SM.nag.active and #W.notices == notices0 + 4, "tool on: the nag again")
+S("off summon")
+W.now = W.now + 20 W.tick()
+ok(not SM.nag.active and #W.notices == notices0 + 4, "switched off mid-nag: it stops")
+S("on summon")
 S("summon nag off")
 lib:OnConfirmSummon() nagFrame.scripts.OnEvent(nagFrame, "CONFIRM_SUMMON") W.runAfters()
-ok(not SM.nag.active and #W.notices == notices0 + 4, "/bt summon nag off is the only thing that silences it")
+ok(not SM.nag.active and #W.notices == notices0 + 4, "tool on, nag off: silent")
 S("summon nag on")
 nagFrame.scripts.OnEvent(nagFrame, "CANCEL_SUMMON")
+S("off summon")
 -- a bystander's CONFIRM_SUMMON (someone ELSE got summoned; the client fires it on me with
 -- nothing behind it - Arn: "randomly ... it says SUMMON by someone"): no nag, no OFFER,
 -- and my own pending request is not cancelled by it
@@ -1820,6 +1939,19 @@ do
   local per = (os.clock() - t0) / 200 * 1000
   print(("   Refresh on a 25-man: %.3f ms each (runs every 2 s)"):format(per))
   ok(per < 2, "Refresh on a 25-man under 2 ms")
+  -- THE 2 s GATHER, COUNTED (1.0: every answer is now asked "hidden?" first - Lean and mean, a budget in the same
+  -- commit). 24 members: the roster row, is-it-me, position, visibility, and the hidden-checks on what is used.
+  do
+    local Cost = dofile("../_bisdev/dev/cost.lua")
+    local keepIs = rawget(_G, "issecretvalue")
+    _G.issecretvalue = function() return false end      -- the client has it: without it the count is kinder
+    local nG, byG = Cost.Count(function() SM.Gather() end)
+    _G.issecretvalue = keepIs
+    print(("   cost: the summon gather, 25-man, one pass (every 2 s while shown) = %d calls (%s)"):format(nG, Cost.Top(byG, 4)))
+    -- measured 486: 4 real asks a member, the rest the cheap "hidden?" (issecretvalue) on each answer used
+    ok(nG <= 24 * 21, "one gather of a 25-man asks the client at most 21 things a member (most of them \"hidden?\")", nG)
+    ok((byG.UnitPosition or 0) <= 25 and (byG.GetRaidRosterInfo or 0) <= 25, "and the roster and positions once each", byG.UnitPosition)
+  end
   -- everybody at the stone -> pop rule still says "N at stone", list empties
   for i, n in ipairs(names) do
     if not nolib[n] then say(n, ("1|CORE|WHERE|0|none||Netherstorm|%d.0|1000.0|530"):format(1000 + i)) end
@@ -1990,6 +2122,12 @@ do
   mm.scripts.OnClick(mm, "RightButton") mm.scripts.OnClick(mm, "RightButton")   -- twice: Options as it was
   W.runAfters(0.1)
   ok(box2.level == 7 and box2.strata == "MEDIUM", "after a click, a backing lifted over the icon goes back below the button")
+  -- a child the client locks away from us (somebody else's frame): even LOOKING UP its method throws
+  local lockedKid = setmetatable({}, { __index = function(_, k) error("Attempt to access forbidden object (" .. tostring(k) .. ")", 2) end })
+  mm.GetChildren = function() return lockedKid, box2 end
+  box2.level, box2.strata = 50, "DIALOG"
+  H.UnburyIcon(mm)
+  ok(pcall(W.runAfters, 0.1) and box2.level == 7, "a forbidden child is skipped quietly; the backing beside it still goes back down")
   mm.GetChildren = nil
   ok(opt.con:Width() <= H.OPT_W - 15 - 8, "options prompt fits")
   -- sections: tools (3), farm (5), summon (7), recap (1), rivals (8), social (2), threat (2), bg (4), map (7),
@@ -2157,6 +2295,293 @@ do
   local q = hub.con.queue
   ok(#q >= 1 and q[#q].text == "summon on", "the hub says it in the prompt (queued behind the earlier lines)", q[#q] and q[#q].text)
   S("hub")
+  -- ONE MINIMAP STANDARD (Forever 1.0, Arn 7 Nov: "sometimes left click does one thing, sometimes right click does
+  -- another ... we gotta get everything on the same page"): left = the main window, right = options, the tooltip
+  -- says exactly that
+  do
+    local lines = {}
+    local keepAdd = GameTooltip.AddLine
+    GameTooltip.AddLine = function(_, s) lines[#lines + 1] = tostring(s) end
+    mm.scripts.OnEnter(mm)
+    GameTooltip.AddLine = keepAdd
+    local all = table.concat(lines, "\n")
+    ok(all:find("left-click  the tools", 1, true) and all:find("right-click  options", 1, true) and all:find("drag  move", 1, true),
+       "the minimap tooltip: left-click  the tools / right-click  options / drag  move", all)
+  end
+  -- ONE OPTIONS HOME (Arn: "they'll just see BiS> ... click into that add-on"): BiS> Tools under the game's own
+  -- AddOns options, holding the options window. The game's panel stands in as BiSTheme's suite does it (section 10):
+  -- a subcategory needs a REGISTERED parent, an unknown id opens nothing, categories answer GetID.
+  do
+    local BT = BiSTheme
+    local keepS, keepRoot, keepPages, keepOrder = rawget(_G, "Settings"), BT.settingsRoot, BT.settingsPages, BT.settingsOrder
+    ok(BT.settingsPages.BiSTools and BT.settingsPages.BiSTools.spec, "the page was asked for at login (no panel in the suite: no category, no error)")
+    local reg, opened, nextId = {}, {}, 0
+    local function Category(name)
+      nextId = nextId + 1
+      local c = { name = name, id = nextId }
+      function c:GetID() return self.id end
+      reg[c.id] = c
+      return c
+    end
+    _G.Settings = {
+      RegisterCanvasLayoutCategory = function(frame, name) local c = Category(name) c.frame = frame return c, {} end,
+      RegisterAddOnCategory = function(c) c.addon = true end,
+      RegisterCanvasLayoutSubcategory = function(parent, frame, name)
+        if not (parent and parent.addon) then error("parent category is not registered") end
+        local c = Category(name) c.frame, c.parentCat = frame, parent
+        return c, {}
+      end,
+      OpenToCategory = function(id) if not reg[id] then return false end opened[#opened + 1] = reg[id].name return true end,
+    }
+    BT.settingsRoot, BT.settingsPages, BT.settingsOrder = nil, {}, {}
+    local page = H.RegisterSettings()
+    ok(page and page.category and page.category.name == "BiS> Tools" and page.category.parentCat.name == "BiS>",
+       "BiS> Tools: a page under BiS> in the game's options")
+    local spec = page.spec
+    ok(spec.title == "Tools" and spec.api and spec.api.name == "BiSToolsAPI" and spec.open and spec.open.label == "the tools list",
+       "titled Tools, the API named, a big button to the tools")
+    ok(spec.status() == H.Status() and spec.status():find("of 15 tools on", 1, true), "its status line: N of 15 tools on", spec.status())
+    -- THE DASHBOARD (Arn, 7 Nov live: "dont just shrink remake them all"): the page draws itself and never takes
+    -- the options window in
+    ok(spec.build and spec.refresh and spec.window == nil, "the page is a dashboard, not the options window in a box")
+    BiSToolsOptions:Hide()
+    page.frame:Show()
+    local optParent = BiSToolsOptions.parent
+    ok(optParent ~= page.frame.body and not BiSToolsOptions:IsShown(), "the options window stays where it lives, hidden")
+    local d = page.frame.body.dash
+    ok(d and #d.rows == 16 and d.rows[1].entry.general, "the list: BiS Tools itself, then all 15 tools", d and #d.rows)
+    -- THE FAMILY RULE (Arn, 8 Nov: "its a theme so itll keep all the pages looking the same"): the page is the kit's
+    -- BiSTheme.Dashboard, fed the Registry's own tables; the hand-built copy in Hub.lua is gone
+    ok(d.model and d.model.list == "TOOLS" and d.list.head.text == "TOOLS" and type(d.Paint) == "function"
+       and type(d.Select) == "function", "the page is the kit's dashboard, its list titled TOOLS")
+    ok(H.BuildDash == nil and H.PaintDash == nil and H.DashSelect == nil and H.DashPage == nil and H.DashLayout == nil
+       and H.DashSwitch == nil, "no hand-built dashboard left in Hub.lua")
+    ok(d.selected == d.rows[2].entry.key and d.rows[2].entry.switch and not d.rows[1].entry.switch,
+       "it opens on the first tool; BiS Tools itself has no switch", d.selected)
+    do
+      local okEntries = true
+      for i = 2, #d.rows do
+        local e = d.rows[i].entry
+        local tool = R:Get(e.key)
+        if not (tool and e.db == R:DBFor(tool) and e.options == (tool.options or e.options) and e.usage == tool.usage
+                and ((e.open ~= nil) == (tool.OnOpen ~= nil))) then okEntries = false end
+      end
+      ok(okEntries, "each tool's entry: its own options, its saved table, its command, a window button only with a window")
+    end
+    local xpRow
+    for _, r in ipairs(d.rows) do if r.entry.key == "xp" then xpRow = r end end
+    xpRow.scripts.OnClick(xpRow, "LeftButton")
+    ok(d.selected == "xp" and d.detail.name.text == "xp", "click a tool: its panel")
+    local xpTool = R:Get("xp")
+    local xpRows = d.pages.xp
+    ok(#xpRows == #xpTool.options and #xpRows == 3, "every one of its settings is a big row", #xpRows)
+    ok(d.detail.desc.text == xpTool.desc, "with what it does in full words")
+    ok(d.detail.usage.text:find(xpTool.usage, 1, true), "and its command")
+    local was = R:Enabled("xp")
+    local keepSet, setCalls = R.SetEnabled, {}
+    R.SetEnabled = function(self, key, on) setCalls[#setCalls + 1] = key return keepSet(self, key, on) end
+    d.detail.switch.scripts.OnClick(d.detail.switch)
+    R.SetEnabled = keepSet
+    ok(R:Enabled("xp") == not was and d.detail.switch.on == not was, "the big switch turns it on / off")
+    ok(#setCalls == 1 and setCalls[1] == "xp", "through R:SetEnabled, the same setter /bist on|off uses", #setCalls)
+    ok(xpRow.state.text == (not was and "ON" or "off"), "and the list says so at once")
+    ok(xpRows[1].label.alpha == (not was and 1 or 0.45), "its settings grey out while it is off")
+    xpRow.scripts.OnClick(xpRow, "RightButton")
+    ok(R:Enabled("xp") == was, "right-click in the list switches it back")
+    xpRows[1].scripts.OnEnter(xpRows[1])
+    ok(d.help.text.text == xpTool.options[1].help, "pointing at a setting reads its help in the strip")
+    xpRows[1].scripts.OnLeave(xpRows[1])
+    local xdb = R:DBFor(xpTool)
+    local bagWas = xdb.bag ~= false
+    xpRows[1].sw.scripts.OnClick(xpRows[1].sw)
+    ok((xdb.bag ~= false) == not bagWas, "a setting's switch changes the tool's saved setting")
+    do
+      -- the SAME saved value the options window shows: its row for that option agrees once it paints
+      local optWin = H.BuildOptions()
+      local winRow
+      for _, r in ipairs(optWin.rows) do if r.opt == xpTool.options[1] then winRow = r end end
+      optWin:Paint()
+      ok(winRow and winRow.ctl and winRow.ctl.on == (xdb.bag ~= false), "the options window's row says the same after its Paint")
+    end
+    xpRows[1].sw.scripts.OnClick(xpRows[1].sw)
+    -- a tool with nothing to set says so (the page's own words)
+    local deRow
+    for _, r in ipairs(d.rows) do if r.entry.key == "disenchant" then deRow = r end end
+    deRow.scripts.OnClick(deRow, "LeftButton")
+    ok(d.detail.none:IsShown() and d.detail.none.text == "Nothing to set: it just works while it is on.",
+       "a tool with no settings: nothing to set, it just works", d.detail.none.text)
+    -- a tool with a window: a button opens it, after putting the game's options away
+    local pupsRow
+    for _, r in ipairs(d.rows) do if r.entry.key == "pups" then pupsRow = r end end
+    pupsRow.scripts.OnClick(pupsRow, "LeftButton")
+    ok(d.detail.open:IsShown(), "a tool with a window: a button to open it")
+    local panelUp = true
+    _G.SettingsPanel = { IsShown = function() return panelUp end, Hide = function() panelUp = false end }
+    local keepHUI = rawget(_G, "HideUIPanel")
+    _G.HideUIPanel = function(x) x:Hide() end
+    local keepOpen = H.Open
+    local openedKey
+    H.Open = function(k) openedKey = k end
+    d.detail.open.scripts.OnClick(d.detail.open)
+    H.Open = keepOpen
+    _G.SettingsPanel, _G.HideUIPanel = nil, keepHUI
+    ok(panelUp == false and openedKey == "pups", "it closes the game's options, then opens that tool's window")
+    d.rows[1].scripts.OnClick(d.rows[1], "LeftButton")
+    ok(d.selected == "_general" and not d.detail.switch:IsShown() and #d.pages._general == 3,
+       "BiS Tools itself: no on/off, its own three settings")
+    -- every row and button pops under the mouse (the family rule)
+    -- THE LAMP IS A LAMP (Arn, 8 Nov live, the first look: every row solid cyan, the picked one solid pink - the
+    -- 8 px lamp and the 3 px bar were stretched over the whole row by the kit's SetAllPoints)
+    for _, r in ipairs(d.rows) do
+      ok(not r.lamp.all and r.lamp.w == 8 and not r.bar.all and r.bar.w == 3,
+         "a row's lamp and bar are their own size, not the whole row: " .. r.entry.title)
+    end
+    ok(d.detail.desc.justify == "LEFT" and d.detail.usage.justify == "LEFT", "the words on the right read left to right, not centred")
+    -- ONE COLUMN, ALWAYS (Arn, 8 Nov live, the party tool in two columns: "lots of stuff cut off"). Nine settings
+    -- in a short panel: shorter rows, every one full width
+    local partyRow
+    for _, r in ipairs(d.rows) do if r.entry.key == "party" then partyRow = r end end
+    local keepH = d.detail.h
+    d.detail.h = 330
+    partyRow.scripts.OnClick(partyRow, "LeftButton")
+    local prow = d.pages.party
+    local fullWidth, sameH = true, true
+    for _, r in ipairs(prow) do
+      if r.w ~= nil then fullWidth = false end
+      if r.h ~= d.step - 4 then sameH = false end
+    end
+    ok(#prow == 9 and fullWidth and sameH, "nine settings: one column, every row full width", #prow)
+    ok(d.step < 36 and d.step >= BiSTheme.SETTINGS.DASH.MIN_STEP, "rows a little shorter to fit, never under the floor", d.step)
+    d.detail.h = keepH
+    pupsRow.scripts.OnEnter(pupsRow)
+    ok(pupsRow.wash.alpha == 1 and d.help.text.text == R:Get("pups").desc, "a list row pops and reads what the tool does")
+    pupsRow.scripts.OnLeave(pupsRow)
+    page.frame:Hide()
+    -- every tool has its tick in that window (a new install's tools all start off: each must be switchable there)
+    local found = {}
+    for key, tool in R:Each() do
+      local want = BiSTheme.text("accent", tool.title or tool.name)
+      for _, r in ipairs(BiSToolsOptions.rows) do
+        if r.isSection and r.ctl and r.name and r.name.text == want then found[#found + 1] = key break end
+      end
+    end
+    ok(#found == 15, "all 15 tools have an on/off tick in the options window", #found)
+    -- the minimap's right-click: the OWN options window, and again closes it (Arn, 7 Nov live); the open button: the Hub
+    BiSToolsHub:Hide()
+    BiSToolsOptions:Hide()
+    local before = #opened
+    mm.scripts.OnClick(mm, "RightButton")
+    ok(BiSToolsOptions:IsShown() and #opened == before, "right-click opens the own options window, not the game's options")
+    mm.scripts.OnClick(mm, "RightButton")
+    ok(not BiSToolsOptions:IsShown(), "right-click again closes it")
+    spec.open.func()
+    ok(BiSToolsHub:IsShown(), "the page's big button opens the tools (the Hub)")
+    BiSToolsHub:Hide()
+    -- no panel (an older client): the same
+    _G.Settings = nil
+    mm.scripts.OnClick(mm, "RightButton")
+    ok(BiSToolsOptions:IsShown(), "no game panel: right-click is the own options window too")
+    BiSToolsOptions:Hide()
+    _G.Settings, BT.settingsRoot, BT.settingsPages, BT.settingsOrder = keepS, keepRoot, keepPages, keepOrder
+  end
+end
+
+-- ------------------------------------------------------------ Forever 1.0: a new install starts quiet
+-- Arn, 7 Nov 2026, about his cousin: "everything was turned on, so he just kept hearing random noises and he was
+-- like, what's making that noise" - and "make it like this tools where everything has the main page and everything
+-- can be turned on or off, and then we could just start with everything off". The Hub is the main page.
+do
+  local function copy(t) if type(t) ~= "table" then return t end local c = {} for k, v in pairs(t) do c[k] = copy(v) end return c end
+  local function same(a, b)
+    if type(a) ~= type(b) then return false end
+    if type(a) ~= "table" then return a == b end
+    for k, v in pairs(a) do if not same(v, b[k]) then return false end end
+    for k in pairs(b) do if a[k] == nil then return false end end
+    return true
+  end
+  -- OUR OWN RAID-WARNING LINE (the RaidNotice taint, 19x in Arn's BugGrabber): big, fading, where Blizzard's sits
+  local nA = #(W.alerts or {})
+  NS.Alert("Rival nearby: Test", { r = 1, g = 0.2, b = 0.2 })
+  local A = rawget(_G, "BiSToolsAlert")
+  ok(A and A.kind == "MessageFrame" and #W.alerts == nA + 1 and W.alerts[#W.alerts].frame == A and W.alerts[#W.alerts].r == 1,
+     "NS.Alert writes into OUR MessageFrame (BiSToolsAlert), in the colour asked")
+  ok(A.point and A.point[1] == "TOP" and A.point[2] == RaidWarningFrame and A.point[3] == "TOP" and A.fading == true and A.visible and A.fade,
+     "laid on the raid warning's own spot (anchored to it, never written into), and it fades by itself")
+  ok(A.parent == UIParent and A.insert == "TOP", "ours, on the screen, newest line on top")
+  NS.Alert("no colour")
+  ok(W.alerts[#W.alerts].text == "no colour" and type(W.alerts[#W.alerts].r) == "number", "no colour given: the raid warning's orange")
+  ok(type(NS.OpenDB) == "function", "Init opens the saved table through NS.OpenDB")
+  -- (a) a NEW install: the client hands back nothing at all
+  local fresh = NS.OpenDB(nil)
+  ok(fresh.forever10 == true and type(fresh.tools) == "table" and type(fresh.enabled) == "table", "a new install: stamped, with its tables")
+  local lit = {}
+  for key in R:Each() do if fresh.enabled[key] ~= false then lit[#lit + 1] = key end end
+  ok(#lit == 0, "a new install: EVERY tool off, written as off", table.concat(lit, " "))
+  ok(fresh.tools.farm and fresh.tools.farm.shown == false, "the farm window does not open at login")
+  ok(fresh.tools.summon and fresh.tools.summon.nag == false, "the summon nag is off")
+  ok(fresh.tools.recap and fresh.tools.recap.mates == false and fresh.tools.recap.recruits == false and fresh.tools.recap.sound == false,
+     "the rivals' guild crest, recruit crest and rival ping are off")
+  -- the whole addon, brought up on that save: nothing on, the Hub says so
+  local keepSV = BiSToolsDB
+  _G.BiSToolsDB = fresh
+  local on = {}
+  for key in R:Each() do if R:Enabled(key) then on[#on + 1] = key end end
+  ok(#on == 0, "brought up on it: R:Enabled says off for every tool", table.concat(on, " "))
+  ok(R:DBFor(R:Get("farm")).shown == false and R:DBFor(R:Get("recap")).popup == true,
+     "a tool's own table keeps its quiet values (and the recap still opens on death once you switch it on)")
+  local logins = 0
+  for _, tool in R:Each() do
+    if tool.OnLogin then local real = tool.OnLogin tool.OnLogin = function() logins = logins + 1 end tool.__real = real end
+  end
+  R:Fire("OnLogin")
+  for _, tool in R:Each() do if tool.__real then tool.OnLogin, tool.__real = tool.__real, nil end end
+  ok(logins == 0, "at login no tool wakes: nothing hooks, nothing opens, nothing plays", logins)
+  NS.Hub.ToggleHub(true)
+  ok(BiSToolsHub.con.slots.count.text == "0 of 15 on", "the Hub, the main page: 0 of 15 on", BiSToolsHub.con.slots.count.text)
+  ok(NS.Hub.Status() == "0 of 15 tools on", "the BiS> page's status line says it", NS.Hub.Status())
+  -- the user chooses: a switch writes TRUE (not nil) and off writes FALSE
+  R:SetEnabled("social", true)
+  ok(fresh.enabled.social == true and R:Enabled("social"), "switched on: stored as true")
+  R:SetEnabled("social", false)
+  ok(fresh.enabled.social == false and not R:Enabled("social"), "switched off: stored as false")
+  -- a tool added in a later version is not in anybody's save: it starts off too
+  fresh.enabled.pups = nil
+  ok(not R:Enabled("pups"), "a switch the save does not have reads OFF (a tool added later starts off)")
+  fresh.enabled.pups = false
+  NS.Hub.ToggleHub(false)
+  _G.BiSToolsDB = keepSV
+  NS.Hub.PaintHub()
+  -- (b) an EXISTING save from before 1.0, with the nil-read keys every way they can be
+  local old = { tools = { recap = { mates = false, popup = false }, summon = { nag = false }, farm = { shown = false } },
+                enabled = { summon = false, threat = true }, hub = { angle = 10 } }
+  local got = NS.OpenDB(old)
+  ok(got == old, "an existing save is opened in place, not replaced")
+  ok(old.forever10 == true, "and stamped")
+  local wrong = {}
+  for key, tool in R:Each() do
+    local want = not tool.defaultOff
+    if key == "summon" then want = false elseif key == "threat" then want = true end
+    if old.enabled[key] ~= want then wrong[#wrong + 1] = key .. "=" .. tostring(old.enabled[key]) end
+  end
+  ok(#wrong == 0, "every tool as it was: untouched ones ON, party (a beta) off, summon still off, threat still on", table.concat(wrong, " "))
+  ok(old.tools.recap.mates == false and old.tools.recap.recruits == true and old.tools.recap.sound == true and old.tools.recap.popup == false,
+     "rivals: the crest he switched off stays off, the two he never touched are frozen ON")
+  ok(old.tools.summon.nag == false and old.tools.farm.shown == false, "a nag or window he switched off stays off")
+  ok(old.hub.angle == 10, "and nothing else in the save is touched")
+  local old2 = { tools = { farm = { last = "Raptor" } }, enabled = {} }
+  NS.OpenDB(old2)
+  ok(old2.tools.farm.shown == true and old2.tools.farm.last == "Raptor" and old2.tools.summon.nag == true,
+     "an old table missing the keys: the old default (on) is written - the farm window still opens, the nag still nags")
+  -- (c) the second load changes nothing, even what the user changed after the first
+  local before = copy(fresh)
+  NS.OpenDB(fresh)
+  ok(same(before, fresh), "a new install's second load: nothing changes")
+  old.enabled.farm = false old.tools.recap.sound = nil      -- what the code reads as on, after the stamp
+  local before2 = copy(old)
+  NS.OpenDB(old)
+  ok(same(before2, old), "an existing save's second load: nothing changes - the freeze never runs twice")
+  -- Forever handed back NO saved table once for an existing user (forever-secret-values.md); BiS Tools keeps no
+  -- per-character mirror, so that load looks new and comes up quiet - the safe side (nothing turns ON by surprise)
 end
 
 -- ------------------------------------------------------------ wrong-accent pass (dev/theme.lua)
@@ -2192,6 +2617,7 @@ do
     { "Libs/RezComm-1.0/RezComm-1.0.lua",       "../_bisdev/RezComm-1.0/RezComm-1.0.lua" },
     { "Libs/BiSTheme/Console.lua",              "../BiSTheme/Console.lua" },
     { "Libs/BiSTheme/Options.lua",              "../BiSTheme/Options.lua" },
+    { "Libs/BiSTheme/Settings.lua",             "../BiSTheme/Settings.lua" },
   }
   for _, pr in ipairs(pairs_) do
     local mine, ref = bytes(pr[1]), bytes(pr[2])
@@ -7310,6 +7736,37 @@ do
   X.events.scripts.OnEvent(X.events, "SPELL_DATA_LOAD_RESULT", 1249506, true)
   ok(X.pick == 4592 and food.attrs.item1 == "item:4592", "its text loads: the client says so, the Mud Snapper is picked at once",
      tostring(X.pick))
+  -- A SLOW LOGIN (Arn, 7 Nov live: "xp food buff button was missing" with 80 Mud Snappers on him, there after a
+  -- reload). The text did not load in 30 seconds and no load event came: the food was written off for the whole
+  -- session. The food he was SEEN eating is trusted while he carries it, and a written-off text is asked again on
+  -- the next bag change.
+  X.xpItem, X.blank, X.waiting = {}, {}, {}
+  X.pick = nil
+  local keepFav = db.food
+  db.food = 4592
+  LATE[1249506] = true
+  fire("BAG_UPDATE_DELAYED")
+  ok(X.pick == 4592, "login, the Mud Snapper's text not loaded: yours, so picked", tostring(X.pick))
+  W.now = W.now + X.LOAD_WAIT
+  fire("UNIT_AURA", "player")
+  ok(X.pick == 4592 and X.xpItem[4592] == false, "30 seconds, still no text: written off - but yours stays on the button",
+     tostring(X.pick))
+  db.food = nil
+  fire("BAG_UPDATE_DELAYED")
+  ok(X.pick == nil, "not learned yet and its text never came: nothing to eat for now", tostring(X.pick))
+  LATE[1249506] = nil
+  fire("BAG_UPDATE_DELAYED")
+  ok(X.pick == 4592, "the text there now: the next bag change asks again and picks it - not lost for the session",
+     tostring(X.pick))
+  db.food = keepFav
+  -- LEAN: one second chance per item, so a text that never comes cannot keep the bag scan running all evening
+  X.gaveUp, X.retried = { [777] = true }, {}
+  X.Retry()
+  ok(X.gaveUp[777] == nil, "a written-off text gets one more try")
+  X.gaveUp[777] = true
+  X.Retry()
+  ok(X.gaveUp[777] == true, "and only one: written off again, it stays written off")
+  X.gaveUp, X.retried = {}, {}
   -- a client with only the OLD global names: still found (Forever has C_Item.GetItemSpell and NO global GetItemSpell - probe 6 Nov; the Mud Snapper's use spell is 1249506)
   X.xpItem, X.blank, X.waiting = {}, {}, {}
   X.pick = nil
@@ -7565,6 +8022,40 @@ do
   ok(asked == 8, "over the bags: one item question per slot shown (7 + 1)", asked)
   ALT = false
   fire("MODIFIER_STATE_CHANGED", "LALT", 0)
+  -- LOCKED AND HIDDEN FRAMES (Arn's BugSack, 7 Nov: 96 x "calling 'IsVisible' on bad self (Attempt to access forbidden
+  -- object from code tainted by an AddOn)" and 80 x "attempt to perform boolean test on a secret boolean value", both
+  -- Disenchant.lua:77). A window can hold frames the client locks away - every call on one throws, except IsForbidden -
+  -- and frames that answer IsVisible with a secret. Lua 5.1 cannot make `not secret` throw as the client does, so the
+  -- check is what the walk DOES with that answer: a frame it cannot read is not walked into.
+  do
+    local SECRET_BOOL = setmetatable({}, {})
+    local keepIs = rawget(_G, "issecretvalue")
+    _G.issecretvalue = function(v) return v == SECRET_BOOL or (keepIs ~= nil and keepIs(v)) or false end
+    local locked = CreateFrame("Frame", nil, win)
+    for _, m in ipairs({ "IsVisible", "IsShown", "GetChildren", "GetParent", "GetID", "GetObjectType" }) do
+      locked[m] = function() error("calling '" .. m .. "' on bad self (Attempt to access forbidden object from code tainted by an AddOn)", 2) end
+    end
+    locked.IsForbidden = function() return true end
+    local hush = CreateFrame("Frame", nil, win)
+    hush:SetID(1)
+    hush.IsVisible = function() return SECRET_BOOL end
+    local inHush = CreateFrame("ItemButton", nil, hush, "ContainerFrameItemButtonTemplate")
+    inHush:SetID(1)
+    ALT, FOCUS = true, btn[1]
+    local okE, err = pcall(fire, "MODIFIER_STATE_CHANGED", "LALT", 1)
+    ok(okE, "a locked frame in the bag window: no error", err)
+    ok(lit(btn[1]) and lit(btn[2]), "and the bag slots still glow")
+    ok(not lit(inHush), "a frame whose visibility is hidden from us is not walked into")
+    ALT = false
+    fire("MODIFIER_STATE_CHANGED", "LALT", 0)
+    -- the mouse ON a locked frame (a nameplate, a protected bar): nothing, and no error
+    ALT, FOCUS = true, locked
+    okE, err = pcall(fire, "MODIFIER_STATE_CHANGED", "LALT", 1)
+    ok(okE and not lit(btn[1]), "the mouse on a locked frame: nothing lit, no error", err)
+    ALT = false
+    fire("MODIFIER_STATE_CHANGED", "LALT", 0)
+    _G.issecretvalue = keepIs
+  end
 
   _G.C_Container, _G.C_Item, _G.GetMouseFoci, _G.IsAltKeyDown = keep.cont, keep.item, keep.foci, keep.alt
   _G.ItemLocation, _G.ContainerFrame1 = keep.loc, keep.cf1

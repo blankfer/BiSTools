@@ -7,8 +7,10 @@
 -- the first window shows all the tools we can open" and "right now I have no
 -- idea where the farm window is at".
 --
---   minimap button   left-click  -> the Hub (every tool, click one to open it)
---                    right-click -> Options
+--   minimap button   left-click  -> the Hub (every tool, click one to open it) - the main page: since 1.0 a new
+--                                   install has every tool off, and this is where the player switches them on
+--                    right-click -> the options window (a toggle: right-click again closes it); the BiS> Tools page in the
+--                                   game's AddOns options is the dashboard
 --                    drag        -> slides around the minimap rim (angle saved)
 --   Hub row          left-click  -> open that tool's window (and switch it on); again: close it
 --                    shift-click -> open it AND bring it to the middle of the screen
@@ -112,8 +114,11 @@ function H.BuildMinimap()
   local hl = b:CreateTexture(nil, "HIGHLIGHT")
   hl:SetSize(31, 31) hl:SetPoint("CENTER")
   hl:SetTexture("Interface\\Minimap\\UI-Minimap-ZoomButton-Highlight")
+  -- ONE STANDARD for every BiS minimap button (Forever 1.0, Arn 7 Nov: "we gotta get everything on the same
+  -- page"): left = the main window (the Hub), right = options - the BiS> Tools page in the game's own options,
+  -- else the own options window. No shift/ctrl/middle extras.
   b:SetScript("OnClick", function(self, button)
-    if button == "RightButton" then H.ToggleOptions() else H.ToggleHub() end
+    if button == "RightButton" then H.OpenOptions() else H.ToggleHub() end
     H.UnburyIcon(self)
   end)
   b:SetScript("OnDragStart", function(self) self.dragging = true self:SetScript("OnUpdate", H.DragMinimap) end)
@@ -122,7 +127,9 @@ function H.BuildMinimap()
     if not GameTooltip then return end
     GameTooltip:SetOwner(self, "ANCHOR_LEFT")
     GameTooltip:AddLine(T.text("accent", "BiS") .. " Tools " .. T.text("muted", NS.VERSION))
-    GameTooltip:AddLine("left: the tools  |  right: options  |  drag: move", 1, 1, 1)
+    GameTooltip:AddLine("left-click  the tools", 1, 1, 1)
+    GameTooltip:AddLine("right-click  options", 1, 1, 1)
+    GameTooltip:AddLine("drag  move", 1, 1, 1)
     GameTooltip:Show()
   end)
   b:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
@@ -144,9 +151,11 @@ function H.UnburyIcon(b)
   C_Timer.After(0, function()
     local level = (b.GetFrameLevel and b:GetFrameLevel()) or 1
     local strata = b.GetFrameStrata and b:GetFrameStrata()
+    -- somebody else's child can be a frame the client locks away: the method LOOKUP is refused too, so it goes
+    -- inside the pcall with the call
     for _, child in ipairs({ b:GetChildren() }) do
-      if strata then pcall(child.SetFrameStrata, child, strata) end
-      pcall(child.SetFrameLevel, child, math.max(0, level - 1))
+      if strata then pcall(function() child:SetFrameStrata(strata) end) end
+      pcall(function() child:SetFrameLevel(math.max(0, level - 1)) end)
     end
   end)
   return true
@@ -179,6 +188,14 @@ function H.BuildHub()
     local r = f:AddRow("Button", "BiSToolsHubRow" .. i)
     r:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     r.bg = K.tex(r, "BACKGROUND", "sunken", 0)
+    -- POPS under the mouse (the standing rule, Arn 6 Nov): an accent wash and a bar down the left edge
+    r.wash = K.tex(r, "BORDER", "accent", 0.35)
+    r.wash:SetAllPoints()
+    r.wash:SetAlpha(0)
+    r.bar = K.tex(r, "ARTWORK", "accent", 1)
+    r.bar:ClearAllPoints()          -- K.tex stretches over the whole row; the bar is the left edge only
+    r.bar:SetPoint("TOPLEFT") r.bar:SetPoint("BOTTOMLEFT") r.bar:SetWidth(2)
+    r.bar:SetAlpha(0)
     r.name = K.fs(r, tool.title or tool.name, 9, "ink")
     r.name:SetPoint("LEFT", 6, 0)
     r.state = K.fs(r, "", 8, "muted")
@@ -195,6 +212,7 @@ function H.BuildHub()
     end)
     r:SetScript("OnEnter", function(self)
       self.bg:SetAlpha(0.9)
+      self.wash:SetAlpha(1) self.bar:SetAlpha(1)
       if GameTooltip then
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
         GameTooltip:AddLine(self.tool.title or self.tool.name)
@@ -203,7 +221,10 @@ function H.BuildHub()
         GameTooltip:Show()
       end
     end)
-    r:SetScript("OnLeave", function(self) self.bg:SetAlpha(0) if GameTooltip then GameTooltip:Hide() end end)
+    r:SetScript("OnLeave", function(self)
+      self.bg:SetAlpha(0) self.wash:SetAlpha(0) self.bar:SetAlpha(0)
+      if GameTooltip then GameTooltip:Hide() end
+    end)
   end
   -- footer: one button, full width
   local foot = CreateFrame("Button", "BiSToolsHubOptions", f)
@@ -213,9 +234,12 @@ function H.BuildHub()
   foot.edge = K.border(foot, "edge", 1)
   foot.label = K.fs(foot, "options", 9, "ink2")
   foot.label:SetPoint("CENTER")
-  foot:SetScript("OnClick", function() H.ToggleOptions() end)
-  foot:SetScript("OnEnter", function() foot.edge:set("accent", 1) end)
-  foot:SetScript("OnLeave", function() foot.edge:set("edge", 1) end)
+  foot.wash = K.tex(foot, "BORDER", "accent", 0.35)
+  foot.wash:SetAllPoints()
+  foot.wash:SetAlpha(0)
+  foot:SetScript("OnClick", function() H.ToggleOptions() end)   -- beside the Hub: the same window the BiS> page holds
+  foot:SetScript("OnEnter", function() foot.edge:set("accent", 1) foot.wash:SetAlpha(1) end)
+  foot:SetScript("OnLeave", function() foot.edge:set("edge", 1) foot.wash:SetAlpha(0) end)
   f.foot = foot
   f:Fit(K.HEADER)   -- the footer is the Hub's own; an options window has none
   H.PaintHub()
@@ -317,12 +341,97 @@ function H.ToggleOptions(want)
   H.BuildOptions():Toggle(want)
 end
 
+-- ---------------------------------------------------------------- the BiS> page
+-- ONE OPTIONS HOME (Forever 1.0, Arn 7 Nov: "when they open the options, they go to add-ons ... they'll just see
+-- BiS> ... click into that add-on"): "BiS> Tools" under the game's own AddOns options (Libs\BiSTheme\Settings.lua),
+-- drawn as the kit's dashboard (below) - every tool's on/off and its settings. A new install has every tool off, so
+-- this (and the Hub) is where a player switches on what they want.
+
+--- What is on, in a few words (the BiS> front page shows it): "3 of 15 tools on".
+function H.Status()
+  local on, all = 0, 0
+  for key in R:Each() do
+    all = all + 1
+    if R:Enabled(key) then on = on + 1 end
+  end
+  return ("%d of %d tools on"):format(on, all)
+end
+
+-- ---------------------------------------------------------------- the dashboard
+-- THE PAGE IS A COCKPIT, NOT THE OLD WINDOW IN A BOX (Arn, 7 Nov, the first live look: "we esentially just took
+-- the old option window kept it the same size and nestels it inside a bigger window not taking advantage of the
+-- bigger side" / "dont just shrink remake them all"). Since 8 Nov it is the KIT's page: BiSTheme.Dashboard
+-- (Libs\BiSTheme\Settings.lua, minor 3) was ported FROM the hand-built one that lived here, and every BiS addon's
+-- BiS> page is now that one dashboard (Arn: "its a theme so itll keep all the pages looking the same"):
+--   left    TOOLS - BiS Tools itself, then a row per tool, its lamp lit when on. Click = look; right-click = on / off.
+--   right   the picked one: its name, a big ON/OFF switch, "open its window" beside it, what it does in full words,
+--           every one of its settings as a big row in ONE column, its command at the foot
+--   bottom  the help strip: what the row under the mouse does
+-- Fed the same Registry tables the Hub and the Options window read, so nothing is listed twice.
+H.DASH = { GENERAL = "_general" }
+
+--- Every section of the page, in the kit's shape: the addon's own settings first, then each tool in the Registry's
+--- order. A tool's switch is the same R:SetEnabled the Hub, the Options window and /bist on|off use.
+function H.DashEntries()
+  local out = { { key = H.DASH.GENERAL, title = "BiS Tools", desc = "The addon itself: its minimap button, the shared "
+    .. "BiS channel every BiS addon talks over, and putting every BiS Tools window back on the screen.",
+    options = H.OwnOptions(), general = true } }
+  for key, tool in R:Each() do
+    local e = { key = key, tool = tool, title = tool.title or tool.name, desc = tool.desc, options = tool.options or {},
+      db = R:DBFor(tool), usage = tool.usage,
+      switch = { get = function() return R:Enabled(key) end, set = function(on) R:SetEnabled(key, on) end } }
+    if tool.OnOpen then e.open = { label = "open its window", func = function() H.Open(key) end } end
+    out[#out + 1] = e
+  end
+  return out
+end
+
+--- What the kit draws the page from. A change on the page repaints the Hub and the Options window (the kit repaints
+--- the page itself).
+function H.DashModel()
+  return {
+    entries = H.DashEntries,
+    list = "TOOLS",
+    idle = "Point at a tool or a setting to read what it does. Right-click a tool in the list to switch it on or off.",
+    onChange = function() H.PaintHub() H.PaintOptions() end,
+  }
+end
+
+function H.RegisterSettings()
+  if not (BiSTheme and BiSTheme.SettingsPage and BiSTheme.Dashboard) then return nil end
+  return BiSTheme.SettingsPage("BiSTools", {
+    title = "Tools",
+    about = "Small tools, each with its own switch - a new install starts with every one off. Pick a tool on the "
+      .. "left to see what it does, switch it on, and set it up.",
+    status = H.Status,
+    build = function(body)
+      local d = BiSTheme.Dashboard(body, H.DashModel())
+      H.dash = d
+      d.detail.none:SetText("Nothing to set: it just works while it is on.")
+      if d.entries[2] then d:Select(d.entries[2].key) end   -- it opens on the first tool, as it always has
+    end,
+    refresh = function() if H.dash then H.dash:Paint() end end,
+    open = { label = "the tools list", func = function() H.ToggleHub(true) end },
+    api = { name = "BiSToolsAPI", about = "party list, rivals and the ride clock, read-only (API.lua, version "
+      .. tostring(rawget(_G, "BiSToolsAPI") and BiSToolsAPI.version or "?") .. ")" },
+  })
+end
+
+--- The minimap's right-click: the OWN options window, a toggle (Arn, 7 Nov live: "when i right click the minimap
+--- again it should close that option window ... we keep them opening how they used to"). The BiS> Tools page is
+--- the dashboard in the game's options, reached from Esc > Options > AddOns.
+function H.OpenOptions()
+  H.ToggleOptions()
+  return "window"
+end
+
 -- ---------------------------------------------------------------- boot
 -- at login, after every tool registered (this file is last in the TOC)
 H.frame = CreateFrame("Frame")
 H.frame:RegisterEvent("PLAYER_LOGIN")
 H.frame:SetScript("OnEvent", function()
   H.BuildMinimap()
+  pcall(H.RegisterSettings)            -- an older client without the game's panel: nil, the own window still works
 end)
 
 -- /bist hub | /bist options  (the slash is the fallback; the button is the way)

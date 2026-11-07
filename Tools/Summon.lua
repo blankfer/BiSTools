@@ -40,6 +40,26 @@ local K = NS.Farm                -- the Innervate-style kit: tex / fs / border /
 local SM = { rows = {} }
 NS.Summon = SM
 
+--- Is the summon tool switched on? (Forever 1.0: the nag, the request pings and the window popping up for
+--- everyone at a stone all answer to it now - a new install has it off and must hear nothing.)
+function SM.On()
+  local R = NS.Registry
+  local ok, on = pcall(function() return R and NS.DB() and R:Enabled("summon") end)
+  return ok and on and true or false
+end
+
+--- A value the client will let us look at, or nil (Forever hides names, positions and flags in a fight).
+local function plain(v)
+  if v == nil then return nil end
+  if K and K.Plain then return K.Plain(v) end
+  if issecretvalue then
+    local ok, s = pcall(issecretvalue, v)
+    if not ok or s then return nil end
+  end
+  return v
+end
+SM.Plain = plain
+
 SM.SCORE_OTHER_WORLD = 2e9       -- Azeroth <-> Outland: summon first, always
 SM.SCORE_OTHER_ZONE  = 1e9       -- same world, other zone
 SM.SCORE_UNKNOWN_POS = 5e8       -- same zone, cannot place them
@@ -219,7 +239,11 @@ function SM.ClockText(secs)
 end
 
 function SM.IsStoneText(text, custom)
+  -- hidden FIRST: on Forever the tooltip's line can be a secret string - type() says "string", and even
+  -- `== ""` is refused (the 7 Nov sweep)
+  text = plain(text)
   if type(text) ~= "string" or text == "" then return false end
+  custom = plain(custom)
   local t = text:lower()
   if type(custom) == "string" and custom ~= "" and t:find(custom:lower(), 1, true) then return true end
   for _, p in ipairs(SM.STONE_PATTERNS) do
@@ -289,24 +313,40 @@ function SM.Gather()
     end
     entries[#entries + 1] = e
   end
+  -- EVERY ANSWER ASKED "HIDDEN?" FIRST (the 7 Nov sweep): this runs every 2 s while the window shows, raid fights
+  -- included, where Forever can hide a member's position, visibility, connection and even the name - and a hidden
+  -- value refuses arithmetic, a truth test and being a table key. A member the client will not tell us about is
+  -- left out of this pass (the next one, 2 s later, asks again).
+  local function hid(v) return v ~= nil and plain(v) == nil end
+  local function member(unit, name, zone, online, i)
+    if hid(name) or hid(zone) or hid(online) or type(name) ~= "string" or name == "" then return end
+    local okU, me = pcall(UnitIsUnit, unit, "player")
+    if not okU or hid(me) or me then return end
+    local okP, y, x, _, inst = pcall(UnitPosition, unit)
+    if not okP or hid(y) or hid(x) or hid(inst) then return end
+    local okV, vis = pcall(UnitIsVisible, unit)
+    if not okV or hid(vis) then return end
+    if online == nil then
+      local okC, con = pcall(UnitIsConnected, unit)
+      if not okC or hid(con) then return end
+      online = con
+    end
+    local okS, short = pcall(function() return lib and lib.Short(name) or name end)
+    short = okS and plain(short) or nil
+    add(unit, type(short) == "string" and short or name, zone, online and true or false, vis and true or false, x, y, inst, i)
+  end
   if IsInRaid and IsInRaid() then
     for i = 1, n do
-      local name, _, _, _, _, _, zone, online = GetRaidRosterInfo(i)
-      local unit = "raid" .. i
-      if name and not UnitIsUnit(unit, "player") then
-        local y, x, _, inst = UnitPosition(unit)
-        add(unit, lib and lib.Short(name) or name, zone, online and true or false,
-          UnitIsVisible(unit) and true or false, x, y, inst, i)
-      end
+      local okR, name, _, _, _, _, _, zone, online = pcall(GetRaidRosterInfo, i)
+      if okR then member("raid" .. i, name, zone, online == nil and false or online, i) end
     end
   elseif n > 0 then
     for i = 1, n - 1 do
       local unit = "party" .. i
-      if UnitExists(unit) then
-        local y, x, _, inst = UnitPosition(unit)
-        local name = UnitName(unit)
-        add(unit, lib and lib.Short(name) or name, nil, UnitIsConnected(unit) and true or false,
-          UnitIsVisible(unit) and true or false, x, y, inst, i)
+      local okE, exists = pcall(UnitExists, unit)
+      if okE and not hid(exists) and exists then
+        local okN, name = pcall(UnitName, unit)
+        if okN then member(unit, name, nil, nil, i) end
       end
     end
   end
@@ -460,15 +500,12 @@ function SM.OnRequest(sender, flag)
   if flag == "1" then
     local fresh = SM.requests[sender] == nil
     SM.requests[sender] = GetTime()
-    if fresh then
+    if fresh and SM.On() then                      -- the tool off: the request is kept, nothing is said
       SM.Log(sender .. " asks", "gold")
       local db0 = SM.db
       if db0 and db0.summoner then
         -- the summoner: this is his job tonight, it should reach him mid-fight
-        if RaidNotice_AddMessage and RaidWarningFrame then
-          RaidNotice_AddMessage(RaidWarningFrame, sender .. " asks for a summon",
-            ChatTypeInfo and ChatTypeInfo["RAID_WARNING"] or { r = 1, g = 0.5, b = 0 })
-        end
+        NS.Alert(sender .. " asks for a summon")
         if PlaySound then PlaySound(8959, "Master") end
         if K and K.Speak then K.Speak("Summon") end
       elseif PlaySound then
@@ -479,7 +516,7 @@ function SM.OnRequest(sender, flag)
     SM.requests[sender] = nil
   end
   local db = NS.DB and NS.DB() and NS.DB().tools and NS.DB().tools.summon
-  if db and flag == "1" and (db.mode or "auto") == "auto" then
+  if db and flag == "1" and (db.mode or "auto") == "auto" and SM.On() then
     -- somebody asked: the summoner should see the window even away from a stone
     SM.seenAt = GetTime()
     SM.ApplyVisible(true)
@@ -536,7 +573,9 @@ function SM.SelfWatch(db)
   end
   -- Arn (8 Sep): two at the stone = the window opens for everyone, so the far
   -- ones can press "request a summon" without typing a thing
-  if n >= SM.POP_AT and (db.mode or "auto") == "auto" and SM.frame then
+  -- (the window only with the tool on: switched off, it never comes up by itself - the WHERE above still goes out,
+  -- it is the shared channel's voice, not the tool's)
+  if n >= SM.POP_AT and (db.mode or "auto") == "auto" and SM.frame and SM.On() then
     if not SM.shown then SM.Refresh(db) end
     SM.seenAt = GetTime()
     SM.ApplyVisible(true)
@@ -985,10 +1024,16 @@ end
 function SM.LookingAtStone(db)
   if not GameTooltip or not GameTooltip:IsShown() then return false end
   if UnitExists("mouseover") then return false end
-  local owner = GameTooltip.GetOwner and GameTooltip:GetOwner()
-  if owner and SM.frame and (owner == SM.frame or (owner.GetParent and owner:GetParent() == SM.body)) then return false end
+  -- the owner can be a frame the client locks away from addons: even the LOOKUP of its GetParent is refused, so
+  -- the whole question goes in the pcall; one that will not say is not our window
+  local okO, ours = pcall(function()
+    local owner = GameTooltip.GetOwner and GameTooltip:GetOwner()
+    return owner and SM.frame and (owner == SM.frame or (owner.GetParent and owner:GetParent() == SM.body)) or false
+  end)
+  if okO and ours then return false end
   local line = _G["GameTooltipTextLeft1"]
-  return SM.IsStoneText(line and line:GetText(), db.stone)
+  local okT, text = pcall(function() return line and line:GetText() end)
+  return SM.IsStoneText(okT and text or nil, db.stone)
 end
 
 function SM.Watch(db, dt)
@@ -1013,8 +1058,9 @@ function SM.Watch(db, dt)
 end
 
 -- ---------------------------------------------------------------- the nag
--- Fires on the person BEING summoned. Not gated by the tool toggle: it is the
--- reward for installing and touching nothing. Own switch: /bist summon nag off.
+-- Fires on the person BEING summoned. Since 1.0 it ANSWERS TO THE TOOL'S SWITCH (it used to outlive /bist off
+-- summon, "the reward for installing and touching nothing" - and a new install now touches nothing and must hear
+-- nothing: Arn's cousin, "what's making that noise"). Two switches: the summon tool, and /bist summon nag on|off.
 SM.nag = {}
 function SM.NagText()
   local lib = SM.Lib()
@@ -1029,15 +1075,14 @@ end
 
 function SM.NagOnce()
   local text = SM.NagText()
-  if RaidNotice_AddMessage and RaidWarningFrame then
-    RaidNotice_AddMessage(RaidWarningFrame, text, ChatTypeInfo and ChatTypeInfo["RAID_WARNING"] or { r = 1, g = 0.5, b = 0 })
-  end
+  NS.Alert(text)                                             -- our own line where the raid warning sits
   if PlaySound then PlaySound(8959, "Master") end          -- RAID_WARNING
   if K and K.Speak then K.Speak("Summon") end                -- FojjiCore pack / TTS / ping
 end
 
 function SM.NagStart(db)
   if db and db.nag == false then return end
+  if not SM.On() then return end                             -- the summon tool is off: silent
   SM.nag.active = true
   SM.PaintSlots()
   SM.NagOnce()
@@ -1048,7 +1093,7 @@ function SM.NagStart(db)
   SM.nag.ticker = C_Timer.NewTicker(SM.NAG_EVERY, function()
     local l = SM.Lib()
     local still = l and l.summon and l.summon.state == "OFFER"
-    if not SM.nag.active or not still or GetTime() > ends then return SM.NagStop() end
+    if not SM.nag.active or not still or GetTime() > ends or not SM.On() then return SM.NagStop() end
     SM.NagOnce()
   end)
 end
@@ -1143,6 +1188,7 @@ function SM.Unhook()
   if SM.ticker then SM.ticker:Cancel() SM.ticker = nil end
   SM.seenAt = nil
   if SM.frame and not InCombatLockdown() then SM.frame:Hide() SM.shown = false end
+  SM.NagStop()                                     -- switched off mid-nag: quiet now
 end
 
 -- ---------------------------------------------------------------- slash
@@ -1182,8 +1228,9 @@ function SM.Slash(db, args)
   elseif cmd == "stone" then
     if rest:lower() == "clear" then db.stone = nil return NS.Print("custom stone name cleared") end
     local line = _G["GameTooltipTextLeft1"]
-    local text = GameTooltip and GameTooltip:IsShown() and line and line:GetText()
-    if text and text ~= "" then db.stone = text NS.Print('stone name: "%s"', text)
+    local okT, text = pcall(function() return GameTooltip and GameTooltip:IsShown() and line and line:GetText() end)
+    text = okT and plain(text) or nil              -- hidden first: a secret line is never learned
+    if type(text) == "string" and text ~= "" then db.stone = text NS.Print('stone name: "%s"', text)
     else NS.Print("hover the stone first, then /bist summon stone") end
   elseif cmd == "ban" or cmd == "unban" then
     local zone = rest ~= "" and rest or (GetRealZoneText and GetRealZoneText())
@@ -1222,8 +1269,11 @@ NS.Registry:Register({
   desc = "who still needs a summon, furthest first; click to target",
   usage = "/bist summon [show|auto|hide|...]",
   defaults = { mode = "auto", near = SM.DEFAULT_NEAR, linger = SM.DEFAULT_LINGER, retry = SM.DEFAULT_RETRY,
-    rows = SM.DEFAULT_ROWS, pos = { "CENTER", 0, -120, "CENTER" }, ban = {}, allow = {}, nag = true, stone = nil,
+    rows = SM.DEFAULT_ROWS, pos = { "CENTER", 0, -120, "CENTER" }, ban = {}, allow = {}, nag = false, stone = nil,
     summoner = false, stones = {}, key = true },
+  -- 1.0: a new install's nag (a warning, a sound and a voice every 20 s) waits to be switched on; an existing save
+  -- keeps its own (frozen by Registry R:Forever10)
+  quiet = { nag = false },
   OnInit = function(self, db)
     SM.Migrate(db)
     SM.events = CreateFrame("Frame")
@@ -1262,6 +1312,6 @@ NS.Registry:Register({
       show = function(db) return (db.linger or SM.DEFAULT_LINGER) .. " s" end },
   },
   OnEnable = function(self, db) SM.Hook(db) end,
-  OnDisable = function(self, db) SM.Unhook() end,   -- window only. The lib and the nag keep going.
+  OnDisable = function(self, db) SM.Unhook() end,   -- window, key and nag. The shared lib keeps going.
   OnSlash = function(self, db, args) SM.Slash(db, args) end,
 })

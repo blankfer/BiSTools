@@ -184,6 +184,7 @@ end
 --- yet": the client is asked to load it (SPELL_DATA_LOAD_RESULT looks again) and it is given X.LOAD_WAIT seconds
 --- before it counts as not food. A client with neither lookup decides nothing and remembers nothing.
 X.xpItem, X.blank, X.waiting = {}, {}, {}
+X.gaveUp, X.retried = {}, {}                   -- written off by the wait, not by its text; one second chance each
 X.LOAD_WAIT = 30
 function X.IsXPItem(id)
   if type(id) ~= "number" then return false end
@@ -195,7 +196,7 @@ function X.IsXPItem(id)
   local d = spellText(sid)
   if type(d) ~= "string" or d == "" then
     X.blank[id] = X.blank[id] or now()
-    if now() - X.blank[id] >= X.LOAD_WAIT then X.xpItem[id] = false return false end
+    if now() - X.blank[id] >= X.LOAD_WAIT then X.xpItem[id] = false X.gaveUp[id] = true return false end
     if not X.waiting[sid] then
       X.waiting[sid] = true
       ask(C_Spell and C_Spell.RequestLoadSpellData, sid)
@@ -204,6 +205,19 @@ function X.IsXPItem(id)
   end
   X.xpItem[id] = d:lower():find("experience", 1, true) ~= nil
   return X.xpItem[id]
+end
+
+--- A bag change gives each text the wait wrote off ONE more try (Arn, 7 Nov live: the Mud Snapper lost for a whole
+--- session after a slow login). Once only: an item whose text never comes must not keep the bag scan running.
+function X.Retry()
+  for id in pairs(X.gaveUp) do
+    if not X.retried[id] then
+      X.retried[id] = true
+      X.gaveUp[id], X.xpItem[id], X.blank[id] = nil, nil, nil
+      local sid = itemSpell(id)
+      if sid then X.waiting[sid] = nil end
+    end
+  end
 end
 
 --- Which XP food the button eats: yours (learned or named) while you have it, else the XP food you carry most of.
@@ -216,7 +230,9 @@ function X.Pick(db)
   -- not known yet = look again next time (Arn, 0.19.1 live: a water stuck on the button when the load event never came)
   local fav = db.food and count(db.food) > 0 and X.IsXPItem(db.food)
   if db.food and count(db.food) > 0 and fav == nil then unsure = true end
-  if db.food and count(db.food) > 0 and fav ~= false then
+  -- A SLOW LOGIN (Arn, 7 Nov live): the food you were seen eating stays yours when only the WAIT wrote it off -
+  -- its text never came, it did not say "not experience"
+  if db.food and count(db.food) > 0 and (fav ~= false or X.gaveUp[db.food]) then
     best = db.food
   else
     local C = C_Container
@@ -469,6 +485,7 @@ ev:SetScript("OnEvent", function(_, event, unit, _, spellId)
     X.dirty = true
   end
   if event == "BAG_UPDATE_DELAYED" or event == "PLAYER_ENTERING_WORLD" then X.dirty = true end   -- even in a fight
+  if event == "BAG_UPDATE_DELAYED" and next(X.gaveUp) then X.Retry() end
   if not (X.db and R:Enabled("xp")) or not X.Levelling() then return end
   if (event == "UNIT_AURA" or event == "UNIT_SPELLCAST_SUCCEEDED") and unit ~= "player" then return end
   if X.Fighting() then return end                               -- nothing in a fight; the fight's end looks again
