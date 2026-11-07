@@ -413,6 +413,9 @@ _G.CreateFrame = function(kind, name, parent, template)
   function f:SetFrameStrata() end
   function f:SetFrameLevel(l) self.level = l end
   function f:GetFrameLevel() return self.level or 1 end
+  -- RAISE puts a frame in front of its strata's others (6 Nov 2026, the hoard over Processing): counted, and the
+  -- frame raised last is the one in front (W.front)
+  function f:Raise() self.raised = (self.raised or 0) + 1 W.front = self end
   function f:SetParent(p) self.parent = p end
   function f:GetCenter() return self.cx or 0, self.cy or 0 end
   function f:GetEffectiveScale() return 1 end
@@ -3696,6 +3699,27 @@ do
   at(now, 190, 295, 650, 630)
   Bx.Refresh()
   ok(Bx.dock == "below", "the grid's own header counts as the grid")
+  -- BELOW BiS> now, THE ROW MUST NOT RUN UNDER THE GRID (Arn, 6 Nov: "the tool is putting a button under the healing
+  -- frames" - "its the processing button"): a narrow BiS> now left of the grid, three buttons - the third wraps
+  at(now, 220, 295, 600, 560)
+  do
+    local keepButtons = Bx.Buttons
+    local extra = CreateFrame("Button", nil, UIParent)
+    Bx.Buttons = function() local list = keepButtons() list[#list + 1] = { b = extra, show = true } return list end
+    Bx.Refresh()
+    local per = Bx.PerRow(3)
+    ok(Bx.dock == "below" and per == 2, "room for two before the grid's edge", per)
+    local right = 0
+    for _, e in ipairs(Bx.Buttons()) do
+      if e.show and e.b.point then right = math.max(right, 220 + e.b.point[4] + Bx.SIZE) end
+    end
+    ok(right <= 300, "no button reaches under the grid (its edge at 300)", right)
+    ok(extra.point and extra.point[5] < -Bx.PAD - 1, "the third goes on a second row", extra.point and extra.point[5])
+    ok(box.h == Bx.PAD * 2 + 2 * Bx.SIZE + Bx.GAP, "and the box is two rows tall", box.h)
+    Bx.Buttons = keepButtons
+    extra:Hide()
+    Bx.Refresh()
+  end
   at(now, 190, 295, 600, 560)
   -- shift-click sends it round BiS> now (Arn: "should have these same clicks and drags")
   W.shift = true
@@ -7848,6 +7872,16 @@ do
   local door = f.haul.hoardBtn
   door.scripts.OnClick(door)
   ok(h:IsShown(), "the ALL TIME button in the strip opens it")
+  -- BESIDE IT, NOT ON IT (Arn's screenshot, 6 Nov: the hoard opened over Processing and the two mixed - the tape inside
+  -- the cave): with Processing open, the hoard opens on its right and comes to the front; a click brings either forward
+  ok(h.point and h.point[2] == f and h.point[1] == "TOPLEFT" and h.point[3] == "TOPRIGHT",
+     "opened from Processing: the hoard sits on its right", h.point and tostring(h.point[1]))
+  ok(W.front == h, "and comes to the front")
+  ok(f.scripts.OnMouseDown, "Processing has a click that brings it forward")
+  f.scripts.OnMouseDown(f, "LeftButton")
+  ok(W.front == f, "click Processing: it comes to the front")
+  h.scripts.OnMouseDown(h, "LeftButton")
+  ok(W.front == h, "click the hoard: it does")
   -- EVERY BUTTON POPS UNDER THE MOUSE (Arn, 6 Nov live: "hovering over all time and it no glow to let me know im good
   -- to click it") - the strip's ALL TIME, the x, the ignored count
   for _, b in ipairs({ door, f.close, f.ignoredBtn }) do

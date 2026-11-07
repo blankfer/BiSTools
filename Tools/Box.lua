@@ -269,29 +269,53 @@ function B.NextDock()
   return nextOne
 end
 
---- Lay the box out: the buttons that have something to do, left to right; none, no box.
+--- How many buttons fit on one row before the grid. NEVER UNDER THE GRID (Arn, 6 Nov: "the tool is putting a
+--- button under the healing frames ... its the processing button"): docked below BiS> now, which sits on the
+--- grid's left, a long row ran on under the grid's cells. A row stops at the grid's left edge and wraps.
+function B.PerRow(n)
+  if not B.docked then return n end
+  local hdr = _G.BiSHealingForeverHeader
+  local grid = hdr and hdr.GetParent and hdr:GetParent()
+  local gl = rect(grid)
+  local nl, nr = rect(_G.BiSHealingNowBlock)
+  if not (gl and nl) then return n end
+  local left
+  if B.dock == "below" or B.dock == "top" then left = nl
+  elseif B.dock == "right" then left = nr + 6
+  else return n end
+  if gl <= left then return n end                  -- the grid is not to our right: nothing to stop at
+  local per = math.floor((gl - left - B.PAD + B.GAP) / (B.SIZE + B.GAP))
+  return math.max(1, math.min(n, per))
+end
+
+--- Lay the box out: the buttons that have something to do, left to right, wrapping before the grid; none, no box.
 function B.Refresh()
   if InCombatLockdown and InCombatLockdown() then B.dirty = true return false end
   B.dirty = nil
   local f = B.Build()
-  local n = 0
+  local shown = {}
   for _, e in ipairs(B.Buttons()) do
     local b = e.b
     if b:GetParent() ~= f then b:SetParent(f) end
     b:ClearAllPoints()
-    if e.show then
-      b:SetSize(B.SIZE, B.SIZE)
-      b:SetPoint("TOPLEFT", f, "TOPLEFT", B.PAD + n * (B.SIZE + B.GAP), -B.PAD)
-      b:Show()
-      n = n + 1
-    else
-      b:Hide()
-    end
+    if e.show then shown[#shown + 1] = b else b:Hide() end
   end
+  local n = #shown
   B.count = n
   if n == 0 then f:Hide() return true end
+  -- one row first, so the dock is chosen the same way as before; then wrap where the grid starts
   f:SetSize(math.max(B.MIN_W, B.PAD * 2 + n * B.SIZE + (n - 1) * B.GAP), B.SIZE + B.PAD * 2)
   B.Place()
+  local per = B.PerRow(n)
+  local rows = math.ceil(n / per)
+  for i, b in ipairs(shown) do
+    local col, row = (i - 1) % per, math.floor((i - 1) / per)
+    b:SetSize(B.SIZE, B.SIZE)
+    b:SetPoint("TOPLEFT", f, "TOPLEFT", B.PAD + col * (B.SIZE + B.GAP), -(B.PAD + row * (B.SIZE + B.GAP)))
+    b:Show()
+  end
+  f:SetSize(math.max(B.MIN_W, B.PAD * 2 + per * B.SIZE + (per - 1) * B.GAP),
+            B.PAD * 2 + rows * B.SIZE + (rows - 1) * B.GAP)
   f:Show()
   return true
 end
