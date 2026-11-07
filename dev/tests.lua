@@ -7754,6 +7754,14 @@ do
   local door = f.haul.hoardBtn
   door.scripts.OnClick(door)
   ok(h:IsShown(), "the ALL TIME button in the strip opens it")
+  -- EVERY BUTTON POPS UNDER THE MOUSE (Arn, 6 Nov live: "hovering over all time and it no glow to let me know im good
+  -- to click it") - the strip's ALL TIME, the x, the ignored count
+  for _, b in ipairs({ door, f.close, f.ignoredBtn }) do
+    b.scripts.OnEnter(b)
+    ok(b.wash and b.wash.alpha >= 0.3, "hover a button: it lights up", b.wash and b.wash.alpha)
+    b.scripts.OnLeave(b)
+    ok(b.wash.alpha == 0, "and goes dark when the mouse leaves")
+  end
   local hoardEsc = false
   for _, n in ipairs(UISpecialFrames) do if n == "BiSToolsHoard" then hoardEsc = true end end
   ok(hoardEsc, "Escape closes it")

@@ -196,6 +196,23 @@ local function fs(parent, size, color)
   return s
 end
 
+--- Every clickable thing POPS under the mouse (Arn, 6 Nov: "hovering over all time and it no glow to let me know im
+--- good to click it" - the standing rule): a purple wash, a purple edge, the label at full brightness.
+local function hover(b, label)
+  b.wash = b.wash or K().tex(b, "BORDER", "accent", 0)
+  b:SetScript("OnEnter", function(self)
+    self.wash:SetAlpha(P.GLOW)
+    if self.edge and self.edge.set then self.edge:set("accent", 1) end
+    if label then label:SetTextColor(rgb("ink")) end
+  end)
+  b:SetScript("OnLeave", function(self)
+    self.wash:SetAlpha(0)
+    if self.edge and self.edge.set then self.edge:set("edge", 1) end
+    if label then label:SetTextColor(rgb(self.ink or "ink2")) end
+  end)
+end
+P.Hover = hover
+
 local function textButton(parent, label, w, onclick)
   local b = CreateFrame("Button", nil, parent)
   b:SetSize(w, 14)
@@ -204,6 +221,7 @@ local function textButton(parent, label, w, onclick)
   b.label = K().fs(b, label, 9, "ink2")
   b.label:SetPoint("CENTER")
   b:SetScript("OnClick", onclick)
+  hover(b, b.label)
   return b
 end
 
@@ -509,7 +527,9 @@ function P.Build()
   f.ignoredBtn:SetSize(110, 14)
   f.ignoredBtn:SetPoint("TOPRIGHT", -8, -26 - P.ROWS * P.ROW - 4)
   f.ignored = fs(f.ignoredBtn, 8, "muted")
-  f.ignored:SetPoint("RIGHT")
+  f.ignored:SetPoint("RIGHT", -3, 0)
+  f.ignoredBtn.ink = "muted"
+  hover(f.ignoredBtn, f.ignored)
   f.ignoredBtn:SetScript("OnClick", function()
     if fighting() or not P.db then return end
     P.db.showIgnored = not P.db.showIgnored or nil
@@ -835,14 +855,19 @@ function P.BoxButton()
   b.icon:SetPoint("BOTTOMRIGHT", -2, 2)
   b.icon:SetTexture((C_Spell and C_Spell.GetSpellTexture and plain(ask(C_Spell.GetSpellTexture, P.SPELL))) or P.ICON)
   b:SetScript("OnClick", function() P.Toggle() end)
+  b.wash = k.tex(b, "BORDER", "accent", 0)
   b:SetScript("OnEnter", function(self)
+    self.wash:SetAlpha(P.GLOW) self.edge:set("gold", 1)       -- it pops under the mouse
     if not GameTooltip then return end
     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
     GameTooltip:AddLine("BiS> processing")
     GameTooltip:AddLine(("%d ready to disenchant"):format(P.count or 0), 1, 1, 1)
     GameTooltip:Show()
   end)
-  b:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+  b:SetScript("OnLeave", function(self)
+    self.wash:SetAlpha(0) self.edge:set("accent", 1)
+    if GameTooltip then GameTooltip:Hide() end
+  end)
   b:Hide()
   P.box = b
   return b
