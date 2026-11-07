@@ -7725,6 +7725,40 @@ do
   P.Toggle(false) P.Toggle(true)
   ok(f.build.text == NS.VERSION, "a released build (no stamp): just the version", f.build.text)
   NS.BUILD = keepBuild
+  -- THE HOARD (Arn, 6 Nov, a picture of a dragon on its gold: "a small flavor of all time button and it stacks these
+  -- things we disenchant but as the items not the icons ... first few times sitting in an empty window the more we get
+  -- the more our character gets happy finally at the end we flex on top of our mountain")
+  ok(P.Mood(0) == "sit" and P.Mood(10) == "stand" and P.Mood(250) == "cheer" and P.Mood(1000) == "flex",
+     "the mood by the all-time total: sit, stand, cheer, flex")
+  ok(P.Tokens(0) == 0 and P.Tokens(10) > 0 and P.Tokens(400) > P.Tokens(40) and P.Tokens(1000000) == P.TOKEN_MAX,
+     "the pile grows with the total - capped, never 500 dust in the window")
+  local keepTotals = db.totals
+  db.totals = {}
+  P.ToggleHoard(true)
+  local h = BiSToolsHoard
+  ok(h and h:IsShown() and math.abs(h.w / h.h - 1.43) < 0.02 and h.scale == 1.2, "the hoard opens: 1.43:1, 20% bigger")
+  ok(h.model._unit == "player" and h.model._anim == P.ANIM.sit, "an empty hoard: you, sitting on the floor")
+  local function shownTokens() local n = 0 for _, tk in ipairs(h.tokens) do if tk.shown ~= false then n = n + 1 end end return n end
+  ok(shownTokens() == 0, "no pile yet")
+  local lowY = h.model.point and h.model.point[5]
+  db.totals = { [10940] = 600, [10938] = 300, [10978] = 120 }
+  P.PaintHoard()
+  ok(shownTokens() == P.Tokens(1020), "a pile of pieces, as many as the total earns", shownTokens())
+  local tk = h.tokens[1]
+  ok(tk.masks and tk.masks[1] and tostring(tk.masks[1].file):find("Round", 1, true), "each piece cut round by our own mask")
+  ok(h.model._anim == P.ANIM.flex, "a mountain: you flex on top of it")
+  ok(type(lowY) == "number" and h.model.point[5] > lowY, "standing on the summit, higher than the empty floor")
+  ok(h.caption.text:find("1,020", 1, true), "the count, read like a number", h.caption.text)
+  -- the door: a small all-time button in the session strip; Escape closes it
+  P.ToggleHoard(false)
+  local door = f.haul.hoardBtn
+  door.scripts.OnClick(door)
+  ok(h:IsShown(), "the ALL TIME button in the strip opens it")
+  local hoardEsc = false
+  for _, n in ipairs(UISpecialFrames) do if n == "BiSToolsHoard" then hoardEsc = true end end
+  ok(hoardEsc, "Escape closes it")
+  P.ToggleHoard(false)
+  db.totals = keepTotals
   -- the tools box: a button while there is work
   NS.Box.Refresh()
   local bb = P.BoxButton()

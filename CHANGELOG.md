@@ -6,6 +6,8 @@
   - **Names in their quality colour**, and the tooltip follows the row when the list moves after a disenchant.
   - **What you got:** a strip shows this session's dust, essences and shards as icons with counts (hover for all time). It starts fresh each time you open the window, and counts only loot from your own disenchants.
   - **The build in the corner:** the window's title bar shows its version, faint.
+  - **The hoard (ALL TIME).** Everything you've ever disenchanted, piled up in a little cave with you on top in 3D. Empty, you sit on the floor; as the pile grows you stand, wave, cheer, and at the end you flex on top of your mountain. Each piece of the pile is the item itself, cut round. Only your own disenchants count, never the mail or a trade.
+  - Rows light up under the mouse, the window is 20% bigger, Escape closes it, and the tools-box button only shows in town.
 - The camp tent's debuff is confirmed: Boosted Rest (1229451), as the tent button already checked.
 
 ## 0.19.1

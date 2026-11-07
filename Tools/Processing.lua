@@ -527,7 +527,7 @@ function P.Build()
   for i = 1, P.HAUL_MAX do
     local s = CreateFrame("Button", nil, haul)
     s:SetSize(16, 16)
-    s:SetPoint("LEFT", 74 + (i - 1) * 38, 0)
+    s:SetPoint("LEFT", 74 + (i - 1) * 34, 0)
     s.icon = s:CreateTexture(nil, "ARTWORK")
     s.icon:SetAllPoints()
     s.count = fs(s, 9, "ink")
@@ -544,6 +544,9 @@ function P.Build()
     s:Hide()
     haul.slots[i] = s
   end
+  -- the door to the hoard: everything ever processed, in a pile with you on top
+  haul.hoardBtn = textButton(haul, "ALL TIME", 56, function() P.ToggleHoard() end)
+  haul.hoardBtn:SetPoint("RIGHT", haul, "RIGHT", 0, 0)
   f.haul = haul
   local pad = CreateFrame("Frame", nil, f)
   pad:SetPoint("BOTTOMLEFT", 8, 8)
@@ -608,7 +611,7 @@ end
 -- Arn, 6 Nov: "a pop up or a ticker of all the stuff we got in this session of disenchanting resets when we open
 -- window again maybe we keep track". This session = since the window opened (P.haul); all time = db.totals. Only
 -- loot within P.LOOT_WINDOW seconds of OUR disenchant counts - a mob's drop or the mail never does.
-P.HAUL_MAX, P.LOOT_WINDOW = 7, 6
+P.HAUL_MAX, P.LOOT_WINDOW = 6, 6
 P.haul, P.haulName = {}, {}
 
 function P.Loot(msg)
@@ -624,6 +627,7 @@ function P.Loot(msg)
     P.db.totals[id] = (P.db.totals[id] or 0) + n
   end
   P.PaintHaul()
+  if P.PaintHoard then P.PaintHoard() end                     -- open: the pile grows as you watch
   return true
 end
 
@@ -645,6 +649,175 @@ function P.PaintHaul()
     end
   end
   f.haul.label:SetText(#ids > 0 and "THIS SESSION" or "THIS SESSION: NOTHING YET")
+end
+
+-- ------------------------------------------------------------------ the hoard
+-- Arn, 6 Nov, with a picture of a dragon on its gold: "a small flavor of all time button and it stacks these things we
+-- disenchant but as the items not the icons ... first few times sitting in an empty window the more we get the more
+-- our character gets happy finally at the end we flex on top of our mountain". Everything ever processed (db.totals -
+-- our own disenchants only, never the mail or a trade) as a pile of pieces, each the item's icon cut ROUND by our own
+-- mask (Media\Round: the game cannot key out the square behind an icon; a round cut is the closest), and you on top in
+-- 3D. The pile is capped (P.TOKEN_MAX) - it shows the size of the haul, not every dust.
+P.HOARD_W, P.HOARD_H = 300, 210                  -- 1.43:1
+P.TOKEN_MAX, P.TOKEN = 90, 14
+P.ROUND = "Interface\\AddOns\\BiSTools\\Media\\Round"
+-- the client's animation ids: stand 0, wave 67, cheer 68 are live in BiS Shell; sit-on-the-ground 97 and flex 82
+-- are UNVERIFIED (the classic table's EmoteSitGround / EmoteFlex)
+P.ANIM = { sit = 97, stand = 0, wave = 67, cheer = 68, flex = 82 }
+P.MOODS = { { 1000, "flex" }, { 250, "cheer" }, { 100, "wave" }, { 1, "stand" }, { 0, "sit" } }
+
+function P.Mood(total)
+  for _, m in ipairs(P.MOODS) do if (total or 0) >= m[1] then return m[2] end end
+  return "sit"
+end
+
+--- How many pieces the pile shows for this total: grows like a pile does (the root), capped.
+function P.Tokens(total)
+  if not total or total <= 0 then return 0 end
+  return math.min(P.TOKEN_MAX, math.ceil(3 * math.sqrt(total)))
+end
+
+function P.Total()
+  local n = 0
+  for _, c in pairs((P.db and P.db.totals) or {}) do n = n + c end
+  return n
+end
+
+local function commas(n)
+  local s = tostring(math.floor(n))
+  local out = s:reverse():gsub("(%d%d%d)", "%1,"):reverse()
+  return (out:gsub("^,", ""))
+end
+
+function P.BuildHoard()
+  if P.hoard then return P.hoard end
+  local k = K()
+  local h = CreateFrame("Frame", "BiSToolsHoard", UIParent)
+  h:SetSize(P.HOARD_W, P.HOARD_H)
+  h:SetPoint("CENTER", 0, 40)
+  h:SetFrameStrata("DIALOG")
+  h:SetScale(P.SCALE)
+  h:EnableMouse(true)
+  h:SetMovable(true)
+  h:SetClampedToScreen(true)
+  h:RegisterForDrag("LeftButton")
+  h:SetScript("OnDragStart", h.StartMoving)
+  h:SetScript("OnDragStop", h.StopMovingOrSizing)
+  if UISpecialFrames then table.insert(UISpecialFrames, "BiSToolsHoard") end
+  k.tex(h, "BACKGROUND", "frame", 0.97)
+  k.border(h, "edge", 1)
+  h.title = fs(h, 10, "accent")
+  h.title:SetPoint("TOPLEFT", 8, -7)
+  h.title:SetText("BiS> HOARD")
+  h.close = textButton(h, "x", 16, function() P.ToggleHoard(false) end)
+  h.close:SetPoint("TOPRIGHT", -4, -4)
+  -- the cave: a dark inset, its floor a line
+  h.cave = CreateFrame("Frame", nil, h)
+  h.cave:SetPoint("TOPLEFT", 8, -24)
+  h.cave:SetPoint("BOTTOMRIGHT", -8, 24)
+  k.tex(h.cave, "BACKGROUND", "sunken", 1)
+  h.floor = h.cave:CreateTexture(nil, "ARTWORK")
+  h.floor:SetPoint("BOTTOMLEFT", 0, 10) h.floor:SetPoint("BOTTOMRIGHT", 0, 10)
+  h.floor:SetHeight(1)
+  h.floor:SetColorTexture(rgb("line2"))
+  h.tokens = {}
+  -- you, in 3D
+  local ok, m = pcall(CreateFrame, "PlayerModel", nil, h.cave)
+  if ok and m then
+    m:SetSize(90, 120)
+    h.model = m
+  end
+  h.caption = fs(h, 9, "gold")
+  h.caption:SetPoint("BOTTOMLEFT", 8, 8)
+  h.next = fs(h, 8, "muted")
+  h.next:SetJustifyH("RIGHT")
+  h.next:SetPoint("BOTTOMRIGHT", -8, 8)
+  h:Hide()
+  P.hoard = h
+  return h
+end
+
+--- One piece of the pile: the item's icon, its square border trimmed, cut round.
+local function token(h, i)
+  local t = h.tokens[i]
+  if t then return t end
+  t = h.cave:CreateTexture(nil, "ARTWORK", nil, 1)
+  t:SetSize(P.TOKEN, P.TOKEN)
+  t:SetTexCoord(0.12, 0.88, 0.12, 0.88)
+  if h.cave.CreateMaskTexture and t.AddMaskTexture then
+    local okM, mk = pcall(h.cave.CreateMaskTexture, h.cave)
+    if okM and mk then
+      mk:SetTexture(P.ROUND, "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
+      mk:SetSize(P.TOKEN, P.TOKEN)
+      mk:SetPoint("CENTER", t, "CENTER")
+      t:AddMaskTexture(mk)
+      t.mask = mk
+    end
+  end
+  h.tokens[i] = t
+  return t
+end
+
+--- Paint the pile and you on it: rows from the floor up, each narrower, pieces dealt by how much of each you have.
+function P.PaintHoard()
+  local h = P.hoard
+  if not (h and h:IsShown()) then return end
+  local totals = (P.db and P.db.totals) or {}
+  local total = P.Total()
+  local n = P.Tokens(total)
+  -- the pieces, shared out by count (the biggest pile of a thing shows the most)
+  local ids = {}
+  for id, c in pairs(totals) do if c > 0 then ids[#ids + 1] = id end end
+  table.sort(ids, function(a, b) return totals[a] > totals[b] end)
+  local deck = {}
+  for _, id in ipairs(ids) do
+    local share = math.max(1, math.floor(n * totals[id] / math.max(1, total) + 0.5))
+    for _ = 1, share do deck[#deck + 1] = id end
+  end
+  -- rows: 15 wide at the floor, two fewer each row up, overlapping like a heap
+  local floorY, step, gap = 10, 6, 9
+  local row, inRow, cap = 0, 0, 15
+  local top = floorY
+  for i = 1, n do
+    if inRow >= cap then row, inRow, cap = row + 1, 0, math.max(1, cap - 2) end
+    local t = token(h, i)
+    local id = deck[((i - 1) % math.max(1, #deck)) + 1]
+    t:SetTexture((id and C_Item and C_Item.GetItemIconByID and plain(ask(C_Item.GetItemIconByID, id))) or 134400)
+    local x = (inRow - (cap - 1) / 2) * gap + ((row % 2 == 1) and gap / 2 or 0)
+    local y = floorY + row * step
+    t:ClearAllPoints()
+    t:SetPoint("BOTTOM", h.cave, "BOTTOM", x, y)
+    t:Show()
+    if t.mask then t.mask:Show() end
+    top = math.max(top, y + P.TOKEN - 4)
+    inRow = inRow + 1
+  end
+  for i = n + 1, #h.tokens do
+    h.tokens[i]:Hide()
+    if h.tokens[i].mask then h.tokens[i].mask:Hide() end
+  end
+  -- you: on the floor while it is empty, on the summit after
+  local mood = P.Mood(total)
+  local m = h.model
+  if m then
+    m:ClearAllPoints()
+    m:SetPoint("BOTTOM", h.cave, "BOTTOM", 0, n > 0 and (top - 6) or floorY)
+    if m.SetUnit then pcall(m.SetUnit, m, "player") end
+    if m.SetPortraitZoom then pcall(m.SetPortraitZoom, m, 0) end
+    if m.SetCamDistanceScale then pcall(m.SetCamDistanceScale, m, 1.1) end
+    if m.SetAnimation then pcall(m.SetAnimation, m, P.ANIM[mood] or 0) end
+  end
+  h.caption:SetText(total > 0 and (commas(total) .. " THINGS PROCESSED") or "NOTHING YET - THE CAVE IS EMPTY")
+  local nextAt
+  for i = #P.MOODS, 1, -1 do if P.MOODS[i][1] > total then nextAt = P.MOODS[i] break end end
+  h.next:SetText(nextAt and ("NEXT: %s AT %s"):format(nextAt[2]:upper(), commas(nextAt[1])) or "THE MOUNTAIN IS YOURS")
+end
+
+function P.ToggleHoard(want)
+  local h = P.BuildHoard()
+  if want == nil then want = not h:IsShown() end
+  if want then h:Show() P.PaintHoard() else h:Hide() end
+  return h:IsShown()
 end
 
 -- ------------------------------------------------------------------ the doors
