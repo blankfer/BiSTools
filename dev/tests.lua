@@ -7584,7 +7584,17 @@ do
   -- the tape: my skill boxed, the barber pole above it, a bug per item need
   local t = f.tape
   ok(t.box.text == "60", "the skill tape: 60 in the box", t.box.text)
-  ok(P.TapeY(60) == 0 and P.TapeY(85) > 0 and P.TapeY(35) < 0, "the tape: my skill in the middle, more above, less below")
+  ok(P.TapeY(85) > P.TapeY(60) and P.TapeY(60) > P.TapeY(35), "the tape: more skill higher up")
+  -- NO EMPTY HALF (Arn, 6 Nov, skill 7: "the left side are we only using half because we are not full enchanting
+  -- level?"): the tape never runs below 0 - while the skill is low its box sits low and the height shows what's ahead
+  local half = P.TAPE_H / 2 - 4
+  ok(math.abs(P.TapeY(0) + half) < 1, "skill 60: the tape's foot is 0, not empty space", P.TapeY(0))
+  ok(t.boxFrame.point and math.abs(t.boxFrame.point[5] - P.TapeY(60)) < 1, "the box sits at my skill on the tape")
+  SKILL = 300
+  P.PaintTape(P.list)
+  ok(math.abs(P.TapeY(300)) < 1, "a high skill: the box in the middle, as an airliner's speed tape")
+  SKILL = 60
+  P.PaintTape(P.list)
   ok(t.pole and t.pole.shown ~= false and t.pole.from == 60, "the barber pole starts at my skill")
   ok(t.bugs and #t.bugs >= 3, "a bug on the tape for each skill my items need", t.bugs and #t.bugs)
   -- the rows: one item each, ready ones first; the button is secure and aims at that exact slot
@@ -7598,6 +7608,14 @@ do
   local shield = rowFor("G-SHIELD")
   ok(shield.act.attrs.type1 == nil and shield.act.attrs["shift-type1"] == "spell", "soulbound: SHIFT-click only")
   ok(shield.tag.text:find("SOULBOUND", 1, true), "and it says so", shield.tag.text)
+  -- THE NAME IN ITS QUALITY'S COLOUR (Arn, 6 Nov, the first live look: "the items names should reflect the quality
+  -- green items green name text epic epic name color"); soulbound is said in red by the tag and the button's edge
+  local function near(c, r, g, b) return c and math.abs(c[1] - r) < 0.02 and math.abs(c[2] - g) < 0.02 and math.abs(c[3] - b) < 0.02 end
+  ok(near(rowFor("G-CLOAK-1").name.color, 0x1e / 255, 1, 0), "a green cloak's name is green", rowFor("G-CLOAK-1").name.color)
+  ok(near(shield.name.color, 0, 0x70 / 255, 0xdd / 255), "a blue shield's name is blue - soulbound or not", shield.name.color)
+  ok(near(shield.tag.color, P.RED[1], P.RED[2], P.RED[3]), "its SOULBOUND tag is red")
+  ok(shield.act.edge and shield.act.edgeColor == "red", "and its Disenchant button wears a red edge")
+  ok(rowFor("G-CLOAK-1").act.edgeColor ~= "red", "a free one's does not")
   ok(rowFor("G-BELT-B").tag.text:find("ENCHANTED", 1, true), "the enchanted belt says ENCHANTED")
   local sword = rowFor("G-SWORD")
   ok(sword.act.attrs.type1 == nil and sword.act.attrs["shift-type1"] == nil and sword.tag.text:find("SKILL 125", 1, true),

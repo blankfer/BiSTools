@@ -37,6 +37,8 @@ P.TAPE_W, P.TAPE_H = 50, 160
 P.PX = 1.0                                      -- tape pixels per skill point
 P.ICON = "Interface\\Icons\\INV_Enchant_Disenchant"
 P.RED = { 0.85, 0.15, 0.15 }
+-- the game's own quality colours (Arn, 6 Nov: "green items green name text epic epic name color")
+P.QUALITY = { [2] = { 0x1e / 255, 1, 0 }, [3] = { 0, 0x70 / 255, 0xdd / 255 }, [4] = { 0xa3 / 255, 0x35 / 255, 0xee / 255 } }
 P.BAGS = 4
 -- the skill an item level needs to disenchant: the classic table (uncommon), UNVERIFIED on Forever - the game's
 -- refusal corrects it on the scratchpad
@@ -138,7 +140,7 @@ function P.Items(db)
           local need = P.Need(lv)
           out[#out + 1] = {
             bag = bag, slot = slot, guid = guid, link = link, kind = kind, ilvl = lv, need = need,
-            id = plain(info.itemID), icon = plain(info.iconFileID),
+            id = plain(info.itemID), icon = plain(info.iconFileID), quality = plain(info.quality),
             name = (link and link:match("%[(.-)%]")) or ("item " .. tostring(plain(info.itemID))),
             enchanted = P.Enchanted(link), ignored = isIgnored,
             above = type(skill) == "number" and type(need) == "number" and need > skill or false,
@@ -204,9 +206,15 @@ local function textButton(parent, label, w, onclick)
   return b
 end
 
+--- Where a skill value sits on the tape (0 = the tape's middle). The tape centres on my skill, as an airliner's
+--- speed tape - but never runs below 0 (Arn, 6 Nov, skill 7: half the tape was empty): while the skill is low the
+--- box sits low and the whole height shows what is ahead.
+function P.TapeCentre()
+  local half = (P.TAPE_H / 2 - 4) / P.PX
+  return math.max(P.Skill() or 0, half)
+end
 function P.TapeY(v)
-  local s = P.Skill() or 0
-  return (v - s) * P.PX
+  return (v - P.TapeCentre()) * P.PX
 end
 
 local function tapeTex(t, layer)
@@ -222,10 +230,14 @@ function P.PaintTape(list)
   local half = P.TAPE_H / 2 - 4
   local function y(v) return math.max(-half, math.min(half, P.TapeY(v))) end
   t.box:SetText(tostring(skill))
+  local at = P.TapeY(skill)                                     -- where my skill sits (low on the tape while it is low)
+  t.boxFrame:ClearAllPoints()
+  t.boxFrame:SetPoint("LEFT", t, "LEFT", 0, at)
   -- the scale: a tick and a number every 25
   local i = 0
-  local base = math.floor((skill - half / P.PX) / 25) * 25
-  for v = base, skill + half / P.PX, 25 do
+  local centre = P.TapeCentre()
+  local base = math.floor((centre - half / P.PX) / 25) * 25
+  for v = base, centre + half / P.PX, 25 do
     if v >= 0 and math.abs(P.TapeY(v)) <= half - 6 then
       i = i + 1
       local m = t.marks[i] or { tick = tapeTex(t), label = fs(t, 8, "muted") }
@@ -240,15 +252,16 @@ function P.PaintTape(list)
   end
   for j = i + 1, #t.marks do t.marks[j].tick:Hide() t.marks[j].label:Hide() end
   -- the barber pole: red and black, from my skill to the top - what is out of reach
-  local segs = math.floor(half / 6)
+  local segs = math.max(0, math.floor((half - at) / 6))
   for j = 1, segs do
     local s = t.pole.segs[j] or tapeTex(t.pole)
     t.pole.segs[j] = s
     s:SetSize(4, 6)
-    s:ClearAllPoints() s:SetPoint("BOTTOMRIGHT", t, "RIGHT", -2, (j - 1) * 6)
+    s:ClearAllPoints() s:SetPoint("BOTTOMRIGHT", t, "RIGHT", -2, at + (j - 1) * 6)
     if j % 2 == 1 then s:SetColorTexture(P.RED[1], P.RED[2], P.RED[3], 1) else s:SetColorTexture(0, 0, 0, 1) end
     s:Show()
   end
+  for j = segs + 1, #t.pole.segs do t.pole.segs[j]:Hide() end
   t.pole.from = skill
   t.pole:Show()
   -- bugs: one per skill an item needs - teal when in reach, purple when above
@@ -327,9 +340,17 @@ function P.Paint()
     if e then
       r.icon:SetTexture(e.icon or 134400)
       r.name:SetText(e.name)
-      local q = e.ignored and "muted" or (e.kind == "bound" and "warn" or (e.above or e.blocked) and "muted" or "ink")
-      r.name:SetTextColor(rgb(q))
-      if e.kind == "bound" then r.name:SetTextColor(P.RED[1], P.RED[2], P.RED[3], 1) end
+      -- the name in its quality's colour, faded when it cannot be clicked now; soulbound is the tag's and the edge's
+      local qc = P.QUALITY[e.quality or 0]
+      local dim = (e.ignored or e.above or e.blocked) and 0.5 or 1
+      if qc then r.name:SetTextColor(qc[1], qc[2], qc[3], dim) else r.name:SetTextColor(rgb("ink")) end
+      local a = r.act
+      local red = e.kind == "bound"
+      for _, side in ipairs({ "top", "bottom", "left", "right" }) do
+        if red then a.edge[side]:SetColorTexture(P.RED[1], P.RED[2], P.RED[3], 1) end
+      end
+      if not red then a.edge:set("accent", 1) end
+      a.edgeColor = red and "red" or "accent"
       local tags = {}
       if e.ignored then tags[#tags + 1] = "IGNORED" end
       if e.enchanted then tags[#tags + 1] = "ENCHANTED" end
@@ -338,7 +359,11 @@ function P.Paint()
       if e.above then tags[#tags + 1] = "SKILL " .. tostring(e.need) end
       if e.blocked then tags[#tags + 1] = tostring((e.blocked:match("[Rr]equires (.+)") or e.blocked)):upper() end
       r.tag:SetText(table.concat(tags, "  "))
-      r.tag:SetTextColor(rgb((e.warn or e.blocked) and "gold" or (e.above and "accent" or "muted")))
+      if e.kind == "bound" and not (e.warn or e.blocked) then
+        r.tag:SetTextColor(P.RED[1], P.RED[2], P.RED[3], 1)
+      else
+        r.tag:SetTextColor(rgb((e.warn or e.blocked) and "gold" or (e.above and "accent" or "muted")))
+      end
       r.act.icon:SetDesaturated(e.above or e.ignored or false)
       r:Show()
     else
