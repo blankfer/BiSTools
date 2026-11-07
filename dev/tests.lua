@@ -16,7 +16,14 @@ local function readTOC()
   return ver, list
 end
 local TOC_VERSION, TOC_FILES = readTOC()
-_G.GetAddOnMetadata = function(_, key) if key == "Version" then return TOC_VERSION end return "test" end
+-- THE CLIENT ANSWERS FOR AN ADDON IT HAS, and only the keys its TOC carries (6 Nov 2026: the kit's fingerprint reads
+-- the window's addon from its name - a mock that gave a version to ANY name made "BiSToolsOptions" an addon)
+_G.GetAddOnMetadata = function(addon, key)
+  if addon ~= "BiSTools" then return nil end
+  if key == "Version" then return TOC_VERSION end
+  if key == "X-BiS-Build" then return rawget(_G, "__BUILD") end    -- only a copy deploy.sh stamped has it
+  return nil
+end
 _G.STANDARD_TEXT_FONT = "font"
 _G.DEFAULT_CHAT_FRAME = { AddMessage = function(_, m) W.lastMsg = m end }
 _G.SlashCmdList = {}
@@ -1090,7 +1097,7 @@ lib.sendGap = 0
 do local listed = false for _, f in ipairs(files) do if f == "Libs/BiSTheme/Options.lua" then listed = true end end
   ok(listed, "the TOC lists Libs/BiSTheme/Options.lua (the client loads it from here, not from the BiSTheme addon)") end
 ok(type(BiSTheme.Options) == "function", "BiSTheme.Options is defined after the TOC load")
-ok(BiSTheme.OPTIONS_MINOR == 3, "options kit minor 3 (windows dodge each other): " .. tostring(BiSTheme.OPTIONS_MINOR))
+ok(BiSTheme.OPTIONS_MINOR == 4, "options kit minor 4 (dodge, hover pop, scale 1.2, fingerprint): " .. tostring(BiSTheme.OPTIONS_MINOR))
 ok(_G.SLASH_BISCOMM1 == "/biscomm", "minor 4 gave /bis back to LoonBestInSlot; the lib is /biscomm")
 for k, v in pairs(_G) do if type(k) == "string" and k:match("^SLASH_") then ok(v ~= "/bis", k .. " must not take /bis (LoonBestInSlot owns it)") end end
 -- version: the TOC's, never a literal (RegisterAddon announces it to the whole raid)
@@ -1993,6 +2000,24 @@ do
   -- THE HELP STRIP (Arn, 14 Oct: "yes do the help strip"): hover a setting, the bottom says what it does
   local hb = opt.helpBox
   ok(hb and hb.shown ~= false and hb.h and hb.h >= BiSTheme.OPTIONS.HELP_MIN, "the window carries a help strip at the bottom")
+  -- KIT MINOR 4 (Arn, 6 Nov): 20% bigger, the build at rest in the strip, everything pops under the mouse
+  ok(opt.scale == 1.2, "the options window at scale 1.2", opt.scale)
+  ok(opt.addon == "BiSTools" and hb.title.text:find("BiSTools " .. NS.VERSION, 1, true),
+     "at rest the strip says the build: BiSTools <version>", hb.title.text)
+  ok(BiSTheme.Fingerprint("BiSTools") == "BiSTools " .. NS.VERSION, "a release (no stamp): just the version")
+  _G.__BUILD = "beta/live@abc1234 1106-2000"
+  ok(BiSTheme.Fingerprint("BiSTools") == "BiSTools " .. NS.VERSION .. "  abc1234 1106-2000", "a deployed test build: its stamp too")
+  _G.__BUILD = nil
+  local cb = opt.closeBtn
+  cb.scripts.OnEnter(cb)
+  ok(cb.wash and cb.wash.alpha >= 0.3, "the x pops under the mouse", cb.wash and cb.wash.alpha)
+  cb.scripts.OnLeave(cb)
+  ok(cb.wash.alpha == 0, "and goes dark again")
+  local spotRow = find("spot radius")
+  spotRow.scripts.OnEnter(spotRow)
+  ok(spotRow.lit and spotRow.lit.alpha > 0.15 and spotRow.bar.alpha == 1, "a setting's row lights up, bar and all")
+  spotRow.scripts.OnLeave(spotRow)
+  ok(spotRow.lit.alpha == 0 and spotRow.bar.alpha == 0, "the mouse leaves the row: dark")
   local spot = find("spot radius")
   spot.scripts.OnEnter(spot)
   ok(hb.text.text:find("spawn spot", 1, true) and hb.title.text:find("spot radius", 1, true), "hovering a setting says what it does", hb.text.text)

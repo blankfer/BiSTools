@@ -1,3 +1,7 @@
+## 0.20.1
+
+- **Clearer windows.** In the options window every button, box and row lights up under the mouse, the window is 20% bigger, and the bottom strip shows which version you are on until you hover a setting.
+
 ## 0.20.0
 
 - **The disenchant glow.** Hold Alt with your mouse over your bags: gear you can disenchant glows **purple**, and soulbound gear glows **red**, so you think twice before destroying something you might still want. Works with Blizzard's bags, EllesmereUI and Baganator. Let go of Alt and it's gone. Nothing runs until you press Alt. `/bist off disenchant` turns it off.
