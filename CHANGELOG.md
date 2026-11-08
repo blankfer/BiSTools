@@ -1,5 +1,14 @@
 ## Unreleased
 
+- **BiS> bosses, a boss finder.** Walk into a dungeon or raid and the list of its bosses comes up, in the game's own order, each with the raid mark it will get (skull first, then cross, square, moon...).
+  - **Click a boss** to target it and put its mark on it. Shift-click also pings it for your party. If the boss isn't nearby, nothing is marked and you keep your old target.
+  - **MARK ALL** looks for every boss and marks each one it finds. A long list takes a second or third press, and each press carries on from where the last one stopped.
+  - **FIND** goes one boss at a time, the ones in sight first: targeted, marked and pinged. `/bist bosses key F7` puts it on a key.
+  - **A cockpit to watch it on:** a gauge whose needle climbs as bosses go down, a strip with one light per boss (green down, gold in sight, purple marked), and a screen with the boss in 3D over a synthwave sunset.
+  - A boss is ticked off when its fight ends, and its mark passes to the next one. Leave and come back within the hour and it's the same run; RESET starts a new one. The window steps away during a fight and comes back after.
+  - It knows every dungeon and raid on WoW Forever (43 of them, 335 bosses), from the game's own data. Fights of several, like The Seven or Ring of Law, are listed and ticked off but never targeted.
+  - Starts off; switch it on in the Hub or with `/bist on bosses`. Short word: `/bist boss`. Options: open by itself in a dungeon, and a skull button in the BiS> tools box.
+  - For other addons: BiSToolsAPI version 5 answers `Bosses` and `BossesShow`.
 - **BiS> Codex, an illustrated book of creatures.** `/bist codex` (or the Hub) opens a two-page book set inside a cockpit panel: a Contents page by volumes (I Dungeons, II Raids), each dungeon's plate of its creatures in 3D with numbered captions, and a page for every creature - its model (turn it, or play its stand, attack, cast and death moves), a data plate (level, type, rank, where it lives, its creature and model ids, how often you have met it), its abilities in the game's own words, and what you have seen it drop. An A to Z index and a search by name cover every creature in the book.
   - **Everything comes from the game.** BiS Tools ships only the creatures' ids; their names, the spell texts and the models come from your game client, and nothing is copied from a website.
   - **It learns as you play** (while the tool is on): every creature you target or see a nameplate of joins the book with its level and type, the spells you see it cast, and the loot you take from its corpse.
