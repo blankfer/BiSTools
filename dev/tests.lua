@@ -678,6 +678,8 @@ do
     wrote = wrote + 1
   end
   ok(sv.forever10 == true and wrote == 15 and #wrong == 0, "an existing save at the 1.0 load: every tool frozen as it was, written out", table.concat(wrong, " "))
+  -- a tool 0.20.2 never had is not "as it was" - it was nothing (Arn, 8 Nov: his cousin's pups came up on)
+  ok(sv.enabled.pups == false, "pups, new in 1.0, starts OFF on an existing save too", tostring(sv.enabled.pups))
   ok(R:DBFor(R:Get("farm")).shown == true and R:DBFor(R:Get("summon")).nag == true, "and the farm window and the summon nag as they were (on)")
   local rc = R:DBFor(R:Get("recap"))
   ok(rc.mates == true and rc.recruits == true and rc.sound == true, "and the rivals' crests and ping as they were (on)")
@@ -2048,7 +2050,7 @@ do
   -- RIVALS & PALS, their own tool (Arn, 14 Oct: "decouple from recap ... be its own thing")
   ok(hub.rows[4].name.text == "rivals & pals", "the rivals tool's row is titled rivals & pals")
   ok(hub.rows[1].name.text == "farm" and hub.rows[1].state.text:find("on", 1, true), "row: name + on")
-  ok(hub.con.slots.count and hub.con.slots.count.text == "13 of 15 on", "prompt slot counts the tools that are on (threat and party start off; rides, sounds, xp, disenchant, processing and pups on)")
+  ok(hub.con.slots.count and hub.con.slots.count.text == "12 of 15 on", "prompt slot counts the tools that are on (threat, party and pups - new in 1.0 - start off; rides, sounds, xp, disenchant and processing on)", hub.con.slots.count.text)
   ok(not R:Enabled("threat") and hub.rows[6].name.text == "threat (beta)" and hub.rows[6].state.text:find("off", 1, true),
      "the threat tool starts OFF and is shown as \"threat (beta)\"")
   ok(hub.con:Width() <= H.W - 15 - 8, "hub prompt fits its header budget")
@@ -2103,7 +2105,7 @@ do
   for _, r in ipairs(BiSToolsOptions and BiSToolsOptions.rows or {}) do end
   -- right click toggles the tool; opening an off tool switches it on first
   hub.rows[2].scripts.OnClick(hub.rows[2], "RightButton")
-  ok(not R:Enabled("summon") and hub.rows[2].state.text:find("off", 1, true) and hub.con.slots.count.text == "12 of 15 on", "right click: summon off, row and count follow")
+  ok(not R:Enabled("summon") and hub.rows[2].state.text:find("off", 1, true) and hub.con.slots.count.text == "11 of 15 on", "right click: summon off, row and count follow", hub.con.slots.count.text)
   ok(lib:Enabled(), "and the lib is untouched by it")
   hub.rows[2].scripts.OnClick(hub.rows[2], "LeftButton")
   ok(R:Enabled("summon") and BiSToolsSummon:IsShown() and db_summon().mode == "on", "click on an off tool: switched on and its window pinned open")
@@ -2226,7 +2228,7 @@ do
   local farmHdr = opt.rows[5]
   ok(farmHdr.ctl and farmHdr.ctl.on == true, "farm section box shows on")
   farmHdr.ctl.scripts.OnClick(farmHdr.ctl)
-  ok(not R:Enabled("farm") and farmHdr.ctl.on == false and hub.con.slots.count.text == "12 of 15 on", "box off: farm off, hub count follows")
+  ok(not R:Enabled("farm") and farmHdr.ctl.on == false and hub.con.slots.count.text == "11 of 15 on", "box off: farm off, hub count follows", hub.con.slots.count.text)
   farmHdr.ctl.scripts.OnClick(farmHdr.ctl)
   ok(R:Enabled("farm"), "and back on")
   -- toggle: nag
@@ -8479,7 +8481,8 @@ do
   local keep = { spots = lib.spots, ig = _G.IsInGuild, gn = _G.GetNumGuildMembers, gr = _G.GetGuildRosterInfo,
                  fl = _G.C_FriendList, map = W.map, px = W.px, py = W.py, taxi = _G.UnitOnTaxi, mnt = _G.IsMounted,
                  inst = _G.IsInInstance, zone = W.me.zone, gi = _G.C_GuildInfo, lcn = _G.LOCALIZED_CLASS_NAMES_MALE }
-  ok(PU and R:Get("pups") and R:Enabled("pups"), "the pups tool is there and on")
+  ok(PU and R:Get("pups") and not R:Enabled("pups"), "the pups tool is there, and OFF on this existing save (new in 1.0)")
+  R:SetEnabled("pups", true)                     -- the player turns it on in the Hub; the checks below drive it on
   local pdb = R:DBFor(R:Get("pups"))
   PU.db = pdb
   W.map, W.px, W.py, W.me.zone = 1952, 0.5, 0.5, "Netherstorm"
