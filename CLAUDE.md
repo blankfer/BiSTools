@@ -44,7 +44,7 @@ Read ../_bisdev/CLAUDE.md first.
     (`X.Boosted`: "Boosted Rest" 1229451 by id, then by name HARMFUL - CONFIRMED live 6 Nov); UPDATE_EXHAUSTION looks again. `X.Pick` = `db.food` (the last XP
     food eaten: UNIT_SPELLCAST_SUCCEEDED -> bag item by `C_Item.GetItemSpell`, or `/bist xp food <link>`) while carried,
     else the XP food carried most of (`X.IsXPItem`: the use spell's text says "experience", cached per item; blank
-    text = asked again, 3 tries). The bag scan runs only when `X.dirty` (bag change / login). Levelling only (`X.CAP`), out of combat only; no ticker - one
+    text = asked again, 3 tries). Never food (8 Nov, Arn: the food button "keeps falling back to the sleeping bag" - its use text says experience too): `X.MayBeFood` refuses `X.NOT_FOOD` (bag, tent) and any item whose GetItemInfoInstant class is not Consumable 0 / subclass 0 or 5, checked in `X.IsXPItem` (before its cache), `X.Pick` (a saved `db.food` bag is forgotten), `X.Learn`, `/bist xp food`, `X.State` and `X.ArmFood`. The bag scan runs only when `X.dirty` (bag change / login). Levelling only (`X.CAP`), out of combat only; no ticker - one
     Pairing (Arn 6 Nov): `X.State` reads Well-Rested, the food buff and `X.BagCD` once per look; the bag also shows when
     the food is due and Well-Rested would come due before the next meal (`X.MEAL`, from the buff's duration), the food
     when the bag is due and the food is within `X.PAIR` of low. Lookups fall back to the globals GetItemSpell /

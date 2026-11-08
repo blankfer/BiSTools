@@ -161,7 +161,7 @@ function X.State(db)
   s.live = R:Enabled("xp") and not X.Fighting() and X.Levelling()
   if not s.live then return s end
   s.hasBag = db.bag ~= false and count(X.BAG_ITEM) > 0
-  s.hasFood = db.eat ~= false and X.pick ~= nil and count(X.pick) > 0
+  s.hasFood = db.eat ~= false and X.pick ~= nil and not X.NOT_FOOD[X.pick] and count(X.pick) > 0
   s.r = X.Rested()
   s.f = X.pick and X.Fed() or nil
   if type(s.f) == "table" and s.f.dur then X.MEAL = s.f.dur end
@@ -186,9 +186,30 @@ end
 X.xpItem, X.blank, X.waiting = {}, {}, {}
 X.gaveUp, X.retried = {}, {}                   -- written off by the wait, not by its text; one second chance each
 X.LOAD_WAIT = 30
+
+-- NEVER FOOD (Arn, 8 Nov live: "the food buff keeps falling back to the sleeping bag"). The bag's own use text says "a
+-- bonus to experience earned" and the tent's "Rested experience", so the text check alone took them for XP food - and
+-- using the bag while fed taught it as YOUR food. They have their own buttons. So, before any text: never these ids,
+-- and never an item the client calls something other than Consumable (class 0) / Food & Drink (5) or the old vanilla
+-- Consumable (0) subclass. A client that will not say the class leaves it to the text.
+X.NOT_FOOD = { [X.BAG_ITEM] = true, [X.TENT_ITEM] = true }
+X.FOOD_CLASS, X.FOOD_SUB = 0, { [0] = true, [5] = true }
+function X.MayBeFood(id)
+  if type(id) ~= "number" or X.NOT_FOOD[id] then return false end
+  local f = (C_Item and C_Item.GetItemInfoInstant) or GetItemInfoInstant
+  if type(f) ~= "function" then return true end
+  local ok, _, _, _, _, _, class, sub = pcall(f, id)
+  if not ok then return true end
+  class, sub = plain(class), plain(sub)
+  if type(class) ~= "number" then return true end
+  if class ~= X.FOOD_CLASS then return false end
+  return type(sub) ~= "number" or X.FOOD_SUB[sub] == true
+end
+
 function X.IsXPItem(id)
-  if type(id) ~= "number" then return false end
+  if type(id) ~= "number" or X.NOT_FOOD[id] then return false end   -- before the cache: no old "yes" brings them back
   if X.xpItem[id] ~= nil then return X.xpItem[id] end
+  if not X.MayBeFood(id) then X.xpItem[id] = false return false end
   if not ((C_Item and C_Item.GetItemSpell) or GetItemSpell) or not ((C_Spell and C_Spell.GetSpellDescription)
      or GetSpellDescription) then return nil end
   local sid = itemSpell(id)
@@ -226,6 +247,7 @@ function X.Pick(db)
   db = db or X.db or {}
   local unsure = false
   local best, most
+  if db.food ~= nil and not X.MayBeFood(db.food) then db.food = nil end   -- the bag learned by an older build: forgotten
   -- yours, if it is XP food: a water learned by 0.19.0 is not (and a text still loading is given the benefit)
   -- not known yet = look again next time (Arn, 0.19.1 live: a water stuck on the button when the load event never came)
   local fav = db.food and count(db.food) > 0 and X.IsXPItem(db.food)
@@ -368,7 +390,7 @@ function X.Buttons()
       and ("Well-Rested: %d of %d, %s left."):format(r.stacks, X.RESTED_MAX, mins(r.left)) or "Well-Rested: unknown."
     return { "Unfurl your Cozy Sleeping Bag", state, "Rest inside a minute for each stack, up to " .. X.RESTED_MAX .. "." }
   end)
-  X.food = button("BiSToolsXPFood", X.pick, function()
+  X.food = button("BiSToolsXPFood", X.MayBeFood(X.pick) and X.pick or nil, function()
     local f = X.Fed()
     local state = f == "missing" and "Its Well Fed is gone." or type(f) == "table" and ("Well Fed: " .. mins(f.left) .. " left.")
       or "Well Fed: unknown."
@@ -383,10 +405,12 @@ function X.Buttons()
   return X.bag, X.food, X.tent
 end
 
---- Point the food button at the picked food (out of combat: a secure attribute).
+--- Point the food button at the picked food (out of combat: a secure attribute). The last guard: an item that is not
+--- food (the bag, the tent) never goes on it, whatever picked it.
 function X.ArmFood()
   if not X.food or X.Fighting() then return false end
   local item = X.pick
+  if item ~= nil and not X.MayBeFood(item) then item = nil end
   X.food:SetAttribute("item1", item and ("item:" .. item) or "")
   X.food.icon:SetTexture(item and icon(item) or 134400)
   return true
@@ -463,6 +487,7 @@ function X.Learn(db)
   db = db or X.db
   local a = X.ate
   if not (db and a) or now() - a.at > X.FOOD_WINDOW then return false end
+  if not X.MayBeFood(a.item) then X.ate = nil return false end   -- the sleeping bag used while fed is not your food
   local fed = X.Fed()
   if type(fed) ~= "table" then return false end
   X.ate = nil
@@ -522,6 +547,7 @@ R:Register({
     elseif link then
       local id = tonumber(link:match("item:(%d+)") or link:match("^(%d+)$"))
       if not id then return NS.Print("xp: shift-click the food into the chat line after /bist xp food") end
+      if not X.MayBeFood(id) then return NS.Print("xp: item %d is not food - the sleeping bag and the tent have their own buttons", id) end
       db.food = id X.dirty = true X.Look()
       return NS.Print("xp: your XP food is item %d - eaten first while you have it", id)
     elseif args == "bag on" or args == "bag off" then

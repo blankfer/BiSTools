@@ -7558,6 +7558,16 @@ do
       return nil
     end,
   }
+  -- THE BAG AND THE TENT ARE USABLE ITEMS TOO (Arn, 8 Nov live: "the food buff keeps falling back to the sleeping
+  -- bag"). The mock used to say they had no use spell - kinder than the client, whose bag use text says "a bonus to
+  -- experience earned" and whose tent's says "Rested experience". Their use spell ids are STAND-INS (not measured).
+  local BAG_SPELL, TENT_SPELL = 9990001, 9990002
+  -- the item's class (GetItemInfoInstant: id, type, subtype, equipLoc, icon, classID, subClassID). Food answers
+  -- Consumable (0), Food & Drink (5) - or the old vanilla Consumable (0) subclass, which some cooked food keeps.
+  -- UNVERIFIED: the bag's and tent's real class; the mock gives them the WORST case, a consumable like the food, so
+  -- only the id check can stop them.
+  local CLASS = { [5477] = { 0, 5 }, [2680] = { 0, 5 }, [4599] = { 0, 5 }, [159] = { 0, 5 }, [4592] = { 0, 0 },
+                  [211527] = { 0, 0 }, [279978] = { 0, 0 } }
   _G.C_Item = {
     GetItemCount = function(id) return BAGS[id] or 0 end,
     GetItemIconByID = function(id) return 100000 + id end,
@@ -7566,7 +7576,14 @@ do
       if id == 2680 then return "Nutritious Food", 1248378 end   -- Spiced Wolf Meat
       if id == 4599 then return "Food", 433 end                  -- vendor bread
       if id == 159 then return "Drink", 430 end                  -- Refreshing Spring Water
+      if id == 211527 then return "Cozy Sleeping Bag", BAG_SPELL end
+      if id == 279978 then return "Camp Tent", TENT_SPELL end
       return nil
+    end,
+    GetItemInfoInstant = function(id)
+      local c = CLASS[id]
+      if not c then return nil end
+      return id, "Consumable", "Consumable", "", 100000 + id, c[1], c[2]
     end,
   }
   local CD = { start = 0, dur = 0 }                         -- the sleeping bag's cooldown, as the client answers it
@@ -7592,6 +7609,13 @@ do
       return "Restores 530 health over 24 sec. Must remain seated while eating. If you spend at least 10 sec eating, you"
         .. " will become well fed and gain 10 Attack Power for 15 min. Additionally, experience gained from kills is"
         .. " increased by 5%."
+    end
+    if id == BAG_SPELL then                                    -- Arn's bag tooltip, 6 Nov
+      return "Resting inside for at least one minute will provide a bonus to experience earned, stacking up to 3 times."
+    end
+    if id == TENT_SPELL then                                   -- Arn's tent tooltip, 6 Nov
+      return "Increase Rested experience to 5% of a level. No effect if Rested experience already exceeds that value."
+        .. " Requires a Campfire nearby."
     end
     if id == 433 then return "Restores 61 health over 18 sec. Must remain seated while eating." end
     if id == 430 then return "Restores 151 mana over 18 sec. Must remain seated while drinking." end
@@ -7651,7 +7675,51 @@ do
 
   -- THE FOOD (Arn, 6 Nov: "most food in wow forever that is crafted by the cooking profession has xp buff"): ANY
   -- cooked XP food in your bags is the button's - no learning needed. Bread never is.
-  ok(not X.ShowFood() and not food:IsShown() and X.pick == nil, "only bread in my bags: no food button")
+  ok(not X.ShowFood() and not food:IsShown() and X.pick == nil, "only bread and the sleeping bag in my bags: no food button",
+     tostring(X.pick))
+  -- THE FOOD BUTTON NEVER HOLDS THE BAG (Arn, 8 Nov live: "the food buff keeps falling back to the sleeping bag"). The
+  -- bag's use text says experience, so the old check took it for XP food.
+  ok(X.IsXPItem(X.BAG_ITEM) == false and X.IsXPItem(X.TENT_ITEM) == false, "the bag and the tent are never XP food")
+  ok(X.Pick() == nil and food.attrs.item1 == "", "the food pick never lands on the bag", tostring(X.pick))
+  BAGS[X.TENT_ITEM], SLOTS[0][3] = 1, X.TENT_ITEM
+  fire("BAG_UPDATE_DELAYED")
+  ok(X.pick == nil and not food:IsShown(), "nor on the tent", tostring(X.pick))
+  BAGS[X.TENT_ITEM], SLOTS[0][3] = nil, nil
+  -- a favourite that is the bag (learned by an older build): forgotten, never the button's
+  db.food = X.BAG_ITEM
+  fire("BAG_UPDATE_DELAYED")
+  ok(X.pick == nil and db.food == nil and not food:IsShown(), "a saved favourite that is the bag: forgotten", tostring(db.food))
+  -- even a cached "yes" from before cannot bring it back
+  X.xpItem[X.BAG_ITEM] = true
+  db.food = X.BAG_ITEM
+  fire("BAG_UPDATE_DELAYED")
+  ok(X.pick == nil and db.food == nil, "a remembered 'it is food' for the bag: still never picked", tostring(X.pick))
+  X.xpItem[X.BAG_ITEM] = nil
+  -- use the bag while fed: the cast is the bag's, it is never learned as the food
+  FED = { spellId = 1249519, expirationTime = W.now + 900, applications = 1 }
+  fire("UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-0", BAG_SPELL)
+  W.now = W.now + 5
+  fire("UNIT_AURA", "player")
+  ok(db.food == nil and X.ate == nil, "the sleeping bag used while fed: never recorded as the food", tostring(db.food))
+  FED = nil
+  fire("UNIT_AURA", "player")
+  -- by hand: refused
+  S("xp food |cffffffff|Hitem:211527::::::::20:::::|h[Cozy Sleeping Bag]|h|r")
+  ok(db.food == nil, "/bist xp food <the bag>: refused", tostring(db.food))
+  -- the last guard: even a wrong pick can never put the bag on the food button
+  X.pick = X.BAG_ITEM
+  X.ArmFood()
+  ok(food.attrs.item1 == "" and not X.ShowFood(), "a wrong pick forced onto the button: it holds nothing, it stays hidden",
+     food.attrs.item1)
+  X.pick = nil
+  X.ArmFood()
+  -- the item's class: experience in the text is not enough when the client says it is not food
+  CLASS[900001], CLASS[900002] = { 15, 0 }, { 0, 1 }      -- a made-up trinket-ish item and a made-up potion
+  local realSpell0 = _G.C_Item.GetItemSpell
+  _G.C_Item.GetItemSpell = function(id) if id == 900001 or id == 900002 then return "Boon", 1248379 end return realSpell0(id) end
+  ok(X.IsXPItem(900001) == false and X.IsXPItem(900002) == false, "experience text on a non-food class: not XP food")
+  _G.C_Item.GetItemSpell = realSpell0
+  CLASS[900001], CLASS[900002] = nil, nil
   -- Strider Stew in the bags, its text not loaded yet: not decided, asked again on the next look
   BAGS[5477] = 3
   SLOTS[0][3] = 5477
