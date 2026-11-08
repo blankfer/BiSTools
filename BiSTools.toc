@@ -43,5 +43,8 @@ Tools\XP.lua
 Tools\Disenchant.lua
 Tools\Processing.lua
 Tools\Pups.lua
+Tools\CodexData.lua
+Tools\Codex.lua
+Tools\CodexWindow.lua
 API.lua
 Tools\Hub.lua

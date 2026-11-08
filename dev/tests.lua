@@ -283,6 +283,7 @@ local function FontString()
   function s:Show() self.shown = true end
   function s:Hide() self.shown = false end
   function s:IsShown() return self.shown end
+  function s:SetShown(v) self.shown = v and true or false end   -- every region has it in the client (BiS> Codex)
   function s:SetText(x) self.text = x end
   function s:GetText() return self.text end
   function s:SetAlpha(a) self.alpha = a end
@@ -339,7 +340,15 @@ _G.CreateFrame = function(kind, name, parent, template)
       self._creature = id
       if W.knownCreature[id] then self._file = 100000 + id else self._file = 0 W.knownCreature[id] = true end
     end
-    function f:ClearModel() self._creature, self._unit, self._file = nil, nil, nil end
+    -- BY MODEL ID (8 Nov 2026, BiS> Codex's plates): the client draws a display id from its own files, at once - but a
+    -- model that is not on the screen (it, or a parent, hidden) loads nothing, and asking again later is the only cure
+    -- ("a hidden model may never load"). So a display asked while hidden draws NOTHING here too.
+    function f:SetDisplayInfo(id)
+      if type(id) ~= "number" then error("SetDisplayInfo needs a display id", 2) end
+      self._display, self._creature = id, nil
+      self._file = self:IsVisible() and (300000 + id) or 0
+    end
+    function f:ClearModel() self._creature, self._unit, self._file, self._display = nil, nil, nil, nil end
     -- a unit's own body (the death recap's player killer, by UnitTokenFromGUID): a token, never a GUID or a name
     function f:SetUnit(u)
       if type(u) ~= "string" or u:find("%-") then error("SetUnit needs a unit token", 2) end
@@ -677,7 +686,7 @@ do
     if sv.enabled[key] ~= want then wrong[#wrong + 1] = key .. "=" .. tostring(sv.enabled[key]) end
     wrote = wrote + 1
   end
-  ok(sv.forever10 == true and wrote == 15 and #wrong == 0, "an existing save at the 1.0 load: every tool frozen as it was, written out", table.concat(wrong, " "))
+  ok(sv.forever10 == true and wrote == 16 and #wrong == 0, "an existing save at the 1.0 load: every tool frozen as it was, written out", table.concat(wrong, " "))
   -- a tool 0.20.2 never had is not "as it was" - it was nothing (Arn, 8 Nov: his cousin's pups came up on)
   ok(sv.enabled.pups == false, "pups, new in 1.0, starts OFF on an existing save too", tostring(sv.enabled.pups))
   ok(R:DBFor(R:Get("farm")).shown == true and R:DBFor(R:Get("summon")).nag == true, "and the farm window and the summon nag as they were (on)")
@@ -2041,7 +2050,7 @@ do
   -- left click: the Hub, one row per tool
   mm.scripts.OnClick(mm, "LeftButton")
   local hub = BiSToolsHub
-  ok(hub and hub:IsShown() and #hub.rows == 15 and hub.rows[15].key == "pups", "left click opens the Hub with a row per registered tool")   -- +disenchant, +processing, +pups, 6 Nov
+  ok(hub and hub:IsShown() and #hub.rows == 16 and hub.rows[15].key == "pups" and hub.rows[16].key == "codex", "left click opens the Hub with a row per registered tool")   -- +disenchant, +processing, +pups, 6 Nov
   ok(hub.scale == 1.2, "the Tools list is 20% bigger (Arn: \"lets make this 20% bigger\")")
   ok(hub.rows[1].key == "farm" and hub.rows[2].key == "summon" and hub.rows[3].key == "recap" and hub.rows[4].key == "rivals"
      and hub.rows[5].key == "social" and hub.rows[6].key == "threat" and hub.rows[7].key == "bg" and hub.rows[8].key == "map" and hub.rows[9].key == "party"
@@ -2050,12 +2059,12 @@ do
   -- RIVALS & PALS, their own tool (Arn, 14 Oct: "decouple from recap ... be its own thing")
   ok(hub.rows[4].name.text == "rivals & pals", "the rivals tool's row is titled rivals & pals")
   ok(hub.rows[1].name.text == "farm" and hub.rows[1].state.text:find("on", 1, true), "row: name + on")
-  ok(hub.con.slots.count and hub.con.slots.count.text == "12 of 15 on", "prompt slot counts the tools that are on (threat, party and pups - new in 1.0 - start off; rides, sounds, xp, disenchant and processing on)", hub.con.slots.count.text)
+  ok(hub.con.slots.count and hub.con.slots.count.text == "12 of 16 on", "prompt slot counts the tools that are on (threat, party, pups and codex - new in 1.0 - start off; rides, sounds, xp, disenchant and processing on)", hub.con.slots.count.text)
   ok(not R:Enabled("threat") and hub.rows[6].name.text == "threat (beta)" and hub.rows[6].state.text:find("off", 1, true),
      "the threat tool starts OFF and is shown as \"threat (beta)\"")
   ok(hub.con:Width() <= H.W - 15 - 8, "hub prompt fits its header budget")
   ok(hub.closeBtn.point[4] == -3, "only an x in the header, at -3")
-  ok(hub.foot and hub.foot.label.text == "options" and hub.h == 16 + 15 * 16 + 4 + 16, "footer 'options' button; height = header + rows + footer")
+  ok(hub.foot and hub.foot.label.text == "options" and hub.h == 16 + 16 * 16 + 4 + 16, "footer 'options' button; height = header + rows + footer")
   -- row click opens the tool window; shift-click drags it to the middle
   BiSToolsFarm:Hide() F.db.pos = { "TOPLEFT", 400, -300, "TOPLEFT" }
   hub.rows[1].scripts.OnClick(hub.rows[1], "LeftButton")
@@ -2105,7 +2114,7 @@ do
   for _, r in ipairs(BiSToolsOptions and BiSToolsOptions.rows or {}) do end
   -- right click toggles the tool; opening an off tool switches it on first
   hub.rows[2].scripts.OnClick(hub.rows[2], "RightButton")
-  ok(not R:Enabled("summon") and hub.rows[2].state.text:find("off", 1, true) and hub.con.slots.count.text == "11 of 15 on", "right click: summon off, row and count follow", hub.con.slots.count.text)
+  ok(not R:Enabled("summon") and hub.rows[2].state.text:find("off", 1, true) and hub.con.slots.count.text == "11 of 16 on", "right click: summon off, row and count follow", hub.con.slots.count.text)
   ok(lib:Enabled(), "and the lib is untouched by it")
   hub.rows[2].scripts.OnClick(hub.rows[2], "LeftButton")
   ok(R:Enabled("summon") and BiSToolsSummon:IsShown() and db_summon().mode == "on", "click on an off tool: switched on and its window pinned open")
@@ -2141,7 +2150,8 @@ do
   -- (+ sounds (1), 5 Nov: the explorer's open button - and its section header)
   -- (+ pups (2), 6 Nov: the travel button switch, the radar's open button - and its section header)
   -- (+1 in xp, 6 Nov: the camp tent button; + disenchant (0), 6 Nov: its section header, the on/off)
-  ok(#opt.rows == 13 + 3 + 5 + 7 + 1 + 8 + 2 + 2 + 4 + 7 + 4 + 4 + 5 + 1 + 2 + 1 + 1 + 1 + 3, "one row per section header and per option", #opt.rows)
+  -- (+ codex (1), 8 Nov: the book's open button - and its section header)
+  ok(#opt.rows == 13 + 3 + 5 + 7 + 1 + 8 + 2 + 2 + 4 + 7 + 4 + 4 + 5 + 1 + 2 + 1 + 1 + 1 + 3 + 2, "one row per section header and per option", #opt.rows)
   -- THE BiSTheme STANDARD, 1.43:1 (Arn, 14 Oct): its sections poured into columns, the window that shape
   ok(math.abs(opt.w / opt.h - 1.43) < 0.01 and (opt.columns or 1) >= 2, "options: 1.43:1, in columns", opt.w .. "x" .. opt.h)
   local function find(label) for _, r in ipairs(opt.rows) do if r.name and r.name.text == label then return r end end end
@@ -2228,7 +2238,7 @@ do
   local farmHdr = opt.rows[5]
   ok(farmHdr.ctl and farmHdr.ctl.on == true, "farm section box shows on")
   farmHdr.ctl.scripts.OnClick(farmHdr.ctl)
-  ok(not R:Enabled("farm") and farmHdr.ctl.on == false and hub.con.slots.count.text == "11 of 15 on", "box off: farm off, hub count follows", hub.con.slots.count.text)
+  ok(not R:Enabled("farm") and farmHdr.ctl.on == false and hub.con.slots.count.text == "11 of 16 on", "box off: farm off, hub count follows", hub.con.slots.count.text)
   farmHdr.ctl.scripts.OnClick(farmHdr.ctl)
   ok(R:Enabled("farm"), "and back on")
   -- toggle: nag
@@ -2344,7 +2354,7 @@ do
     local spec = page.spec
     ok(spec.title == "Tools" and spec.api and spec.api.name == "BiSToolsAPI" and spec.open and spec.open.label == "the tools list",
        "titled Tools, the API named, a big button to the tools")
-    ok(spec.status() == H.Status() and spec.status():find("of 15 tools on", 1, true), "its status line: N of 15 tools on", spec.status())
+    ok(spec.status() == H.Status() and spec.status():find("of 16 tools on", 1, true), "its status line: N of 16 tools on", spec.status())
     -- THE DASHBOARD (Arn, 7 Nov live: "dont just shrink remake them all"): the page draws itself and never takes
     -- the options window in
     ok(spec.build and spec.refresh and spec.window == nil, "the page is a dashboard, not the options window in a box")
@@ -2353,7 +2363,7 @@ do
     local optParent = BiSToolsOptions.parent
     ok(optParent ~= page.frame.body and not BiSToolsOptions:IsShown(), "the options window stays where it lives, hidden")
     local d = page.frame.body.dash
-    ok(d and #d.rows == 16 and d.rows[1].entry.general, "the list: BiS Tools itself, then all 15 tools", d and #d.rows)
+    ok(d and #d.rows == 17 and d.rows[1].entry.general, "the list: BiS Tools itself, then all 16 tools", d and #d.rows)
     -- THE FAMILY RULE (Arn, 8 Nov: "its a theme so itll keep all the pages looking the same"): the page is the kit's
     -- BiSTheme.Dashboard, fed the Registry's own tables; the hand-built copy in Hub.lua is gone
     ok(d.model and d.model.list == "TOOLS" and d.list.head.text == "TOOLS" and type(d.Paint) == "function"
@@ -2469,7 +2479,7 @@ do
         if r.isSection and r.ctl and r.name and r.name.text == want then found[#found + 1] = key break end
       end
     end
-    ok(#found == 15, "all 15 tools have an on/off tick in the options window", #found)
+    ok(#found == 16, "all 16 tools have an on/off tick in the options window", #found)
     -- the minimap's right-click: the OWN options window, and again closes it (Arn, 7 Nov live); the open button: the Hub
     BiSToolsHub:Hide()
     BiSToolsOptions:Hide()
@@ -2541,8 +2551,8 @@ do
   for _, tool in R:Each() do if tool.__real then tool.OnLogin, tool.__real = tool.__real, nil end end
   ok(logins == 0, "at login no tool wakes: nothing hooks, nothing opens, nothing plays", logins)
   NS.Hub.ToggleHub(true)
-  ok(BiSToolsHub.con.slots.count.text == "0 of 15 on", "the Hub, the main page: 0 of 15 on", BiSToolsHub.con.slots.count.text)
-  ok(NS.Hub.Status() == "0 of 15 tools on", "the BiS> page's status line says it", NS.Hub.Status())
+  ok(BiSToolsHub.con.slots.count.text == "0 of 16 on", "the Hub, the main page: 0 of 16 on", BiSToolsHub.con.slots.count.text)
+  ok(NS.Hub.Status() == "0 of 16 tools on", "the BiS> page's status line says it", NS.Hub.Status())
   -- the user chooses: a switch writes TRUE (not nil) and off writes FALSE
   R:SetEnabled("social", true)
   ok(fresh.enabled.social == true and R:Enabled("social"), "switched on: stored as true")
@@ -7059,7 +7069,7 @@ do
   S("rides all")
   ok(rdb.all == false and not f:IsShown(), "and back to the pop-up")
   -- other addons ask BiS Tools (API version 3): the rides, timed or not, docked or not
-  ok(BiSToolsAPI.version == 3, "BiSToolsAPI version 3: the rides")
+  ok(BiSToolsAPI.version >= 3, "BiSToolsAPI version 3 or later: the rides")
   local rides = BiSToolsAPI.Rides(1454)
   ok(#rides == 2 and rides[1].id == "org_uc" and rides[1].timed and rides[1].by == "Arn" and not rides[1].docked
      and rides[2].timed == false, "Rides(Orgrimmar): both zeppelins, the timed one with its numbers")
@@ -8703,6 +8713,294 @@ do
   lib.spots, _G.IsInGuild, _G.GetNumGuildMembers, _G.GetGuildRosterInfo = keep.spots, keep.ig, keep.gn, keep.gr
   _G.C_FriendList, W.map, W.px, W.py, _G.UnitOnTaxi, _G.IsMounted = keep.fl, keep.map, keep.px, keep.py, keep.taxi, keep.mnt
   W.me.zone, _G.C_GuildInfo, _G.LOCALIZED_CLASS_NAMES_MALE = keep.zone, keep.gi, keep.lcn
+end
+
+-- ---------------------------------------------------------------- BiS> Codex (Arn, 8 Nov 2026: "a unit Id compendium
+-- encyclopedia britannica style 3d models abilities etc ... usual all available in game stuff nothing scraped")
+do
+  local C, D = NS.Codex, NS.CodexData
+  local keep = { ti = rawget(_G, "C_TooltipInfo"), sp = rawget(_G, "C_Spell"), item = rawget(_G, "C_Item"),
+                 lvl = _G.UnitLevel, cls = rawget(_G, "UnitClassification"), ctype = rawget(_G, "UnitCreatureType"),
+                 fam = rawget(_G, "UnitCreatureFamily"), nli = rawget(_G, "GetNumLootItems"), lsl = rawget(_G, "GetLootSlotLink"),
+                 lsi = rawget(_G, "GetLootSourceInfo"), is = _G.issecretvalue, type = _G.type, target = W.target, plates = W.plates }
+  -- THE CLIENT, AS MEASURED (CODEX-RESEARCH.md, LIVE PROBES ANSWERED): a creature's name by id comes back NIL on the
+  -- first ask (the client fetches it from the server) and on the next ask it is there
+  local names = { [11520] = "Taragaman the Hungerer", [11318] = "Ragefire Trogg", [11502] = "Ragnaros",
+                  [12118] = "Lucifron", [258905] = "Zul'Alai", [999001] = "Tarren Mill Bear", [448] = "Hogger" }
+  local fetched, asks = {}, 0
+  _G.C_TooltipInfo = { GetHyperlink = function(link)
+    if type(link) ~= "string" then error("GetHyperlink wants a link", 2) end
+    asks = asks + 1
+    local npc = tonumber(link:match("^unit:Creature%-0%-0%-0%-0%-(%d+)%-0$"))
+    if not npc then return nil end
+    if not fetched[npc] then fetched[npc] = true return nil end   -- the first ask only starts the fetch
+    if not names[npc] then return nil end                         -- an id the server has no creature for
+    return { lines = { { leftText = names[npc] } } }
+  end }
+  -- spell text: the name at once; the description EMPTY until RequestLoadSpellData, and a moment after it (probe 6)
+  local spells = { [11970] = { "Fire Nova", "Inflicts Fire damage to nearby enemies.", 135824 },
+                   [18072] = { "Uppercut", "Knocks an enemy into the air.", 132151 },
+                   [20566] = { "Wrath of Ragnaros", "Knocks back everyone near the caster.", 135830 },
+                   [99999] = { "Mystery Bolt", "A bolt of mystery.", 136000 } }
+  local loadAt, requested = {}, 0
+  _G.C_Spell = {
+    GetSpellName = function(id) return spells[id] and spells[id][1] end,
+    GetSpellTexture = function(id) return spells[id] and spells[id][3] end,
+    GetSpellDescription = function(id)
+      if not spells[id] then return nil end
+      if loadAt[id] and W.now >= loadAt[id] then return spells[id][2] end
+      return ""
+    end,
+    RequestLoadSpellData = function(id) requested = requested + 1 loadAt[id] = loadAt[id] or (W.now + 0.5) end,
+  }
+  local items = { [14149] = { "Subterranean Cape", 3 }, [14145] = { "Cursed Felblade", 3 } }
+  _G.C_Item = { GetItemNameByID = function(id) return items[id] and items[id][1] end,
+                GetItemQualityByID = function(id) return items[id] and items[id][2] end,
+                RequestLoadItemDataByID = function() end }
+  -- the target's facts (W.target): level, rank, type, family - each may come back hidden
+  _G.UnitLevel = function(u) local x = (u == "target" and W.target) or W.plates[u] if x then return x.level end return 60 end
+  _G.UnitClassification = function(u) local x = (u == "target" and W.target) or W.plates[u] return x and x.class or "normal" end
+  _G.UnitCreatureType = function(u) local x = (u == "target" and W.target) or W.plates[u] return x and x.ctype end
+  _G.UnitCreatureFamily = function(u) local x = (u == "target" and W.target) or W.plates[u] return x and x.family end
+  local secretMeta = { __index = function() error("attempt to use a secret value", 2) end,
+    __lt = function() error("attempt to compare a secret value", 2) end,
+    __le = function() error("attempt to compare a secret value", 2) end,
+    __concat = function() error("attempt to concatenate a secret value", 2) end }
+  local function secret() return setmetatable({}, secretMeta) end
+  local realType = type
+  _G.type = function(v) if getmetatable(v) == secretMeta then return "number" end return realType(v) end
+  _G.issecretvalue = function(v) return getmetatable(v) == secretMeta end
+
+  -- THE INDEX WE SHIP: ids only, by dungeon
+  ok(C and D and D.creatures and D.dungeons and D.volumes, "the Codex and its shipped index are loaded")
+  local n, bad = 0, {}
+  for npc, c in pairs(D.creatures) do
+    n = n + 1
+    if type(npc) ~= "number" or npc < 1 or type(c.d) ~= "string" or not D.dungeons[c.d] then bad[#bad + 1] = tostring(npc) end
+    if c.name ~= nil then bad[#bad + 1] = tostring(npc) .. " ships a name" end
+  end
+  ok(n == 120 and #bad == 0, "120 creatures, each an npc id in a dungeon we ship, and no shipped names", n .. " " .. table.concat(bad, " "))
+  local inLists, vol = 0, {}
+  for _, v in ipairs(D.volumes) do
+    for _, id in ipairs(v.list) do
+      vol[id] = v.id
+      local d = D.dungeons[id]
+      for _, npc in ipairs(d.list) do if D.creatures[npc] and D.creatures[npc].d == id then inLists = inLists + 1 end end
+      ok(type(d.title) == "string" and type(d.where) == "string" and type(d.level) == "number" and type(d.about) == "string",
+         id .. ": a title, a place, a level and our own line")
+    end
+  end
+  ok(inLists == 120, "every creature is listed once, in its own dungeon", inLists)
+  ok(D.volumes[1].id == "dungeons" and D.volumes[2].id == "raids" and vol.mc == "raids" and #D.dungeons.mc.list == 10,
+     "Volume I dungeons, Volume II raids: the Molten Core's ten")
+  ok(D.creatures[11520].boss and D.creatures[11520].display == 7970 and D.creatures[11520].spells[1] == 11970,
+     "Taragaman: a boss, his model, his Fire Nova")
+  ok(D.creatures[258905].display == nil, "a creature with no model id known is asked by its npc id")
+
+  -- THE TOOL: new in 1.0+, so off on this existing save; the slash is the player's own click, and switches it on
+  ok(R:Get("codex") and R:Get("cdx") == R:Get("codex") and not R:Enabled("codex"), "the codex tool, short word cdx, OFF on an existing save")
+  ok(not C.Listening(), "off: it listens to nothing")
+  S("codex")
+  local f = BiSToolsCodex
+  ok(R:Enabled("codex") and C.Listening() and f and f:IsShown(), "/bist codex: switched on, listening, the book open")
+  ok(math.abs(f.w / f.h - 1.43) < 0.01 and f.scale == 1.2, "1.43:1 and 20% bigger", f.w .. "x" .. f.h)
+  local esc = false
+  for _, nm in ipairs(UISpecialFrames) do if nm == "BiSToolsCodex" then esc = true end end
+  ok(esc, "Escape closes it")
+  ok(C.UI.view == "contents" and f.lcd.text:find("CONTENTS", 1, true), "it opens on the Contents", f.lcd.text)
+  fitsIn(f, "the Codex housing")
+  fitsIn(f.pages[1], "the Contents, left page")
+  fitsIn(f.pages[2], "the Contents, right page")
+  local row1
+  for _, r in ipairs(f.toc) do if r.entry and r.entry.dungeon then row1 = r break end end
+  ok(row1.shown and row1.entry and row1.entry.dungeon == "rfc", "the first line of the Contents: Ragefire Chasm")
+  row1.scripts.OnEnter(row1)
+  ok(row1.wash.alpha >= 0.3 and row1.bar.alpha == 1, "a Contents line pops under the mouse")
+  row1.scripts.OnLeave(row1)
+  ok(row1.wash.alpha == 0, "and goes back")
+  for _, k in ipairs({ f.keys.contents, f.keys.index, f.az[1], f.prev, f.next }) do
+    k.scripts.OnEnter(k)
+    ok(k.wash.alpha >= 0.3 and k.bar.alpha == 1, "a housing key pops under the mouse")
+    k.scripts.OnLeave(k)
+  end
+
+  -- A DUNGEON SPREAD: the plate on the left, the last creature's page on the right
+  row1.scripts.OnClick(row1)
+  ok(C.UI.view == "dungeon" and C.UI.dungeon == "rfc" and C.UI.sel == 11520, "click Ragefire Chasm: its spread, Taragaman's page")
+  local fig2 = f.figs[2]
+  ok(f.figs[1].shown and fig2.shown and not f.figs[3].shown, "two figures on the plate")
+  ok(fig2.m.shown and fig2.m._display == 7970 and fig2.m._file > 0, "a figure is the creature's own model, drawn (shown before it was asked)")
+  ok(f.hero.shown and f.hero._display == 7970 and f.hero._file > 0, "the page's big model too")
+  ok(f.caps[1].shown and f.caps[1].text:find("^1"), "captions numbered like the plate", f.caps[1].text)
+  fig2.scripts.OnEnter(fig2)
+  ok(fig2.wash.alpha >= 0.3 and fig2.bar.alpha == 1, "a figure pops under the mouse")
+  fig2.scripts.OnLeave(fig2)
+  -- abilities: the name and icon at once, the words only after the client loads them
+  ok(f.abil[1].shown and f.abil[1].name.text == "Fire Nova" and f.abil[1].icon.file == 135824, "Fire Nova, with its icon")
+  ok(requested >= 1 and f.abil[1].desc.text ~= "Inflicts Fire damage to nearby enemies.", "its words asked for, not there yet", f.abil[1].desc.text)
+  -- the name: nil on the first ask, there on the next (the client's own two-step)
+  ok(C.DB().names[11520] == nil and f.name.text ~= "TARAGAMAN THE HUNGERER", "no name yet: the client was only asked")
+  W.runAfters(1.1)
+  ok(C.DB().names[11520] == "Taragaman the Hungerer" and C.DB().names[11318] == "Ragefire Trogg", "a second later the names are in, and kept", tostring(C.DB().names[11520]))
+  ok(f.name.text == "TARAGAMAN THE HUNGERER" and f.caps[2].text:find("Taragaman the Hungerer", 1, true), "the page and the caption show it", f.name.text)
+  W.runAfters(2)
+  ok(f.abil[1].desc.text == "Inflicts Fire damage to nearby enemies.", "a moment later: the client's own words", f.abil[1].desc.text)
+  f.abil[1].scripts.OnEnter(f.abil[1])
+  ok(f.abil[1].wash.alpha >= 0.3 and f.abil[1].bar.alpha == 1, "an ability row pops under the mouse")
+  f.abil[1].scripts.OnLeave(f.abil[1])
+  ok(f.data.v.CREATURE.text == "11520" and f.data.v.MODEL.text == "7970" and f.data.v.FOUND.text:find("RAGEFIRE", 1, true),
+     "the data plate: creature id, model id, where", f.data.v.FOUND.text)
+  ok(f.noLoot.shown, "nothing seen to drop yet, said so")
+  fitsIn(f.pages[1], "the Ragefire Chasm plate")
+  fitsIn(f.pages[2], "Taragaman's page")
+  fitsIn(f.data, "the data plate")
+  fitsIn(f, "the Codex housing on a spread")
+  -- the animation keys: stand, attack, cast, death on the big model; turn spins it while the window is up
+  f.anim.ATTACK.scripts.OnClick(f.anim.ATTACK)
+  ok(f.hero._anim == 17, "ATTACK plays the attack", f.hero._anim)
+  f.anim.TURN.scripts.OnClick(f.anim.TURN)
+  ok(f.hero.scripts.OnUpdate ~= nil, "TURN: the model turns")
+  local face0 = f.hero._facing
+  f.hero.scripts.OnUpdate(f.hero, 0.5)
+  ok(f.hero._facing ~= face0, "and keeps turning")
+  -- a figure with no model id: asked by npc id, drawn on the second ask
+  C.UI.OpenDungeon("drowned")
+  local m1 = f.figs[1].m
+  ok(m1._creature == 258905 and m1._file == 0, "the Drowned City's first figure: asked by npc id, nothing drawn yet")
+  W.runAfters(1)
+  ok(m1._file > 0, "drawn on the next ask")
+
+  -- CREATURES MET: the target teaches the book; a hidden value is skipped, never compared
+  local db = C.DB()
+  W.target = { name = "Taragaman the Hungerer", guid = "Creature-0-4410-389-12-11520-00004A1B2C", level = 16, class = "elite", ctype = "Demon" }
+  fireAll("PLAYER_TARGET_CHANGED")
+  local met = db.met[11520]
+  ok(met and met.n == 1 and met.level == 16 and met.rank == "elite" and met.type == "Demon", "targeting him: met once, level 16, elite, a demon")
+  fireAll("PLAYER_TARGET_CHANGED")
+  ok(db.met[11520].n == 1, "the same one again is not a second meeting")
+  W.target = { name = "Taragaman the Hungerer", guid = "Creature-0-4410-389-12-11520-00004A1B2D", level = 16, class = "elite", ctype = "Demon" }
+  fireAll("PLAYER_TARGET_CHANGED")
+  ok(db.met[11520].n == 2, "another spawn of him is", db.met[11520].n)
+  W.target = { name = "Tarren Mill Bear", guid = "Creature-0-4410-0-12-999001-0000000001", level = secret(), class = secret(), ctype = "Beast", family = "Bear" }
+  local okS = pcall(fireAll, "PLAYER_TARGET_CHANGED")
+  local bear = db.met[999001]
+  ok(okS and bear and bear.n == 1 and bear.level == nil and bear.rank == nil and bear.type == "Beast" and bear.family == "Bear",
+     "a hidden level and rank are skipped, the rest is kept")
+  ok(db.names[999001] == "Tarren Mill Bear", "and the name it showed is kept")
+  W.target = { name = "Me", guid = "Player-1" } fireAll("PLAYER_TARGET_CHANGED")
+  W.target = { name = "x", guid = secret() }
+  ok(pcall(fireAll, "PLAYER_TARGET_CHANGED"), "a hidden GUID: nothing learned, nothing thrown")
+  W.plates = { nameplate1 = { name = "Ragefire Trogg", guid = "Creature-0-4410-389-12-11318-0000000099", level = 14, class = "normal", ctype = "Humanoid" } }
+  fireAll("NAME_PLATE_UNIT_ADDED", "nameplate1")
+  ok(db.met[11318] and db.met[11318].n == 1 and db.met[11318].level == 14, "a nameplate teaches it too")
+  -- seen cast: a spell id read plain is kept; a hidden one is not
+  W.target = { name = "Taragaman the Hungerer", guid = "Creature-0-4410-389-12-11520-00004A1B2D" }
+  fireAll("UNIT_SPELLCAST_START", "target", "Cast-1", 99999)
+  ok(db.casts[11520] and db.casts[11520][99999], "a spell he was seen casting is learned")
+  ok(pcall(fireAll, "UNIT_SPELLCAST_START", "target", "Cast-2", secret()), "a hidden spell id: skipped, nothing thrown")
+  fireAll("UNIT_SPELLCAST_START", "player", "Cast-3", 11970)
+  ok(not (db.casts[11520] and db.casts[11520][11970]) and not db.casts.player, "my own casts are not his")
+
+  -- SEEN TO DROP: the corpse's GUID from the loot window
+  local loot = { { link = "|cff0070dd|Hitem:14149::::::::16:::::|h[Subterranean Cape]|h|r", src = { "Creature-0-4410-389-12-11520-00004A1B2D", 1 } },
+                 { link = "|cff0070dd|Hitem:14145::::::::16:::::|h[Cursed Felblade]|h|r", src = { "Creature-0-4410-389-12-11520-00004A1B2D", 1 } } }
+  _G.GetNumLootItems = function() return #loot end
+  _G.GetLootSlotLink = function(i) return loot[i] and loot[i].link end
+  _G.GetLootSourceInfo = function(i) return unpack(loot[i] and loot[i].src or {}) end
+  fireAll("LOOT_OPENED")
+  ok(db.seen[11520] and db.seen[11520][14149] == 1 and db.seen[11520][14145] == 1, "both items written against Taragaman")
+  fireAll("LOOT_OPENED")
+  ok(db.seen[11520][14149] == 1, "the same corpse opened again counts once")
+  loot[1].src = { "Creature-0-4410-389-12-11520-00004A1B2E", 1 }
+  loot[2] = nil
+  fireAll("LOOT_OPENED")
+  ok(db.seen[11520][14149] == 2, "the next corpse's cape: twice now", db.seen[11520][14149])
+  loot[1].src = { secret(), 1 }
+  ok(pcall(fireAll, "LOOT_OPENED") and db.seen[11520][14149] == 2, "a hidden corpse GUID: skipped")
+  C.UI.Show(11520)
+  ok(f.loot[1].shown and f.loot[1].text:find("Subterranean Cape", 1, true) and f.loot[1].text:find("2", 1, true), "the page: the cape, twice", f.loot[1].text)
+  ok(f.data.v.MET.text:find("2", 1, true) and f.data.v.LEVEL.text == "16", "met twice, level 16", f.data.v.MET.text)
+  ok(f.abil[3].shown and f.abil[3].name.text == "Mystery Bolt", "the spell seen cast joins his shipped two")
+  fitsIn(f.pages[2], "Taragaman's page, with loot")
+
+  -- A TO Z: shipped and met, by their live names; search by name
+  C.UI.OpenIndex("T")
+  ok(C.UI.view == "index", "the index")
+  local found = {}
+  for _, r in ipairs(f.idx) do if r.shown then found[#found + 1] = r.name.text end end
+  ok(table.concat(found, ","):find("Taragaman the Hungerer", 1, true) and table.concat(found, ","):find("Tarren Mill Bear", 1, true),
+     "T: Taragaman (shipped) and the bear (met only)", table.concat(found, ","))
+  f.idx[1].scripts.OnEnter(f.idx[1])
+  ok(f.idx[1].wash.alpha >= 0.3 and f.idx[1].bar.alpha == 1, "an index row pops under the mouse")
+  f.idx[1].scripts.OnLeave(f.idx[1])
+  fitsIn(f.pages[1], "the index page")
+  C.UI.Search("ragn")
+  W.runAfters(1.1) W.runAfters(1.1)
+  C.UI.Search("ragn")
+  ok(f.idx[1].shown and f.idx[1].name.text == "Ragnaros" and not f.idx[2].shown, "search: ragn finds Ragnaros", f.idx[1].name.text)
+
+  -- THE API (version 4): copies, safe before load
+  local A = BiSToolsAPI
+  ok(A.version == 4, "BiSToolsAPI version 4: the Codex", A.version)
+  local tc = A.CodexCreature(11520)
+  ok(tc and tc.id == 11520 and tc.name == "Taragaman the Hungerer" and tc.display == 7970 and tc.level == 16 and tc.rank == "elite"
+     and tc.type == "Demon" and tc.dungeon == "rfc" and tc.met == 2 and tc.seen[14149] == 2 and tc.spells[1] == 11970,
+     "CodexCreature: everything the book knows about him")
+  tc.seen[14149] = 99 tc.spells[1] = 1 tc.name = "x"
+  local tc2 = A.CodexCreature(11520)
+  ok(tc2.seen[14149] == 2 and tc2.spells[1] == 11970 and tc2.name == "Taragaman the Hungerer" and db.seen[11520][14149] == 2, "an answer is a copy")
+  local none, why = A.CodexCreature(424242)
+  ok(none == nil and why == "unknown", "an id the book never saw: nil, unknown")
+  local list = A.CodexDungeon("rfc")
+  ok(list and #list == 2 and list[2] == 11520, "CodexDungeon: its creature ids")
+  list[1] = 0
+  ok(A.CodexDungeon("rfc")[1] == 11318 and select(2, A.CodexDungeon("nope")) == "unknown", "a copy; an unknown dungeon says so")
+  ok(A.CodexName(11520) == "Taragaman the Hungerer", "CodexName: a known name at once")
+  ok(A.CodexName(448) == nil, "CodexName: an unknown one (any npc id, not in the book) starts the lookup")
+  W.runAfters(1.1)
+  ok(A.CodexName(448) == "Hogger", "and answers on the next ask")
+  C.UI.Toggle(false)
+  ok(A.CodexShow(11502) == true and f:IsShown() and C.UI.sel == 11502 and C.UI.dungeon == "mc", "CodexShow opens his page")
+  ok(select(2, A.CodexShow(424242)) == "unknown", "CodexShow: an unknown id says so")
+  local keepDB = C.DB
+  C.DB = function() return nil end
+  local nr, nwhy = A.CodexCreature(11520)
+  ok(nr == nil and nwhy == "not ready" and select(2, A.CodexDungeon("rfc")) == "not ready" and A.CodexName(11520) == nil,
+     "before load: nil, not ready")
+  C.DB = keepDB
+
+  -- LEAN: what a page, a target and a nameplate storm cost; nothing while closed
+  local Cost = dofile("../_bisdev/dev/cost.lua")
+  local page = Cost.Count(function() C.UI.Show(11520) end)
+  print(("   cost: codex, a creature page = %d calls"):format(page))
+  ok(page <= 40, "opening a creature page stays in its budget (measured 29: three spells, two items, one paint)", Cost.Top(select(2, Cost.Count(function() C.UI.Show(11520) end)), 8))
+  -- the Codex's own handler (fireAll would count every other tool that listens to nameplates too)
+  local storm = Cost.Count(function() for _ = 1, 100 do C.ev.scripts.OnEvent(C.ev, "NAME_PLATE_UNIT_ADDED", "nameplate1") end end)
+  print(("   cost: codex, 100 nameplates of one spawn = %d calls"):format(storm))
+  ok(storm <= 100 * 3, "a known spawn's nameplate costs a GUID and a check", storm)
+  W.target = { name = "Ragnaros", guid = "Creature-0-4410-409-12-11502-0000000001", level = 63, class = "worldboss", ctype = "Elemental" }
+  local fresh = Cost.Count(function() C.ev.scripts.OnEvent(C.ev, "PLAYER_TARGET_CHANGED") end)
+  print(("   cost: codex, a new creature targeted = %d calls"):format(fresh))
+  ok(fresh <= 20, "a creature met for the first time: one read of its facts", fresh)
+  C.UI.Toggle(false)
+  ok(f.hero.scripts.OnUpdate == nil, "closed: the model stops turning")
+  local shut = Cost.Count(function() W.runAfters(5) end)
+  ok(shut == 0, "closed: nothing ticks, nothing asks", shut)
+  local tickers = 0
+  for _, t in ipairs(W.tickers) do if t.alive and t.codex then tickers = tickers + 1 end end
+  ok(tickers == 0, "the Codex runs no ticker")
+  -- off: it stops listening
+  S("off codex")
+  ok(not C.Listening(), "switched off: it listens to nothing")
+  W.target = { name = "Ragnaros", guid = "Creature-0-4410-409-12-11502-0000000002" }
+  local before = db.met[11502].n
+  fireAll("PLAYER_TARGET_CHANGED")
+  ok(db.met[11502].n == before, "and learns nothing")
+
+  _G.C_TooltipInfo, _G.C_Spell, _G.C_Item = keep.ti, keep.sp, keep.item
+  _G.UnitLevel, _G.UnitClassification, _G.UnitCreatureType, _G.UnitCreatureFamily = keep.lvl, keep.cls, keep.ctype, keep.fam
+  _G.GetNumLootItems, _G.GetLootSlotLink, _G.GetLootSourceInfo = keep.nli, keep.lsl, keep.lsi
+  _G.issecretvalue, _G.type, W.target, W.plates = keep.is, keep.type, keep.target, keep.plates
 end
 
 local allowed = { BiSTools = true, BiSToolsDB = true, SLASH_BISTOOLS1 = true, SLASH_BISTOOLS2 = true,
