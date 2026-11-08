@@ -1,4 +1,4 @@
-## Unreleased
+## 1.0.2
 
 - **The pup finder starts off if you're updating from before 1.0**, like every other new tool. 1.0.0 switched it on for anyone who already had BiS Tools, because it treated a tool they'd never had like one they'd left on. If you already have it on, it stays on - turn it off in the Hub (or `/bist off pups`) if you don't want the button while you fly.
 
