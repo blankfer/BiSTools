@@ -194,6 +194,7 @@ local function model(parent, w, h)
   local ok, m = pcall(CreateFrame, "DressUpModel", nil, parent)
   if not ok or not m then return nil end
   m:SetSize(w, h)
+  if m.EnableMouse then m:EnableMouse(false) end     -- a click on a figure is the figure's (its button), never the model's
   return m
 end
 
