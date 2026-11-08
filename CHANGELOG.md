@@ -1,3 +1,7 @@
+## 1.0.3
+
+- **Fixed: the XP food button kept turning into the sleeping bag.** The bag (and the camp tent) talk about experience in their own text, so the food button took them for XP food - and using the bag while fed made it "your" food. The food button now only ever holds real food; the bag and tent keep their own buttons. If an older version had already saved the bag as your food, it is forgotten.
+
 ## 1.0.2
 
 - **The pup finder starts off if you're updating from before 1.0**, like every other new tool. 1.0.0 switched it on for anyone who already had BiS Tools, because it treated a tool they'd never had like one they'd left on. If you already have it on, it stays on - turn it off in the Hub (or `/bist off pups`) if you don't want the button while you fly.
