@@ -191,7 +191,8 @@ X.LOAD_WAIT = 30
 -- bonus to experience earned" and the tent's "Rested experience", so the text check alone took them for XP food - and
 -- using the bag while fed taught it as YOUR food. They have their own buttons. So, before any text: never these ids,
 -- and never an item the client calls something other than Consumable (class 0) / Food & Drink (5) or the old vanilla
--- Consumable (0) subclass. A client that will not say the class leaves it to the text.
+-- Consumable (0) subclass. A client that will not say the class leaves it to the text. CONFIRMED on Forever (Arn, 8 Nov,
+-- C_Item.GetItemInfoInstant): the Mud Snapper (4592) is class 0 / subclass 5, the sleeping bag (211527) class 15 / 0.
 X.NOT_FOOD = { [X.BAG_ITEM] = true, [X.TENT_ITEM] = true }
 X.FOOD_CLASS, X.FOOD_SUB = 0, { [0] = true, [5] = true }
 function X.MayBeFood(id)
