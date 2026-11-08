@@ -24,10 +24,26 @@
 --                     age, line = the card's words }. The clock itself is LibBiSComm's (any BiS addon learns and
 --                     shares it); this is the same answer the card shows. nil, "not ready" without the lib.
 --   RideCard()     -> the lines the card shows now (a copy), or an empty list when it is hidden.
+--
+-- Since version 4 (8 Nov 2026, BiS> Codex - Arn: "whenever we make a game we have everything ... we can api call bis
+-- tools for information on 3d models"). Creatures by their npc id (a number). Every answer is a copy; the codex tool
+-- switched off still answers (it only stops learning). Before the saved table loads: nil, "not ready".
+--   CodexCreature(npcId) -> { id, name (nil until the game has told us), display (the model id for
+--                    PlayerModel:SetDisplayInfo; nil = use SetCreature(id)), level, type, family, rank (the client's
+--                    classification word: "elite", "worldboss" ...), dungeon (a dungeon id, as CodexDungeon takes),
+--                    boss (true/false), spells = { spell ids: the shipped ones, then the ones seen cast },
+--                    seen = { [itemId] = times seen to drop }, met = times met (one per spawn) }
+--                    - level/type/family/rank only once met. nil, "unknown" for an id the book has never seen.
+--   CodexDungeon(dungeonId) -> the creature ids on that dungeon's plates, in room order ("rfc", "mc" ... - the ids
+--                    in BiS Tools' Tools/CodexData.lua, the same as ADVENT's), or nil, "unknown".
+--   CodexShow(npcId) -> opens the Codex at that creature's page (as a player's click would; it never switches the
+--                    tool on). true, or nil, "unknown".
+--   CodexName(npcId) -> the creature's name when the book has it, else nil - and the game is asked (the client answers
+--                    the second ask, about a second later; ask again then). Any npc id, shipped or not.
 --------------------------------------------------------------------------------
 local _, NS = ...
 
-local API = { major = 1, version = 3 }
+local API = { major = 1, version = 4 }
 BiSToolsAPI = API
 
 local function Party()
@@ -127,4 +143,53 @@ function API.RideCard()
     if row:IsShown() then out[#out + 1] = row.say:GetText() end   -- a row of the card: its words
   end
   return out
+end
+
+-- the Codex (version 4): read off the book's own tables - copies, never the tables themselves
+local function Codex()
+  local C = NS.Codex
+  if not (C and C.DB) then return nil end
+  local ok, db = pcall(C.DB)
+  if not ok or not db then return nil end
+  return C
+end
+
+local function copy(t)
+  if type(t) ~= "table" then return t end
+  local out = {}
+  for k, v in pairs(t) do out[k] = copy(v) end
+  return out
+end
+
+function API.CodexCreature(npcId)
+  local C = Codex()
+  if not C then return nil, "not ready" end
+  if type(npcId) ~= "number" then return nil, "unknown" end
+  local ok, c = pcall(C.Creature, npcId)
+  if not ok or not c then return nil, "unknown" end
+  return copy(c)
+end
+
+function API.CodexDungeon(dungeonId)
+  local C = Codex()
+  if not C then return nil, "not ready" end
+  local d = C.DATA and C.DATA.dungeons[dungeonId]
+  if not d then return nil, "unknown" end
+  return copy(d.list)
+end
+
+function API.CodexShow(npcId)
+  local C = Codex()
+  if not (C and C.UI) then return nil, "not ready" end
+  local ok, done, why = pcall(C.UI.Show, npcId)
+  if not ok then return nil, "not ready" end
+  if not done then return nil, why or "unknown" end
+  return true
+end
+
+function API.CodexName(npcId)
+  local C = Codex()
+  if not C then return nil, "not ready" end
+  local ok, name = pcall(C.Name, npcId)
+  return ok and name or nil
 end

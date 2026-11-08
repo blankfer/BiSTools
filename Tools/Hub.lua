@@ -412,7 +412,7 @@ function H.RegisterSettings()
     end,
     refresh = function() if H.dash then H.dash:Paint() end end,
     open = { label = "the tools list", func = function() H.ToggleHub(true) end },
-    api = { name = "BiSToolsAPI", about = "party list, rivals and the ride clock, read-only (API.lua, version "
+    api = { name = "BiSToolsAPI", about = "party list, rivals, the ride clock and the Codex, read-only (API.lua, version "
       .. tostring(rawget(_G, "BiSToolsAPI") and BiSToolsAPI.version or "?") .. ")" },
   })
 end

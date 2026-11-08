@@ -1,3 +1,11 @@
+## Unreleased
+
+- **BiS> Codex, an illustrated book of creatures.** `/bist codex` (or the Hub) opens a two-page book set inside a cockpit panel: a Contents page by volumes (I Dungeons, II Raids), each dungeon's plate of its creatures in 3D with numbered captions, and a page for every creature - its model (turn it, or play its stand, attack, cast and death moves), a data plate (level, type, rank, where it lives, its creature and model ids, how often you have met it), its abilities in the game's own words, and what you have seen it drop. An A to Z index and a search by name cover every creature in the book.
+  - **Everything comes from the game.** BiS Tools ships only the creatures' ids; their names, the spell texts and the models come from your game client, and nothing is copied from a website.
+  - **It learns as you play** (while the tool is on): every creature you target or see a nameplate of joins the book with its level and type, the spells you see it cast, and the loot you take from its corpse.
+  - Starts off; switch it on in the Hub or with `/bist codex`. `/bist codex <name>` searches, `/bist codex <creature id>` opens that page. Short word: `/bist cdx`.
+  - For other addons: BiSToolsAPI version 4 answers `CodexCreature`, `CodexDungeon`, `CodexShow` and `CodexName`.
+
 ## 1.0.3
 
 - **Fixed: the XP food button kept turning into the sleeping bag.** The bag (and the camp tent) talk about experience in their own text, so the food button took them for XP food - and using the bag while fed made it "your" food. The food button now only ever holds real food; the bag and tent keep their own buttons. If an older version had already saved the bag as your food, it is forgotten.
