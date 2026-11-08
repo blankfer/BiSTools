@@ -200,6 +200,9 @@ function B.Buttons()
   -- BiS> pups (Arn, 6 Nov: "fidget spinner to press while traveling"): on a flight or mounted (Pups.lua)
   local PU = NS.Pups
   if PU and PU.BoxButton then out[#out + 1] = { b = PU.BoxButton(), show = PU.ShowBox() } end
+  -- BiS> bosses (Arn, 8 Nov: "boss finder in dungeons"): inside a dungeon or raid it knows (Bosses.lua)
+  local BS = NS.Bosses
+  if BS and BS.BoxButton then out[#out + 1] = { b = BS.BoxButton(), show = BS.ShowBox() } end
   return out
 end
 

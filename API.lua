@@ -40,10 +40,20 @@
 --                    tool on). true, or nil, "unknown".
 --   CodexName(npcId) -> the creature's name when the book has it, else nil - and the game is asked (the client answers
 --                    the second ask, about a second later; ask again then). Any npc id, shipped or not.
+--
+-- Since version 5 (8 Nov 2026, BiS> bosses - Arn: "boss finder in dungeons"). Places by their instance map id
+-- (GetInstanceInfo's 8th answer); the list is the game's own (DungeonEncounter).
+--   Bosses(mapId) -> { map, name, kind = "dungeon"|"raid", here (true when you stand in it), bosses = { { id (the
+--                    encounter id ENCOUNTER_END gives), name, group (a fight of several: never targeted by name),
+--                    state = "down"|"near"|"marked"|"far"|"group" (this run's, only for where you stand), mark (the
+--                    raid mark index it is given, 8 = skull) } } } - a copy. No mapId: where you stand (nil, "not in
+--                    a boss place" outside). nil, "unknown" for a map the list does not have.
+--   BossesShow()   -> opens the boss list (as a player's click would; never switches the tool on, never in a fight):
+--                    true, or nil and why.
 --------------------------------------------------------------------------------
 local _, NS = ...
 
-local API = { major = 1, version = 4 }
+local API = { major = 1, version = 5 }
 BiSToolsAPI = API
 
 local function Party()
@@ -192,4 +202,33 @@ function API.CodexName(npcId)
   if not C then return nil, "not ready" end
   local ok, name = pcall(C.Name, npcId)
   return ok and name or nil
+end
+
+-- the boss finder (version 5): read off its own tables - copies, never the tables themselves
+function API.Bosses(mapId)
+  local BF, D = NS.Bosses, NS.BossData
+  if not (BF and D) then return nil, "not ready" end
+  local here = BF.map
+  mapId = mapId or here
+  if not mapId then return nil, "not in a boss place" end
+  local place = D[mapId]
+  if not place then return nil, "unknown" end
+  local out = { map = mapId, name = place.name, kind = place.kind, here = (mapId == here), bosses = {} }
+  for _, e in ipairs(place.bosses) do
+    local row = { id = e.id, name = e.name, group = e.group and true or false }
+    if out.here then
+      row.state = BF.State(e)
+      row.mark = BF.mark and BF.mark[e.id] or nil
+    end
+    out.bosses[#out.bosses + 1] = row
+  end
+  return out
+end
+
+function API.BossesShow()
+  local BF, R = NS.Bosses, NS.Registry
+  if not (BF and BF.db) then return nil, "not ready" end
+  if R and R.Enabled and not R:Enabled("bosses") then return nil, "bosses tool off" end
+  if InCombatLockdown and InCombatLockdown() then return nil, "in a fight" end
+  return BF.Toggle(true) and true or nil, "could not open"
 end

@@ -326,6 +326,47 @@ local function FontString()
   function s:Show() self.shown = true end
   return s
 end
+-- A MACRO OF BLIZZARD'S OWN COMMANDS, RUN LINE BY LINE (8 Nov 2026, BiS> bosses), as the client runs a secure
+-- button's macrotext: "nearby" is the nameplates. A line this does not know is an ERROR, never a quiet pass, and so is
+-- a macro past 255 letters (the macro window's limit; whether a button's macrotext may be longer is UNVERIFIED).
+--   /cleartarget                  your target goes (and becomes the "last target")
+--   /targetexact <name>           a nearby unit of exactly that name, else nothing changes
+--   /tm [exists] !<n>             the mark on your target (W.tmLog), only if you have one
+--   /ping [exists] <kind>         a ping on your target (W.pings); [mod:shift,exists] only with shift held
+--   /targetlasttarget [noexists]  no target now: the last one back
+W.tmLog, W.pings, W.macros = {}, {}, {}
+function W.RunMacro(text)
+  if #text > 255 then error("a macro of " .. #text .. " letters (255 at most)", 3) end
+  W.macros[#W.macros + 1] = text
+  for ln in (text .. "\n"):gmatch("(.-)\n") do
+    local nm = ln:match("^/targetexact (.+)$")
+    local tmC, tmN = ln:match("^/tm %[(.-)%] !(%d)$")
+    local pC, pK = ln:match("^/ping %[(.-)%] (%a+)$")
+    if ln == "/cleartarget" then
+      if W.target then W.last = W.target end
+      W.target = nil
+    elseif nm then
+      local toks = {}
+      for tok in pairs(W.plates) do if tok:find("^nameplate") then toks[#toks + 1] = tok end end
+      table.sort(toks)
+      for _, tok in ipairs(toks) do
+        if W.plates[tok].name == nm then
+          if W.target then W.last = W.target end
+          W.target = W.plates[tok]
+          break
+        end
+      end
+    elseif tmC == "exists" and tmN then
+      if W.target then W.tmLog[#W.tmLog + 1] = { name = W.target.name, mark = tonumber(tmN) } W.target.mark = tonumber(tmN) end
+    elseif pC == "exists" or pC == "mod:shift,exists" then
+      if W.target and (pC == "exists" or W.shift) then W.pings[#W.pings + 1] = { name = W.target.name, kind = pK } end
+    elseif ln == "/targetlasttarget [noexists]" then
+      if not W.target then W.target = W.last end
+    else
+      error("a macro line the client mock does not know: " .. ln, 3)
+    end
+  end
+end
 local frames = {}
 _G.CreateFrame = function(kind, name, parent, template)
   local f = { kind = kind, name = name, parent = parent, template = template,
@@ -520,6 +561,8 @@ _G.CreateFrame = function(kind, name, parent, template)
     if t == "target" or (t == nil and self.attrs["*type1"] == "target") then
       local ri = tunit and tunit:match("^raid(%d+)$")
       W.target = ri and W.raid[tonumber(ri)] or W.plates[tunit]
+    elseif t == "macro" and type(self.attrs.macrotext) == "string" and self.attrs.macrotext:find("^/cleartarget") then
+      W.RunMacro(self.attrs.macrotext)
     elseif t == "macro" then
       local nm = self.attrs.macrotext:match("^/targetexact (.+)$")
       W.target = nil
@@ -686,7 +729,7 @@ do
     if sv.enabled[key] ~= want then wrong[#wrong + 1] = key .. "=" .. tostring(sv.enabled[key]) end
     wrote = wrote + 1
   end
-  ok(sv.forever10 == true and wrote == 16 and #wrong == 0, "an existing save at the 1.0 load: every tool frozen as it was, written out", table.concat(wrong, " "))
+  ok(sv.forever10 == true and wrote == 17 and #wrong == 0, "an existing save at the 1.0 load: every tool frozen as it was, written out", table.concat(wrong, " "))
   -- a tool 0.20.2 never had is not "as it was" - it was nothing (Arn, 8 Nov: his cousin's pups came up on)
   ok(sv.enabled.pups == false, "pups, new in 1.0, starts OFF on an existing save too", tostring(sv.enabled.pups))
   ok(R:DBFor(R:Get("farm")).shown == true and R:DBFor(R:Get("summon")).nag == true, "and the farm window and the summon nag as they were (on)")
@@ -2050,7 +2093,7 @@ do
   -- left click: the Hub, one row per tool
   mm.scripts.OnClick(mm, "LeftButton")
   local hub = BiSToolsHub
-  ok(hub and hub:IsShown() and #hub.rows == 16 and hub.rows[15].key == "pups" and hub.rows[16].key == "codex", "left click opens the Hub with a row per registered tool")   -- +disenchant, +processing, +pups, 6 Nov
+  ok(hub and hub:IsShown() and #hub.rows == 17 and hub.rows[15].key == "pups" and hub.rows[16].key == "codex" and hub.rows[17].key == "bosses", "left click opens the Hub with a row per registered tool")   -- +disenchant, +processing, +pups, 6 Nov
   ok(hub.scale == 1.2, "the Tools list is 20% bigger (Arn: \"lets make this 20% bigger\")")
   ok(hub.rows[1].key == "farm" and hub.rows[2].key == "summon" and hub.rows[3].key == "recap" and hub.rows[4].key == "rivals"
      and hub.rows[5].key == "social" and hub.rows[6].key == "threat" and hub.rows[7].key == "bg" and hub.rows[8].key == "map" and hub.rows[9].key == "party"
@@ -2059,12 +2102,12 @@ do
   -- RIVALS & PALS, their own tool (Arn, 14 Oct: "decouple from recap ... be its own thing")
   ok(hub.rows[4].name.text == "rivals & pals", "the rivals tool's row is titled rivals & pals")
   ok(hub.rows[1].name.text == "farm" and hub.rows[1].state.text:find("on", 1, true), "row: name + on")
-  ok(hub.con.slots.count and hub.con.slots.count.text == "12 of 16 on", "prompt slot counts the tools that are on (threat, party, pups and codex - new in 1.0 - start off; rides, sounds, xp, disenchant and processing on)", hub.con.slots.count.text)
+  ok(hub.con.slots.count and hub.con.slots.count.text == "12 of 17 on", "prompt slot counts the tools that are on (threat, party, pups, codex and bosses - new in 1.0 - start off; rides, sounds, xp, disenchant and processing on)", hub.con.slots.count.text)
   ok(not R:Enabled("threat") and hub.rows[6].name.text == "threat (beta)" and hub.rows[6].state.text:find("off", 1, true),
      "the threat tool starts OFF and is shown as \"threat (beta)\"")
   ok(hub.con:Width() <= H.W - 15 - 8, "hub prompt fits its header budget")
   ok(hub.closeBtn.point[4] == -3, "only an x in the header, at -3")
-  ok(hub.foot and hub.foot.label.text == "options" and hub.h == 16 + 16 * 16 + 4 + 16, "footer 'options' button; height = header + rows + footer")
+  ok(hub.foot and hub.foot.label.text == "options" and hub.h == 16 + 17 * 16 + 4 + 16, "footer 'options' button; height = header + rows + footer")
   -- row click opens the tool window; shift-click drags it to the middle
   BiSToolsFarm:Hide() F.db.pos = { "TOPLEFT", 400, -300, "TOPLEFT" }
   hub.rows[1].scripts.OnClick(hub.rows[1], "LeftButton")
@@ -2114,7 +2157,7 @@ do
   for _, r in ipairs(BiSToolsOptions and BiSToolsOptions.rows or {}) do end
   -- right click toggles the tool; opening an off tool switches it on first
   hub.rows[2].scripts.OnClick(hub.rows[2], "RightButton")
-  ok(not R:Enabled("summon") and hub.rows[2].state.text:find("off", 1, true) and hub.con.slots.count.text == "11 of 16 on", "right click: summon off, row and count follow", hub.con.slots.count.text)
+  ok(not R:Enabled("summon") and hub.rows[2].state.text:find("off", 1, true) and hub.con.slots.count.text == "11 of 17 on", "right click: summon off, row and count follow", hub.con.slots.count.text)
   ok(lib:Enabled(), "and the lib is untouched by it")
   hub.rows[2].scripts.OnClick(hub.rows[2], "LeftButton")
   ok(R:Enabled("summon") and BiSToolsSummon:IsShown() and db_summon().mode == "on", "click on an off tool: switched on and its window pinned open")
@@ -2151,7 +2194,8 @@ do
   -- (+ pups (2), 6 Nov: the travel button switch, the radar's open button - and its section header)
   -- (+1 in xp, 6 Nov: the camp tent button; + disenchant (0), 6 Nov: its section header, the on/off)
   -- (+ codex (1), 8 Nov: the book's open button - and its section header)
-  ok(#opt.rows == 13 + 3 + 5 + 7 + 1 + 8 + 2 + 2 + 4 + 7 + 4 + 4 + 5 + 1 + 2 + 1 + 1 + 1 + 3 + 2, "one row per section header and per option", #opt.rows)
+  -- (+ bosses (3), 8 Nov: open in a dungeon, the box button, the list's open button - and its section header)
+  ok(#opt.rows == 13 + 3 + 5 + 7 + 1 + 8 + 2 + 2 + 4 + 7 + 4 + 4 + 5 + 1 + 2 + 1 + 1 + 1 + 3 + 2 + 4, "one row per section header and per option", #opt.rows)
   -- THE BiSTheme STANDARD, 1.43:1 (Arn, 14 Oct): its sections poured into columns, the window that shape
   ok(math.abs(opt.w / opt.h - 1.43) < 0.01 and (opt.columns or 1) >= 2, "options: 1.43:1, in columns", opt.w .. "x" .. opt.h)
   local function find(label) for _, r in ipairs(opt.rows) do if r.name and r.name.text == label then return r end end end
@@ -2238,7 +2282,7 @@ do
   local farmHdr = opt.rows[5]
   ok(farmHdr.ctl and farmHdr.ctl.on == true, "farm section box shows on")
   farmHdr.ctl.scripts.OnClick(farmHdr.ctl)
-  ok(not R:Enabled("farm") and farmHdr.ctl.on == false and hub.con.slots.count.text == "11 of 16 on", "box off: farm off, hub count follows", hub.con.slots.count.text)
+  ok(not R:Enabled("farm") and farmHdr.ctl.on == false and hub.con.slots.count.text == "11 of 17 on", "box off: farm off, hub count follows", hub.con.slots.count.text)
   farmHdr.ctl.scripts.OnClick(farmHdr.ctl)
   ok(R:Enabled("farm"), "and back on")
   -- toggle: nag
@@ -2354,7 +2398,7 @@ do
     local spec = page.spec
     ok(spec.title == "Tools" and spec.api and spec.api.name == "BiSToolsAPI" and spec.open and spec.open.label == "the tools list",
        "titled Tools, the API named, a big button to the tools")
-    ok(spec.status() == H.Status() and spec.status():find("of 16 tools on", 1, true), "its status line: N of 16 tools on", spec.status())
+    ok(spec.status() == H.Status() and spec.status():find("of 17 tools on", 1, true), "its status line: N of 17 tools on", spec.status())
     -- THE DASHBOARD (Arn, 7 Nov live: "dont just shrink remake them all"): the page draws itself and never takes
     -- the options window in
     ok(spec.build and spec.refresh and spec.window == nil, "the page is a dashboard, not the options window in a box")
@@ -2363,7 +2407,7 @@ do
     local optParent = BiSToolsOptions.parent
     ok(optParent ~= page.frame.body and not BiSToolsOptions:IsShown(), "the options window stays where it lives, hidden")
     local d = page.frame.body.dash
-    ok(d and #d.rows == 17 and d.rows[1].entry.general, "the list: BiS Tools itself, then all 16 tools", d and #d.rows)
+    ok(d and #d.rows == 18 and d.rows[1].entry.general, "the list: BiS Tools itself, then all 17 tools", d and #d.rows)
     -- THE FAMILY RULE (Arn, 8 Nov: "its a theme so itll keep all the pages looking the same"): the page is the kit's
     -- BiSTheme.Dashboard, fed the Registry's own tables; the hand-built copy in Hub.lua is gone
     ok(d.model and d.model.list == "TOOLS" and d.list.head.text == "TOOLS" and type(d.Paint) == "function"
@@ -2479,7 +2523,7 @@ do
         if r.isSection and r.ctl and r.name and r.name.text == want then found[#found + 1] = key break end
       end
     end
-    ok(#found == 16, "all 16 tools have an on/off tick in the options window", #found)
+    ok(#found == 17, "all 17 tools have an on/off tick in the options window", #found)
     -- the minimap's right-click: the OWN options window, and again closes it (Arn, 7 Nov live); the open button: the Hub
     BiSToolsHub:Hide()
     BiSToolsOptions:Hide()
@@ -2551,8 +2595,8 @@ do
   for _, tool in R:Each() do if tool.__real then tool.OnLogin, tool.__real = tool.__real, nil end end
   ok(logins == 0, "at login no tool wakes: nothing hooks, nothing opens, nothing plays", logins)
   NS.Hub.ToggleHub(true)
-  ok(BiSToolsHub.con.slots.count.text == "0 of 16 on", "the Hub, the main page: 0 of 16 on", BiSToolsHub.con.slots.count.text)
-  ok(NS.Hub.Status() == "0 of 16 tools on", "the BiS> page's status line says it", NS.Hub.Status())
+  ok(BiSToolsHub.con.slots.count.text == "0 of 17 on", "the Hub, the main page: 0 of 17 on", BiSToolsHub.con.slots.count.text)
+  ok(NS.Hub.Status() == "0 of 17 tools on", "the BiS> page's status line says it", NS.Hub.Status())
   -- the user chooses: a switch writes TRUE (not nil) and off writes FALSE
   R:SetEnabled("social", true)
   ok(fresh.enabled.social == true and R:Enabled("social"), "switched on: stored as true")
@@ -8941,7 +8985,7 @@ do
 
   -- THE API (version 4): copies, safe before load
   local A = BiSToolsAPI
-  ok(A.version == 4, "BiSToolsAPI version 4: the Codex", A.version)
+  ok(A.version >= 4, "BiSToolsAPI version 4 or later: the Codex", A.version)
   local tc = A.CodexCreature(11520)
   ok(tc and tc.id == 11520 and tc.name == "Taragaman the Hungerer" and tc.display == 7970 and tc.level == 16 and tc.rank == "elite"
      and tc.type == "Demon" and tc.dungeon == "rfc" and tc.met == 2 and tc.seen[14149] == 2 and tc.spells[1] == 11970,
@@ -9001,6 +9045,219 @@ do
   _G.UnitLevel, _G.UnitClassification, _G.UnitCreatureType, _G.UnitCreatureFamily = keep.lvl, keep.cls, keep.ctype, keep.fam
   _G.GetNumLootItems, _G.GetLootSlotLink, _G.GetLootSourceInfo = keep.nli, keep.lsl, keep.lsi
   _G.issecretvalue, _G.type, W.target, W.plates = keep.is, keep.type, keep.target, keep.plates
+end
+
+-- ---------------------------------------------------------------- BiS> bosses (Arn, 8 Nov 2026: "boss finder in
+-- dungeons ... targets and puts a raid icon on each of them if I click a name ... all button ... A find mode pings them")
+do
+  local BS = NS.Bosses
+  local Cost = dofile("../_bisdev/dev/cost.lua")
+  local keep = { inst = _G.IsInInstance, map = W.me.inst, target = W.target, plates = W.plates, shift = W.shift }
+  local D = NS.BossData
+  -- the list is the game's own (DungeonEncounter): the Deadmines in its order, a group fight flagged
+  ok(D and D[36] and D[36].name == "Deadmines" and #D[36].bosses == 8 and D[36].bosses[1].name == "Rhahk'Zor"
+     and D[36].bosses[8].name == "Edwin VanCleef", "the Deadmines: eight bosses, in the game's order")
+  local seven
+  for _, e in ipairs(D[230].bosses) do if e.name == "The Seven" then seven = e end end
+  ok(seven and seven.group and #D[230].bosses == 21, "Blackrock Depths: 21, and The Seven is a group fight (never targeted by name)")
+  local dupes = 0
+  for _, place in pairs(D) do
+    local seen = {}
+    for _, e in ipairs(place.bosses) do if seen[e.name] then dupes = dupes + 1 end seen[e.name] = true end
+  end
+  ok(dupes == 0 and D[2959] and D[2959].name == "City of Dalaran" and D[3065] and #D[3065].bosses == 4,
+    "one row a name; Forever's own places too (Dalaran, the Hall of Thanes)")
+
+  ok(BS and R:Get("bosses") and not R:Enabled("bosses"), "the boss finder is there, OFF on this existing save (new after 1.0)")
+  ok(R:Get("boss") == R:Get("bosses"), "/bist boss is the short word")
+  S("on bosses")
+  local bdb = R:DBFor(R:Get("bosses"))
+  ok(BS.map == nil and not BS.events.events.NAME_PLATE_UNIT_ADDED, "outside: no list, and no nameplate events registered at all")
+  local outside = Cost.Count(function() for _ = 1, 40 do fireAll("NAME_PLATE_UNIT_ADDED", "nameplate1") end end)
+  print(("   cost: bosses, 40 nameplates outside a dungeon = %d calls"):format(outside))
+
+  -- INTO THE DEADMINES
+  _G.IsInInstance = function() return true, "party" end
+  W.me.inst = 36
+  W.plates, W.target, W.shift = {}, { name = "Defias Thug", guid = "Creature-0-1-36-1-4417-0001" }, false
+  fireAll("PLAYER_ENTERING_WORLD")
+  local f = BiSToolsBosses
+  ok(BS.map == 36 and #BS.list == 8 and BS.events.events.NAME_PLATE_UNIT_ADDED, "in the Deadmines: its list, and the eyes open")
+  ok(f and f:IsShown() and f.place.text == "Deadmines", "the window comes up by itself, once a run", f and f.place.text)
+  ok(f.scale == 1.45 and math.abs(f.w / f.h - 1.43) < 0.01, "1.43:1, at 1.45 (Arn 8 Nov: 1.2 was 'lil small')", f.w .. "x" .. f.h)
+  local esc = false
+  for _, n in ipairs(UISpecialFrames) do if n == "BiSToolsBosses" then esc = true end end
+  ok(esc, "Escape closes it")
+  ok(BS.ShowBox() and BS.BoxButton(), "the BiS> tools box shows its skull button inside")
+  ok(BS.mark[D[36].bosses[1].id] == 8 and BS.mark[D[36].bosses[2].id] == 7 and BS.mark[D[36].bosses[8].id] == 1,
+    "the marks: skull for the first, cross for the next ... star for the eighth")
+  local r1 = f.rows[1]
+  ok(r1.attrs.type == "macro" and r1.attrs.macrotext == "/cleartarget\n/targetexact Rhahk'Zor\n/tm [exists] !8\n/ping [mod:shift,exists] attack\n/targetlasttarget [noexists]",
+    "a row: clear, the boss by its exact name, its mark, a ping only with shift, the old target back if not found", r1.attrs.macrotext)
+  ok(r1.icon.shown and r1.icon.file == BS.MARK_ICON .. 8 and r1.name.text == "Rhahk'Zor" and r1.name.wrap == false, "row 1: the skull, the name on one line")
+
+  -- a boss's plate comes up: IN SIGHT, and its creature id is learned for the screen
+  W.plates.nameplate1 = { name = "Rhahk'Zor", guid = "Creature-0-1-36-1-644-0001" }
+  BS.events.scripts.OnEvent(BS.events, "NAME_PLATE_UNIT_ADDED", "nameplate1")
+  ok(BS.near["Rhahk'Zor"] and r1.state.text == "IN SIGHT" and bdb.npcs and bdb.npcs["Rhahk'Zor"] == 644, "his plate: IN SIGHT, npc 644 kept")
+  ok(f.model.shown and f.model._display == NS.Codex.DATA.creatures[644].display and f.caption.text == "Rhahk'Zor"
+     and f.model:GetModelFileID() ~= 0, "the screen: him at once, by the Codex's model id for npc 644")
+  -- a boss the Codex has no model for (Cookie): by his creature id, which draws nothing the first time
+  local cookie = D[36].bosses[7]
+  bdb.npcs.Cookie = 645
+  BS.focus = cookie
+  BS.Screen()
+  ok(f.model._creature == 645 and f.model:GetModelFileID() == 0 and f.caption.text == "Cookie", "Cookie (hovered): asked by npc, nothing yet")
+  W.runAfters(1)
+  ok(f.model:GetModelFileID() ~= 0 and f.model._anim == 0, "and asked again, he draws")
+  BS.focus = nil
+  bdb.npcs.Cookie = nil
+
+  -- CLICK HIM: targeted, marked; no ping without shift
+  local tm, pg = #W.tmLog, #W.pings
+  r1:Click()
+  ok(W.target and W.target.name == "Rhahk'Zor" and #W.tmLog == tm + 1 and W.tmLog[#W.tmLog].mark == 8 and #W.pings == pg,
+    "a click: he is the target, with the skull, and no ping")
+  ok(BS.run.marked[D[36].bosses[1].id] and f.say.text == "Rhahk'Zor marked", "and the window says so", f.say.text)
+  -- not in sight: nobody marked, your target back
+  W.target = { name = "Defias Thug", guid = "Creature-0-1-36-1-4417-0001" }
+  tm = #W.tmLog
+  f.rows[2]:Click()
+  ok(W.target.name == "Defias Thug" and #W.tmLog == tm and f.say.text == "Sneed is not in sight", "a boss not in sight: nothing marked, your Thug back")
+  -- shift: pinged
+  W.shift = true
+  r1:Click()
+  ok(#W.pings == pg + 1 and W.pings[#W.pings].name == "Rhahk'Zor" and W.pings[#W.pings].kind == "attack", "shift-click pings him for the party")
+  W.shift = false
+
+  -- MARK ALL: as many as fit, then the rest on the next press
+  W.plates.nameplate2 = { name = "Gilnid", guid = "Creature-0-1-36-1-1763-0001" }
+  W.plates.nameplate3 = { name = "Edwin VanCleef", guid = "Creature-0-1-36-1-639-0001" }
+  BS.events.scripts.OnEvent(BS.events, "NAME_PLATE_UNIT_ADDED", "nameplate2")
+  BS.events.scripts.OnEvent(BS.events, "NAME_PLATE_UNIT_ADDED", "nameplate3")
+  local am, an = BS.AllMacro()
+  ok(#am <= 255 and an >= 3 and an < 8, "MARK ALL: one macro, 255 letters at most, a few bosses a press", #am .. " letters, " .. an)
+  local marked = {}
+  tm = #W.tmLog
+  f.all:Click()
+  for i = tm + 1, #W.tmLog do marked[W.tmLog[i].name] = W.tmLog[i].mark end
+  ok(marked["Rhahk'Zor"] == 8 and marked["Gilnid"] == 5 and not marked["Sneed"], "the ones in sight get their marks", tostring(marked["Gilnid"]))
+  ok(BS.allAt == an + 1 and f.say.text:find("press again", 1, true), "and the next press goes on from the first left out", BS.allAt)
+  tm = #W.tmLog
+  f.all:Click()
+  marked = {}
+  for i = tm + 1, #W.tmLog do marked[W.tmLog[i].name] = W.tmLog[i].mark end
+  ok(marked["Edwin VanCleef"] == 1, "the second press: VanCleef gets the star")
+
+  -- FIND: one a press, the ones in sight first, pinged
+  pg = #W.pings
+  BiSToolsBossFindKey:Click()
+  ok(#W.pings == pg + 1 and W.pings[#W.pings].name == "Rhahk'Zor", "FIND: the first in sight, targeted and pinged")
+  BiSToolsBossFindKey:Click()
+  ok(W.pings[#W.pings].name == "Gilnid", "the next press: the next in sight", W.pings[#W.pings].name)
+  BiSToolsBossFindKey:Click()
+  ok(W.pings[#W.pings].name == "Edwin VanCleef", "and the next")
+  ok(BiSToolsBossFind and BiSToolsBossFind.attrs.macrotext == BiSToolsBossFindKey.attrs.macrotext,
+    "the bound FIND key holds the same macro as the window's")
+
+  -- HE DIES: the fight's end ticks him off, the skull moves on
+  BS.events.scripts.OnEvent(BS.events, "ENCOUNTER_END", D[36].bosses[1].id, "Rhahk'Zor", 1, 5, 0)
+  ok(not BS.run.down[D[36].bosses[1].id], "a wipe (success 0) is not a kill")
+  BS.events.scripts.OnEvent(BS.events, "ENCOUNTER_END", D[36].bosses[1].id, "Rhahk'Zor", 1, 5, 1)
+  ok(BS.run.down[D[36].bosses[1].id] and r1.state.text == "DOWN" and not r1.icon.shown and r1.num.text == "1",
+    "a kill: DOWN, his mark gone, his number instead")
+  ok(BS.mark[D[36].bosses[2].id] == 8 and f.rows[2].attrs.macrotext:find("!8", 1, true), "Sneed has the skull now, his row rewritten")
+  ok(f.readDown.text == "1 / 8" and f.say.text == "Rhahk'Zor down - 1 of 8", "the readout and the line", f.say.text)
+  local a = BS.NeedleAngle(1, 8)
+  ok(math.abs(a - math.rad(-135 + 270 / 8)) < 1e-9 and math.abs(BS.NeedleAngle(8, 8) - math.rad(135)) < 1e-9, "the needle: an eighth of the way round")
+  ok(f.segs[1].shown and f.segs[1].color[1] == select(1, F.color("good")) and not f.segs[9].shown, "the tape: eight lights, the first green")
+  -- seen dead: down too
+  W.target = { name = "Gilnid", guid = "Creature-0-1-36-1-1763-0001", dead = true }
+  BS.events.scripts.OnEvent(BS.events, "PLAYER_TARGET_CHANGED")
+  ok(BS.run.down[D[36].bosses[4].id] and f.readDown.text == "2 / 8", "targeting his corpse: Gilnid down")
+
+  -- A FIGHT: the window steps away, nothing secure is touched, all comes back after
+  W.combat = true
+  BS.events.scripts.OnEvent(BS.events, "PLAYER_REGEN_DISABLED")
+  ok(not f:IsShown() and BS.back, "a pull: the window steps away")
+  ok(pcall(BS.Down, D[36].bosses[2], "fight") and BS.dirty, "a kill mid-fight writes nothing secure (no error), it waits")
+  ok(not BS.Toggle(true), "it will not open in a fight")
+  W.combat = false
+  BS.events.scripts.OnEvent(BS.events, "PLAYER_REGEN_ENABLED")
+  ok(f:IsShown() and not BS.dirty and BS.mark[D[36].bosses[3].id] == 8 and f.rows[3].attrs.macrotext:find("!8", 1, true),
+    "after: the window is back, the marks rewritten (Miner Johnson has the skull)")
+
+  -- the key
+  S("bosses key F7")
+  ok(bdb.key == "F7" and W.binds[BiSToolsBossFind] and W.binds[BiSToolsBossFind].key == "F7", "/bist bosses key F7 binds FIND")
+  S("bosses key off")
+  ok(bdb.key == nil and W.binds[BiSToolsBossFind] == nil, "key off clears it")
+
+  -- out and back within the hour: the same run; RESET: a fresh one
+  local run = BS.run
+  _G.IsInInstance = function() return false, "none" end
+  fireAll("ZONE_CHANGED_NEW_AREA")
+  ok(BS.map == nil and not f:IsShown() and not BS.events.events.NAME_PLATE_UNIT_ADDED and not BS.ShowBox(),
+    "out: the window, the box button and the eyes all go")
+  _G.IsInInstance = function() return true, "party" end
+  W.now = W.now + 600
+  fireAll("PLAYER_ENTERING_WORLD")
+  ok(BS.run == run and BS.run.down[D[36].bosses[1].id] and not f:IsShown(), "back within the hour: the same run, no pop-up again")
+  S("bosses reset")
+  ok(BS.run ~= run and not next(BS.run.down), "RESET: a fresh run")
+
+  -- BLACKROCK DEPTHS: pages, and a group fight
+  W.me.inst = 230
+  fireAll("PLAYER_ENTERING_WORLD")
+  BS.Toggle(true)
+  ok(#BS.list == 21 and BS.Pages() == 3 and f.pageNo.text == "1/3" and f.next.shown, "21 bosses: three pages")
+  BS.Turn(1)
+  ok(f.rows[1].name.text == D[230].bosses[9].name and f.rows[1].entry == D[230].bosses[9], "page 2 starts at the ninth")
+  local amBRD = BS.AllMacro()
+  ok(not amBRD:find("Ring of Law", 1, true) and not amBRD:find("The Seven", 1, true), "a group fight is never in a macro")
+  BS.page = 1 BS.Write() BS.Paint()
+  ok(f.rows[4].entry.name == "Ring of Law" and f.rows[4].attrs.macrotext == "" and f.rows[4].state.text == "GROUP",
+    "Ring of Law: a GROUP row that targets nothing")
+  ok(BS.mark[D[230].bosses[9].id] == 1 and BS.mark[D[230].bosses[10].id] == nil, "the group fight takes no mark, so the ninth gets the star; past eight standing, none")
+
+  -- the screen falls back to the Codex's book (a boss never met, whose name the book has)
+  local C = NS.Codex
+  local cdb = C.DB()
+  cdb.names[639] = "Edwin VanCleef"
+  local metVC = bdb.npcs["Edwin VanCleef"]
+  ok(metVC == 639 and select(2, BS.NpcOf({ name = "Edwin VanCleef" })) == C.DATA.creatures[639].display,
+    "met (his plate, above): his own id, with the Codex's model id")
+  bdb.npcs["Edwin VanCleef"] = nil
+  local npc, display = BS.NpcOf({ name = "Edwin VanCleef" })
+  ok(npc == 639 and display == C.DATA.creatures[639].display, "never met: the Codex's creature and model")
+
+  -- lean: a dungeon full of plates
+  W.me.inst = 36
+  fireAll("PLAYER_ENTERING_WORLD")
+  for i = 1, 40 do W.plates["nameplate" .. i] = { name = "Defias Thug", guid = "Creature-0-1-36-1-4417-00" .. i } end
+  local inside = Cost.Count(function()
+    for i = 1, 40 do BS.events.scripts.OnEvent(BS.events, "NAME_PLATE_UNIT_ADDED", "nameplate" .. i) end
+    for i = 1, 40 do BS.events.scripts.OnEvent(BS.events, "NAME_PLATE_UNIT_REMOVED", "nameplate" .. i) end
+  end)
+  print(("   cost: bosses, 40 trash plates up and gone in a dungeon = %d calls"):format(inside))
+  ok(inside <= 80 * 6, "a trash plate costs a name read, never a walk of the plates", inside)
+
+  -- other addons ask (BiSToolsAPI version 5)
+  local A = BiSToolsAPI
+  local here = A.Bosses()
+  ok(A.version == 5 and here and here.map == 36 and here.here and #here.bosses == 8 and type(here.bosses[1].state) == "string"
+     and here.bosses[1].mark == 8, "BiSToolsAPI 5: Bosses() - where you stand, with this run's states and marks")
+  here.bosses[1].name = "changed"
+  ok(D[36].bosses[1].name == "Rhahk'Zor", "a copy: the caller cannot change the list")
+  local mc = A.Bosses(409)
+  ok(mc and mc.kind == "raid" and not mc.here and mc.bosses[10].name == "Ragnaros" and mc.bosses[1].state == nil,
+    "any place by its map id: Molten Core, no states (you are not there)")
+  ok(select(2, A.Bosses(999999)) == "unknown", "a map not in the list: unknown")
+  ok(A.BossesShow() == true and f:IsShown(), "BossesShow opens the list")
+  S("off bosses")
+  ok(select(2, A.BossesShow()) == "bosses tool off", "and says so when the tool is off")
+  ok(not f:IsShown() and BS.map == nil and not BS.events.events.NAME_PLATE_UNIT_ADDED, "switched off: closed, eyes shut")
+  _G.IsInInstance, W.me.inst, W.target, W.plates, W.shift = keep.inst, keep.map, keep.target, keep.plates, keep.shift
 end
 
 local allowed = { BiSTools = true, BiSToolsDB = true, SLASH_BISTOOLS1 = true, SLASH_BISTOOLS2 = true,
