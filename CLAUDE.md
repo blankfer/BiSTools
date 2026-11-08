@@ -113,7 +113,7 @@ Read ../_bisdev/CLAUDE.md first.
     press, in sight first, pinged) in the window and on `BiSToolsBossFind` (`/bist bosses key <KEY>`). Written out of
     combat only (`BF.Write`, `BF.dirty`); the window steps away at PLAYER_REGEN_DISABLED, back after. Eyes (registered
     only inside a place, `BF.Eyes`): nameplates = IN SIGHT (`BF.near`), PostClick target name = MARKED, ENCOUNTER_END
-    success or seen dead = DOWN. Window `BiSToolsBosses` 343x240 @1.2: rows (8 a page), the synthwave screen (`BF.BuildScreen`,
+    success or seen dead = DOWN. Window `BiSToolsBosses` 343x240 @1.45 (Arn 8 Nov: 1.2 "lil small"): rows (8 a page), the synthwave screen (`BF.BuildScreen`,
     rolling grid at `BF.FPS` while shown) with the boss in 3D (`BF.NpcOf`: met npc `db.npcs` from its GUID, else the
     Codex's by live name; display id first), the gauge (`BF.NeedleAngle`), the tape, keys MARK ALL / FIND / RESET.
     Tools-box skull button (`BF.ShowBox`). BiSToolsAPI v5 `Bosses(map)` / `BossesShow()`. The suite's mock runs these

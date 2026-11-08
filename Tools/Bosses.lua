@@ -37,7 +37,7 @@ local BF = {}
 NS.Bosses = BF
 
 BF.W, BF.H = 343, 240              -- 1.43:1, the family's window shape
-BF.SCALE = 1.2                     -- every window: "so small cant read"
+BF.SCALE = 1.45                    -- every window starts at 1.2 ("so small cant read"); this one, Arn 8 Nov: "lil small"
 BF.ROWS, BF.ROW = 8, 16
 BF.MARKS = { 8, 7, 6, 5, 4, 3, 2, 1 }      -- skull, cross, square, moon, triangle, diamond, circle, star
 BF.MARK_ICON = "Interface\\TargetingFrame\\UI-RaidTargetingIcon_"

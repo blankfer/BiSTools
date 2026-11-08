@@ -9084,7 +9084,7 @@ do
   local f = BiSToolsBosses
   ok(BS.map == 36 and #BS.list == 8 and BS.events.events.NAME_PLATE_UNIT_ADDED, "in the Deadmines: its list, and the eyes open")
   ok(f and f:IsShown() and f.place.text == "Deadmines", "the window comes up by itself, once a run", f and f.place.text)
-  ok(f.scale == 1.2 and math.abs(f.w / f.h - 1.43) < 0.01, "1.43:1, 20% bigger", f.w .. "x" .. f.h)
+  ok(f.scale == 1.45 and math.abs(f.w / f.h - 1.43) < 0.01, "1.43:1, at 1.45 (Arn 8 Nov: 1.2 was 'lil small')", f.w .. "x" .. f.h)
   local esc = false
   for _, n in ipairs(UISpecialFrames) do if n == "BiSToolsBosses" then esc = true end end
   ok(esc, "Escape closes it")
