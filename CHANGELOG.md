@@ -1,4 +1,4 @@
-## Unreleased
+## 1.0.3
 
 - **Fixed: the XP food button kept turning into the sleeping bag.** The bag (and the camp tent) talk about experience in their own text, so the food button took them for XP food - and using the bag while fed made it "your" food. The food button now only ever holds real food; the bag and tent keep their own buttons. If an older version had already saved the bag as your food, it is forgotten.
 
