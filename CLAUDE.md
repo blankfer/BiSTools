@@ -72,8 +72,8 @@ Read ../_bisdev/CLAUDE.md first.
     all time in db.totals), the fingerprint (NS.BUILD = the copy's X-BiS-Build, stamped by deploy.sh) and the HOARD
     (`BiSToolsHoard`: db.totals as a heap of round-masked pieces, Media/Round.tga, capped 90; you in 3D on the summit,
     mood by the total; a full mountain, 1 open in 5, you fall in).
-  - `Pups.lua`: the `pups` tool (`NS.Pups`, 6 Nov 2026; Arn: "a fidget spinner ... like a flight tower radar"), ON by
-    default: `BiSToolsPups` (343x240, scale 1.2, Escape closes) - a radar scope (north up, rings and a sweep drawn with
+  - `Pups.lua`: the `pups` tool (`NS.Pups`, 6 Nov 2026; Arn: "a fidget spinner ... like a flight tower radar"), `defaultOff`
+    since 8 Nov (new in 1.0.0, so the 1.0 freeze must not switch it on for a pre-1.0 save - Arn's cousin): `BiSToolsPups` (343x240, scale 1.2, Escape closes) - a radar scope (north up, rings and a sweep drawn with
     Lines painted WHITE8X8 + tint, blips = Media/Round) and a readout (NEAREST, what the pups say, FOUND list, SEND).
     Pals (`P.Pals`): LibBiSComm spots (exact), your group on your map (exact), guild roster + friends (zone only);
     `P.Place`: exact yards/bearing via HereBeDragons `GetZoneDistance` (its x grows WEST, y NORTH) or GetMapWorldSize

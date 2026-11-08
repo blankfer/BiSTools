@@ -949,6 +949,9 @@ R:Register({
   name = "pups",
   desc = "a radar toy: send the pups to find your nearest pal",
   usage = "/bist pups",
+  -- new in 1.0.0: a save from before 1.0 never had it, so the 1.0 freeze must not write it ON (Arn, 8 Nov: his
+  -- cousin's pups came up on). Every tool added from 1.0 on starts off anyway (a missing switch is off).
+  defaultOff = true,
   defaults = { button = true },
   options = {
     { kind = "toggle", label = "button in the tools box while you travel",

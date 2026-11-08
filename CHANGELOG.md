@@ -1,3 +1,7 @@
+## 1.0.2
+
+- **The pup finder starts off if you're updating from before 1.0**, like every other new tool. 1.0.0 switched it on for anyone who already had BiS Tools, because it treated a tool they'd never had like one they'd left on. If you already have it on, it stays on - turn it off in the Hub (or `/bist off pups`) if you don't want the button while you fly.
+
 ## 1.0.1
 
 - **The "Target a rival" button only shows when it can matter:** while you're flagged for PvP, inside a battleground or arena, or for 5 minutes after a fight with another player (a duel counts). Out questing, unflagged, it stays out of your way - your rivals are still remembered, and it comes back the moment you flag or fight.
