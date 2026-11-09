@@ -7856,8 +7856,12 @@ do
   BAGS[159], SLOTS[0][4] = nil, false
   fire("BAG_UPDATE_DELAYED")
   ok(not food:IsShown(), "and with 15 minutes of Well Fed on: no button (Arn 6 Nov: it said 'eat' over a fresh one)")
+  -- BiSToolsAPI 7 (Arn 8 Nov: the radar should show the food the tools box shows): the same rule, asked from outside
+  local fn, fwhy = BiSToolsAPI.FoodNow()
+  ok(BiSToolsAPI.version >= 7 and fn == nil and fwhy == "not now", "FoodNow: nothing while Well Fed is fresh", tostring(fwhy))
   W.runAfters(900 - X.LOW_FOOD + 2)
   ok(food:IsShown(), "under 2 minutes left: the food button comes")
+  ok(BiSToolsAPI.FoodNow() == 5477, "FoodNow: the same food, the moment the box shows it", tostring(BiSToolsAPI.FoodNow()))
   FED = nil
   fire("UNIT_AURA", "player")
   ok(food:IsShown(), "gone: still up")
