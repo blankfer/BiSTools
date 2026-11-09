@@ -153,8 +153,10 @@ function BF.Lines(e, ping)
   local out = { "/cleartarget", "/targetexact " .. e.name }
   local m = BF.mark and BF.mark[e.id]
   if m then out[#out + 1] = "/tm [exists] !" .. m end
-  if ping == "always" then out[#out + 1] = "/ping [exists] " .. BF.PING
-  elseif ping == "shift" then out[#out + 1] = "/ping [mod:shift,exists] " .. BF.PING end
+  -- the ping NAMES its unit (8 Nov, Arn: "bis tools boss no ping on shift click" - "/ping [mod:shift,exists]" pinged
+  -- nothing; the family's working pings are all "/ping [@unit] kind", BiSHealing's [@mouseover] since 1 Oct)
+  if ping == "always" then out[#out + 1] = "/ping [@target,exists] " .. BF.PING
+  elseif ping == "shift" then out[#out + 1] = "/ping [mod:shift,@target,exists] " .. BF.PING end
   return table.concat(out, "\n")
 end
 
