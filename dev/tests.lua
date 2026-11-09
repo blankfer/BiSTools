@@ -9092,7 +9092,8 @@ do
   ok(f.scale == 1.45 and math.abs(f.w / f.h - 1.43) < 0.01, "1.43:1, at 1.45 (Arn 8 Nov: 1.2 was 'lil small')", f.w .. "x" .. f.h)
   local esc = false
   for _, n in ipairs(UISpecialFrames) do if n == "BiSToolsBosses" then esc = true end end
-  ok(esc, "Escape closes it")
+  ok(not esc, "Escape leaves it alone (Arn 8 Nov: 'even if i am not clicked on the window if i hit esc it closes it' - "
+    .. "Escape drops a target all run long)")
   ok(BS.ShowBox() and BS.BoxButton(), "the BiS> tools box shows its skull button inside")
   ok(BS.mark[D[36].bosses[1].id] == 8 and BS.mark[D[36].bosses[2].id] == 7 and BS.mark[D[36].bosses[8].id] == 1,
     "the marks: skull for the first, cross for the next ... star for the eighth")
@@ -9195,7 +9196,7 @@ do
   for _, p in ipairs({ f.screen, f.model, f.gauge, f.tape }) do if p and p.mouse == true then anyMouse = true end end
   ok(not anyMouse, "and nothing on it takes a click - not a row, not a key, not the window, not its picture: what is behind it can be clicked")
   ok(BS.FIGHT_ALPHA <= 0.15, "barely there (Arn: 'dim it way more')", BS.FIGHT_ALPHA)
-  ok(not onEsc, "and Escape leaves it alone mid-fight (closing secure buttons in a fight is refused)")
+  ok(not onEsc, "and Escape still leaves it alone mid-fight")
   ok(f:GetScript("OnUpdate") == nil and f.help.text == BS.FIGHT_HELP,
      "QUIET (Arn: 'like a quiet cockpit screen would'): the grid stops rolling, and one line says the keys are locked")
   ok(not BS.Dim(false), "and it is not woken inside the lockdown")
@@ -9209,7 +9210,8 @@ do
   for _, b in ipairs(BS.Clickables(f)) do if b.mouse == false then allMouse = false end end
   local backOnEsc = false
   for _, n in ipairs(UISpecialFrames) do if n == "BiSToolsBosses" then backOnEsc = true end end
-  ok(f.alpha == 1 and not f.dimmed and allMouse and backOnEsc, "full strength again, every key clickable, Escape closes it")
+  ok(f.alpha == 1 and not f.dimmed and allMouse and not backOnEsc,
+    "full strength again, every key clickable, and still not on the Escape list")
   ok(f:GetScript("OnUpdate") == f.tick and f.help.text == BS.HELP, "and the grid rolls again, the usual help line back")
 
   -- the key
@@ -9220,14 +9222,25 @@ do
 
   -- out and back within the hour: the same run; RESET: a fresh one
   local run = BS.run
+  BS.Toggle(true)
   _G.IsInInstance = function() return false, "none" end
   fireAll("ZONE_CHANGED_NEW_AREA")
   ok(BS.map == nil and not f:IsShown() and not BS.events.events.NAME_PLATE_UNIT_ADDED and not BS.ShowBox(),
-    "out: the window, the box button and the eyes all go")
+    "out (a wipe's release, a hearth): the window, the box button and the eyes all go")
+  ok(bdb.open == true, "but leaving is not closing it: it was open")
   _G.IsInInstance = function() return true, "party" end
   W.now = W.now + 600
   fireAll("PLAYER_ENTERING_WORLD")
-  ok(BS.run == run and BS.run.down[D[36].bosses[1].id] and not f:IsShown(), "back within the hour: the same run, no pop-up again")
+  ok(BS.run == run and BS.run.down[D[36].bosses[1].id] and f:IsShown(),
+    "back within the hour: the same run, and the window comes back with you (Arn: it 'stopped opening by itself')")
+  f.close.scripts.OnClick(f.close)
+  ok(not f:IsShown() and bdb.open == false, "its x closes it")
+  _G.IsInInstance = function() return false, "none" end
+  fireAll("ZONE_CHANGED_NEW_AREA")
+  _G.IsInInstance = function() return true, "party" end
+  W.now = W.now + 60
+  fireAll("PLAYER_ENTERING_WORLD")
+  ok(not f:IsShown(), "closed by you, out and back: it stays closed (once a run is enough)")
   S("bosses reset")
   ok(BS.run ~= run and not next(BS.run.down), "RESET: a fresh run")
 

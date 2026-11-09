@@ -383,7 +383,10 @@ function BF.Enter()
       local was = db.run
       BF.run = BF.Run(db, map)
       BF.Scan()
-      if db.auto ~= false and BF.run ~= was and not fighting() then BF.Toggle(true) end
+      -- up by itself once a run; and back again if it was open when you left (a wipe's run back, a hearth) -
+      -- leaving shuts it below without touching db.open; only your own close does
+      local fresh = db.auto ~= false and BF.run ~= was
+      if (fresh or db.open) and not fighting() then BF.Toggle(true) end
     else
       BF.run = nil
       if BF.frame and BF.frame:IsShown() and not fighting() then BF.frame:Hide() end
@@ -572,8 +575,10 @@ function BF.Build()
   f:SetPoint("CENTER", 0, 80)
   f:SetFrameStrata("DIALOG")
   f:SetScale(BF.SCALE)
-  if UISpecialFrames then table.insert(UISpecialFrames, "BiSToolsBosses") end   -- Escape closes it (out of fights:
-  f:EnableMouse(true)                                                              -- it is off the list while dimmed)
+  -- NOT on the Escape list (8 Nov, Arn: "even if i am not clicked on the window if i hit esc it closes it"): in a dungeon
+  -- Escape is pressed all run long to drop a target or stop a cast, and it shut the list each time. Its x, the skull and
+  -- /bist bosses close it.
+  f:EnableMouse(true)
   f:SetMovable(true)
   f:SetClampedToScreen(true)
   f:RegisterForDrag("LeftButton")
@@ -892,13 +897,6 @@ function BF.Clickables(f)
   return list
 end
 
-local function escapeList(on)
-  local list = UISpecialFrames
-  if type(list) ~= "table" then return end
-  for i = #list, 1, -1 do if list[i] == "BiSToolsBosses" then table.remove(list, i) end end
-  if on then list[#list + 1] = "BiSToolsBosses" end
-end
-
 --- Dim (a fight starts) or wake (it ended). Out of the lockdown only; returns false when refused.
 function BF.Dim(on)
   local f = BF.frame
@@ -911,7 +909,6 @@ function BF.Dim(on)
   if on then
     for _, p in ipairs({ f.screen, f.model, f.gauge, f.tape }) do if p and p.EnableMouse then p:EnableMouse(false) end end
   end
-  escapeList(not on)
   f:SetScript("OnUpdate", (not on) and f.tick or nil)
   if f.help then
     f.help:SetText(on and BF.FIGHT_HELP or BF.HELP)
@@ -928,6 +925,7 @@ function BF.Toggle(want)
     NS.Print("BiS> bosses opens after the fight")
     return f:IsShown()
   end
+  if BF.db then BF.db.open = want and true or false end   -- yours: it comes back with you after a death or a hearth
   if want then
     BF.Scan()
     BF.Write()
