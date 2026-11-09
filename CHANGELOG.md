@@ -2,6 +2,7 @@
 
 - **Fixed: BiS> processing could stick to your mouse.** If a fight started while you were dragging the window, it was put away with the drag still on, and when it came back after the fight it followed your cursor. A fight now ends the drag first. The hoard window, closed with Escape mid-drag, lets go too.
 - **Fixed: the BiS> tools box and the summon list could stick to your mouse.** Both hold buttons the game locks during a fight, so if a fight started while you were dragging one, letting go of the mouse did nothing until the fight was over. Now the drag ends the moment the fight starts, and the window stays where it was.
+- **For other addons:** `BiSToolsAPI.FoodNow()` (API version 7): the food the XP buttons would show right now, by the same rule. BiS Healing uses it.
 - **BiS> Codex counts dungeon creatures you've met.** Inside a dungeon the game hides which creature is which, so the Codex wrote down the loot but never counted the meeting. It now knows them by name instead, and a corpse you loot counts as met. Runs you'd already done are caught up once, from the loot they left behind.
 - **BiS> Codex, after dark: the book full screen.** Press FULL on the Codex (or type `/bist codex full`) and you're behind the wheel at night, with the creature standing in your headlights on a wet road and its name in pink over the night like an opening title. Drag it to turn it; switches on the dash make it stand, attack, cast or fall.
   - **Rear-view mirror:** the page you read before. Click it to go back.

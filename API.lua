@@ -53,13 +53,19 @@
 --
 -- Since version 6 (8 Nov 2026, for BiS Memories - Arn: "this shows the boss from adventure the ones from acutal dungeon
 -- dont"; inside a dungeon the game hides the creature's id at the kill, so a memory keeps only the boss's name).
+-- Since version 7 (8 Nov 2026, for BiS Healing's radar - Arn: "bis tool still shows the eat food icon in the toolbox
+-- but its not in the radar need it there too out of combat"):
+--   FoodNow()      -> the item id of the food the XP tool's button would show right now (its own rule: Well Fed gone or
+--                    running low, levelling, out of a fight, the tool on), else nil and why ("not now", "xp tool off",
+--                    "not ready"). Read-only; eating is the caller's own secure button ("/use item:<id>").
+--
 --   BossFace(name) -> npcId, displayId (either may be nil) for a boss by its name: the one the boss finder met there,
 --                    else the Codex's boss of that name (its names come in live, so an unknown one may answer a
 --                    second later). nil when nobody knows it.
 --------------------------------------------------------------------------------
 local _, NS = ...
 
-local API = { major = 1, version = 6 }
+local API = { major = 1, version = 7 }
 BiSToolsAPI = API
 
 local function Party()
@@ -240,6 +246,17 @@ function API.BossFace(name)
   npc, display = tonumber(npc), tonumber(display)
   if not npc and not display then return nil end
   return npc, display
+end
+
+-- the XP tool's food, as its button would show it now (version 7): its own rule, never a second one
+function API.FoodNow()
+  local X, R = NS.XP, NS.Registry
+  if not (X and X.ShowFood and X.db) then return nil, "not ready" end
+  if R and R.Enabled and not R:Enabled("xp") then return nil, "xp tool off" end
+  local ok, show = pcall(X.ShowFood, X.db)
+  local item = X.pick
+  if ok and show and type(item) == "number" and X.MayBeFood and X.MayBeFood(item) then return item end
+  return nil, "not now"
 end
 
 function API.BossesShow()
