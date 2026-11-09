@@ -1,5 +1,6 @@
 ## Unreleased
 
+- **BiS> Codex counts dungeon creatures you've met.** Inside a dungeon the game hides which creature is which, so the Codex wrote down the loot but never counted the meeting. It now knows them by name instead, and a corpse you loot counts as met. Runs you'd already done are caught up once, from the loot they left behind.
 - **BiS> Codex, after dark: the book full screen.** Press FULL on the Codex (or type `/bist codex full`) and you're behind the wheel at night, with the creature standing in your headlights on a wet road and its name in pink over the night like an opening title. Drag it to turn it; switches on the dash make it stand, attack, cast or fall.
   - **Rear-view mirror:** the page you read before. Click it to go back.
   - **Sun visor:** what it was seen to drop, clipped up like tickets. Shift-click one to link it.

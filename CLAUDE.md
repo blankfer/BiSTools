@@ -93,7 +93,7 @@ Read ../_bisdev/CLAUDE.md first.
     `C.Spell` (RequestLoadSpellData once, repaint `C.LOAD_WAIT` later). Learners, only while the tool is on (`C.Listen`):
     `C.Learn` (target / nameplate: `db.met[npc]` = { n per spawn via `C.last`, level, rank, type, family }), `C.LearnCast`
     (`db.casts`), `C.LearnLoot` (LOOT_OPENED: `GetLootSourceInfo` corpse GUID -> `db.seen[npc][item]`, once per corpse
-    via `C.lastLoot`); everything plain-checked, never the combat log. The window `BiSToolsCodex` (600x420, scale 1.2,
+    via `C.lastLoot`); INSIDE A DUNGEON A LIVING CREATURE'S GUID IS SECRET (8 Nov, Arn: met counters at zero, loot written): `C.Learn` falls back to its NAME (`C.ByName`, the book's live names, shipped first), once per `C.NAME_GAP`; a looted corpse is a meeting (`C.Meet` by spawn GUID, adopting a by-name meeting just before; `C.Count`); `db.metFromLoot` = the one-time catch-up from old loot; everything plain-checked, never the combat log. The window `BiSToolsCodex` (600x420, scale 1.2,
     Escape): a cockpit housing (keys `X.Key`, A-Z + "?", LCD, PREV/NEXT through the whole book, search) around two
     cream pages (`X.INK`, Morpheus headings): Contents (`X.TocEntries`), a dungeon's plate (`f.figs`, models by
     `SetDisplayInfo` or `SetCreature`, SHOWN before asked, `X.Retry` while open), a creature page (`f.hero` with
