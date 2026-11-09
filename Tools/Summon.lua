@@ -688,6 +688,27 @@ function SM.Relayout()
 end
 
 -- ---------------------------------------------------------------- window
+--- THE DRAG, one pair for every handle (the window, its header, a shift-drag on a row). 8 Nov 2026, the drag audit
+--- after the boss window held Arn's mouse until he killed the game: the list holds secure rows, so inside the lockdown
+--- the client will not let go of it - a drag still on when the fight starts would have its mouse-up refused and ride
+--- the cursor all fight. SM.EndDrag runs at PLAYER_REGEN_DISABLED (before the lockdown), at the mouse-up and on hide.
+function SM.StartDrag()
+  if InCombatLockdown() or not SM.frame then return end
+  SM.frame:StartMoving()
+  SM.dragging = true
+end
+function SM.EndDrag(db)
+  local f = SM.frame
+  if not (f and SM.dragging) then return false end
+  SM.dragging = nil
+  f:StopMovingOrSizing()
+  db = db or SM.db
+  local point, _, rel, x, y = f:GetPoint(1)
+  if db then db.pos = { point or "CENTER", x or 0, y or 0, rel or point or "CENTER" } end
+  SM.seenAt = GetTime()
+  return true
+end
+
 function SM.Build(db)
   if SM.frame then return SM.frame end
   local f = CreateFrame("Frame", "BiSToolsSummon", UIParent)
@@ -698,13 +719,9 @@ function SM.Build(db)
   f:EnableMouse(true)
   f:SetClampedToScreen(true)
   f:RegisterForDrag("LeftButton")
-  f:SetScript("OnDragStart", function(self) if not InCombatLockdown() then self:StartMoving() end end)
-  f:SetScript("OnDragStop", function(self)
-    self:StopMovingOrSizing()
-    local point, _, rel, x, y = self:GetPoint(1)
-    db.pos = { point or "CENTER", x or 0, y or 0, rel or point or "CENTER" }
-    SM.seenAt = GetTime()
-  end)
+  f:SetScript("OnDragStart", function() SM.StartDrag() end)
+  f:SetScript("OnDragStop", function() SM.EndDrag(db) end)
+  f:SetScript("OnHide", function() SM.EndDrag(db) end)         -- hidden mid-drag (switched off): the drag ends too
   K.tex(f, "BACKGROUND", "frame", K.BODY_A)
   K.border(f, "edge", 0.35)
 
@@ -739,13 +756,8 @@ function SM.Build(db)
   -- because a plain click on a row is the target action)
   head:EnableMouse(true)
   head:RegisterForDrag("LeftButton")
-  head:SetScript("OnDragStart", function() if not InCombatLockdown() then f:StartMoving() end end)
-  head:SetScript("OnDragStop", function()
-    f:StopMovingOrSizing()
-    local point, _, rel, x, y = f:GetPoint(1)
-    db.pos = { point or "CENTER", x or 0, y or 0, rel or point or "CENTER" }
-    SM.seenAt = GetTime()
-  end)
+  head:SetScript("OnDragStart", function() SM.StartDrag() end)
+  head:SetScript("OnDragStop", function() SM.EndDrag(db) end)
 
   local body = CreateFrame("Frame", nil, f)
   body:SetPoint("TOPLEFT", head, "BOTTOMLEFT")
@@ -873,14 +885,10 @@ function SM.Row(i, db)
     if self.pname then SM.Park(db, self.pname) end
   end)
   r:SetScript("OnDragStart", function()
-    if not IsShiftKeyDown() or InCombatLockdown() then return end
-    SM.frame:StartMoving()
+    if not IsShiftKeyDown() then return end
+    SM.StartDrag()
   end)
-  r:SetScript("OnDragStop", function()
-    SM.frame:StopMovingOrSizing()
-    local point, _, rel, x, y = SM.frame:GetPoint(1)
-    db.pos = { point or "CENTER", x or 0, y or 0, rel or point or "CENTER" }
-  end)
+  r:SetScript("OnDragStop", function() SM.EndDrag(db) end)
   r:SetScript("OnEnter", function(self)
     SM.seenAt = GetTime()
     local rr, g, b = K.color("sunken") self.bg:SetColorTexture(rr, g, b, 1)
@@ -1141,6 +1149,7 @@ end
 
 -- ---------------------------------------------------------------- events
 function SM.OnEvent(db, event)
+  if event == "PLAYER_REGEN_DISABLED" then SM.EndDrag(db) return end   -- the moment before the lockdown
   if event == "PLAYER_REGEN_ENABLED" then
     if SM.pending.visible ~= nil then SM.ApplyVisible(SM.pending.visible) end
     SM.Refresh(db)
@@ -1153,6 +1162,7 @@ function SM.Hook(db)
   SM.db = db
   SM.Build(db)
   SM.events:RegisterEvent("GROUP_ROSTER_UPDATE")
+  SM.events:RegisterEvent("PLAYER_REGEN_DISABLED")             -- a drag still on ends (SM.EndDrag)
   SM.events:RegisterEvent("PLAYER_REGEN_ENABLED")
   if not SM.ticker then SM.ticker = C_Timer.NewTicker(2, function() if SM.shown then SM.Refresh(db) SM.Reask(db) end end) end
   SM.events:SetScript("OnUpdate", function(_, dt) SM.Watch(db, dt) end)

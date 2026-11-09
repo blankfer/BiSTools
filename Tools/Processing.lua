@@ -412,6 +412,20 @@ function P.RefreshTip()
   end
 end
 
+--- A drag that ends however the window goes: the button up, a fight putting it away, Escape (8 Nov 2026, the drag audit
+--- after the boss window's soft lock - Arn had to kill the game). Hidden mid-drag, a window never hears the button come
+--- up and stays glued to the cursor; only StopMovingOrSizing lets go.
+function P.StartDrag(self)
+  self:StartMoving()
+  self.dragging = true
+end
+function P.EndDrag(self)
+  if not (self and self.dragging) then return false end
+  self.dragging = nil
+  pcall(self.StopMovingOrSizing, self)
+  return true
+end
+
 function P.Build()
   if P.frame then return P.frame end
   local k = K()
@@ -426,8 +440,9 @@ function P.Build()
   f:SetMovable(true)
   f:SetClampedToScreen(true)
   f:RegisterForDrag("LeftButton")
-  f:SetScript("OnDragStart", f.StartMoving)
-  f:SetScript("OnDragStop", f.StopMovingOrSizing)
+  f:SetScript("OnDragStart", P.StartDrag)
+  f:SetScript("OnDragStop", P.EndDrag)
+  f:SetScript("OnHide", P.EndDrag)                              -- put away mid-drag (a fight, Escape): the drag ends too
   f:SetScript("OnMouseDown", function(self) if self.Raise then self:Raise() end end)   -- a click brings it forward
   k.tex(f, "BACKGROUND", "frame", 0.97)
   k.border(f, "edge", 1)
@@ -722,8 +737,9 @@ function P.BuildHoard()
   h:SetMovable(true)
   h:SetClampedToScreen(true)
   h:RegisterForDrag("LeftButton")
-  h:SetScript("OnDragStart", h.StartMoving)
-  h:SetScript("OnDragStop", h.StopMovingOrSizing)
+  h:SetScript("OnDragStart", P.StartDrag)
+  h:SetScript("OnDragStop", P.EndDrag)
+  h:SetScript("OnHide", P.EndDrag)                              -- Escape mid-drag: the drag ends with it
   h:SetScript("OnMouseDown", function(self) if self.Raise then self:Raise() end end)   -- a click brings it forward
   if UISpecialFrames then table.insert(UISpecialFrames, "BiSToolsHoard") end
   k.tex(h, "BACKGROUND", "frame", 0.97)
@@ -972,7 +988,9 @@ for _, e in ipairs({ "BAG_UPDATE_DELAYED", "UNIT_SPELLCAST_SUCCEEDED", "UI_ERROR
 ev:SetScript("OnEvent", function(_, event, a1, a2, a3)
   if not R:Enabled("processing") then return end
   if event == "PLAYER_REGEN_DISABLED" then
-    -- the last moment the client allows it: the page holds secure buttons
+    -- the last moment the client allows it: the page holds secure buttons. A drag still on ends FIRST, while
+    -- the window can still let go (its OnHide would too - this does not lean on it)
+    if P.frame then P.EndDrag(P.frame) end
     if P.frame and P.frame:IsShown() then P.frame:Hide() P.reopen = true end
     return
   elseif event == "PLAYER_REGEN_ENABLED" then
