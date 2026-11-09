@@ -9094,6 +9094,18 @@ do
   for _, n in ipairs(UISpecialFrames) do if n == "BiSToolsBosses" then esc = true end end
   ok(not esc, "Escape leaves it alone (Arn 8 Nov: 'even if i am not clicked on the window if i hit esc it closes it' - "
     .. "Escape drops a target all run long)")
+  -- where you left it (Arn 8 Nov: "the bis bosses always open in the middle of the screen")
+  ok(f.point and f.point[1] == "CENTER" and f.point[5] == 80 and bdb.pos == nil, "never dragged: a little above the middle")
+  f.scripts.OnDragStart(f)
+  f.scripts.OnDragStop(f)
+  ok(type(bdb.pos) == "table" and bdb.pos[1] == "TOPLEFT" and bdb.pos[2] == "CENTER" and bdb.pos[3] == 12 and bdb.pos[4] == -34,
+     "a drag: where it stopped is kept")
+  f:ClearAllPoints()
+  BS.Place()                                       -- what the next login's build does
+  ok(f.point and f.point[1] == "TOPLEFT" and f.point[3] == "CENTER" and f.point[4] == 12 and f.point[5] == -34,
+     "the next login: it opens where it was left")
+  R:Get("bosses"):OnOpen(bdb, true)
+  ok(bdb.pos == nil and f.point[1] == "CENTER", "reset window positions: the middle again, for good")
   ok(BS.ShowBox() and BS.BoxButton(), "the BiS> tools box shows its skull button inside")
   ok(BS.mark[D[36].bosses[1].id] == 8 and BS.mark[D[36].bosses[2].id] == 7 and BS.mark[D[36].bosses[8].id] == 1,
     "the marks: skull for the first, cross for the next ... star for the eighth")
