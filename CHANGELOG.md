@@ -1,5 +1,6 @@
 ## Unreleased
 
+- **Fixed: BiS> processing could stick to your mouse.** If a fight started while you were dragging the window, it was put away with the drag still on, and when it came back after the fight it followed your cursor. A fight now ends the drag first. The hoard window, closed with Escape mid-drag, lets go too.
 - **For other addons:** `BiSToolsAPI.BossFace(name)` (API version 6) - a boss's creature and model by its name, from the boss finder and the Codex. BiS Memories uses it to draw dungeon bosses on their postcards.
 - **BiS> bosses, a boss finder.** Walk into a dungeon or raid and the list of its bosses comes up, in the game's own order, each with the raid mark it will get (skull first, then cross, square, moon...).
   - **Click a boss** to target it and put its mark on it. Shift-click also pings it for your party. If the boss isn't nearby, nothing is marked and you keep your old target.

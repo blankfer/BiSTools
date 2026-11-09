@@ -552,6 +552,10 @@ _G.CreateFrame = function(kind, name, parent, template)
     local was = self.shown
     self.shown = false
     if was and self.scripts.OnHide then self.scripts.OnHide(self) end
+    -- HIDDEN MID-DRAG, THE DRAG IS STILL ON (8 Nov 2026, the drag audit after the boss window's soft lock): a hidden
+    -- frame never hears the button come up, so OnDragStop never runs and the client keeps it moving - shown again, it
+    -- is glued to the cursor. Only StopMovingOrSizing ends it (OnHide may call it: it runs above, before this look).
+    if was and self.moving then W.strandedDrag = (W.strandedDrag or 0) + 1 end
   end
   function f:IsShown() return self.shown end
   function f:SetShown(v) if v then self:Show() else self:Hide() end end
@@ -8561,7 +8565,12 @@ do
   local hoardEsc = false
   for _, n in ipairs(UISpecialFrames) do if n == "BiSToolsHoard" then hoardEsc = true end end
   ok(hoardEsc, "Escape closes it")
+  -- Escape mid-drag (8 Nov, the drag audit): the hoard hides with the button still down - the drag ends with it
+  W.strandedDrag = nil
+  h.scripts.OnDragStart(h)
   P.ToggleHoard(false)
+  ok(not h.moving and not W.strandedDrag, "the hoard hidden mid-drag: the drag ends with it, nothing glued to the cursor",
+     tostring(W.strandedDrag))
   db.totals = keepTotals
   -- the tools box: a button while there is work
   NS.Box.Refresh()
@@ -8583,9 +8592,16 @@ do
   ok(P.tsButton and P.tsButton:GetParent() == TradeSkillFrame, "the profession window gets a BiS> processing button")
   P.tsButton.scripts.OnClick(P.tsButton, "LeftButton")
   ok(f:IsShown(), "and it opens the window")
-  -- a fight: put away while the client still allows it, never painted in it
+  -- a fight: put away while the client still allows it, never painted in it.
+  -- AND YOU ARE DRAGGING IT WHEN THE PULL COMES (8 Nov, the boss window's soft lock - Arn had to kill the game): hidden
+  -- mid-drag it never hears the button come up and stays glued to the cursor when it comes back. The drag ends first.
+  W.strandedDrag = nil
+  f.scripts.OnDragStart(f)
+  ok(f.moving, "the window is being dragged when the pull comes")
   fire("PLAYER_REGEN_DISABLED")
   ok(not f:IsShown(), "a fight starts: the window is put away")
+  ok(not f.moving and not W.strandedDrag, "and the drag ENDS with it - not glued to the cursor when it comes back",
+     tostring(W.strandedDrag))
   W.combat = true
   fire("BAG_UPDATE_DELAYED")
   W.combat = false

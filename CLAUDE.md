@@ -66,7 +66,9 @@ Read ../_bisdev/CLAUDE.md first.
     gates `P.GATES` = the classic table, UNVERIFIED; a "Requires ... Rod" UI_ERROR_MESSAGE after our click is the
     scratchpad's and `db.blocked[ilvl]`; a success at that level forgets it. Right-click = `db.ignore[guid]`. Doors: a
     tools-box button (`P.count` > 0, recounted on bag change) and a button on the profession window (TRADE_SKILL_SHOW).
-    Put away at PLAYER_REGEN_DISABLED, back after. Loads after `Disenchant.lua`.
+    Put away at PLAYER_REGEN_DISABLED, back after; a drag still on ends first (`P.EndDrag`, also each window's
+    OnHide - 8 Nov: hidden mid-drag, a window stays glued to the cursor; the mock counts `W.strandedDrag` when a
+    frame hides while moving). Loads after `Disenchant.lua`.
     Later (6 Nov): names in quality colour, rows and every button POP on hover, scale 1.2, Escape closes it, the
     tools-box button in town only (IsResting), the session haul strip (CHAT_MSG_LOOT within 6 s of our disenchant;
     all time in db.totals), the fingerprint (NS.BUILD = the copy's X-BiS-Build, stamped by deploy.sh) and the HOARD
