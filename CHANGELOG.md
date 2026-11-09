@@ -1,4 +1,4 @@
-## Unreleased
+## 1.1.0
 
 - **Fixed: BiS> processing could stick to your mouse.** If a fight started while you were dragging the window, it was put away with the drag still on, and when it came back after the fight it followed your cursor. A fight now ends the drag first. The hoard window, closed with Escape mid-drag, lets go too.
 - **Fixed: the BiS> tools box and the summon list could stick to your mouse.** Both hold buttons the game locks during a fight, so if a fight started while you were dragging one, letting go of the mouse did nothing until the fight was over. Now the drag ends the moment the fight starts, and the window stays where it was.
