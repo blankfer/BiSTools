@@ -854,6 +854,17 @@ function BF.Paint()
   f.place:SetText(BF.data and BF.data.name or "not in a dungeon")
   f.build:SetText(NS.Stamp and NS.Stamp() or "")
   local page = BF.page or 1
+  -- IN A FIGHT THE ROWS AND KEYS ARE SECURE BUTTONS: showing or hiding one is protected, even one already shown
+  -- (Arn's BugGrabber, 8 Nov: "tried to call the protected function 'Button:Show()'" - a kill mid-fight repainted the
+  -- list). Words and colours change now; which buttons show waits for the fight's end (BF.showLater).
+  local locked = fighting()
+  local function vis(b, on)
+    if locked then
+      if (b:IsShown() and true or false) ~= (on and true or false) then BF.showLater = true end
+      return
+    end
+    if on then b:Show() else b:Hide() end
+  end
   for i, r in ipairs(f.rows) do
     local idx = (page - 1) * BF.ROWS + i
     local e = list[idx]
@@ -872,15 +883,15 @@ function BF.Paint()
       r.name:SetTextColor(rgb(st == "down" and "dim" or "ink"))
       r.state:SetText(BF.STATE_WORD[st] or "")
       r.state:SetTextColor(rgb(BF.STATE_INK[st] or "ink2"))
-      r:Show()
+      vis(r, true)
     else
-      r:Hide()
+      vis(r, false)
     end
   end
   local pages = BF.Pages()
   f.pageNo:SetText(pages > 1 and (page .. "/" .. pages) or "")
-  f.prev:SetShown(pages > 1)
-  f.next:SetShown(pages > 1)
+  vis(f.prev, pages > 1)
+  vis(f.next, pages > 1)
   local c = BF.Counts()
   f.readDown:SetText(c.down .. " / " .. c.all)
   f.readNear:SetText(c.near .. " IN SIGHT")
@@ -1075,6 +1086,7 @@ function BF.OnEvent(event, a1, a2, _, _, a5)
     if BF.keyDirty and BF.db then BF.ApplyKey(BF.db) end
     if BF.frame and BF.frame.dimmed then BF.Dim(false) end
     if BF.back then BF.back = nil BF.Toggle(true) end
+    if BF.showLater then BF.showLater = nil BF.Paint() end          -- the rows a mid-fight paint could not show or hide
   end
 end
 ev:SetScript("OnEvent", function(_, event, ...)

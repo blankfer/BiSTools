@@ -543,12 +543,22 @@ _G.CreateFrame = function(kind, name, parent, template)
   -- SHOW AND HIDE RUN OnShow / OnHide, on a real change only, as the client does (6 Nov 2026, the XP food glow
   -- plays while the button is up and stops when it goes). The old mock only flipped a flag, so "does the pulse
   -- stop when the button hides" had no answer.
+  -- A SECURE FRAME'S SHOW / HIDE ARE PROTECTED IN A FIGHT - THE CALL ITSELF, even on one already shown (Arn's
+  -- BugGrabber, 8 Nov: "AddOn 'BiSTools' tried to call the protected function 'Button:Show()'", the boss list
+  -- repainting at a kill mid-fight). The client blocks it and fires ADDON_ACTION_BLOCKED; here it is an error.
+  local function guarded(self, what)
+    if W.combat and self.template and self.template:find("Secure") then
+      error("ADDON_ACTION_BLOCKED: " .. what .. " on a secure frame in combat", 3)
+    end
+  end
   function f:Show()
+    guarded(self, "Show")
     local was = self.shown
     self.shown = true
     if not was and self.scripts.OnShow then self.scripts.OnShow(self) end
   end
   function f:Hide()
+    guarded(self, "Hide")
     local was = self.shown
     self.shown = false
     if was and self.scripts.OnHide then self.scripts.OnHide(self) end
