@@ -889,7 +889,7 @@ function BF.IsOpen() return BF.frame ~= nil and BF.frame:IsShown() end
 -- incombat they can still click stuff behind it"): barely there, and every part lets the mouse through to what is under it
 BF.FIGHT_ALPHA = 0.12
 BF.FIGHT_HELP = "FIGHT · screen quiet, keys locked - back after the fight"
-BF.HELP = "click: target + mark   shift: + ping   FIND: one at a time   esc: close"
+BF.HELP = "click: target + mark   shift: + ping   FIND: one at a time   x: close"
 
 function BF.Clickables(f)
   local list = { f.close, f.prev, f.next, f.all, f.find, f.reset }
