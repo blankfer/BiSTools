@@ -632,7 +632,7 @@ local function buildCluster(dash)
   local lcd2 = CreateFrame("Frame", nil, cl)
   at(lcd2, cl, 13.8, 11.8, 13.4, 2.4)
   fill(lcd2, "BACKGROUND", "lcd", 1):SetAllPoints()
-  DR.lcd2 = fs(lcd2, 13, "cyan", nil, "CENTER")
+  DR.lcd2 = fs(lcd2, 12, "cyan", nil, "CENTER")
   DR.lcd2:SetPoint("CENTER", 0, 0)
   -- the pose switches, along the top of the dash
   DR.pose = {}
@@ -773,7 +773,7 @@ local function buildAtlas(room)
   shade:SetPoint("TOPLEFT", px(0.4), -px(0.6)) shade:SetPoint("BOTTOMRIGHT", px(0.6), -px(0.6))
   local paper = fill(a, "BORDER", "paper", 1)
   paper:SetAllPoints()
-  local lampGlow = round(a, "ARTWORK", "fff2c0", 0.28)
+  local lampGlow = round(a, "ARTWORK", "fff2c0", 0.1)    -- 0.28 read as a smudge on the title (Arn's screenshot)
   lampGlow:SetBlendMode("ADD")
   at(lampGlow, a, 2, -2, 14, 12)
   a.hdL = fs(a, 11, "paperSoft", DR.NARROW, "LEFT")
@@ -1043,7 +1043,8 @@ local function paintCluster(npc, c)
   DR.lamps.MET:Lit(c and c.met > 0)
   local typ = c and c.type and upper(c.family and (c.type .. " - " .. c.family) or c.type) or "NOT MET YET"
   set(DR.lcd1, typ, 13, px(12.6))
-  set(DR.lcd2, ("NPC %d   MODEL %s"):format(npc, c and c.display and tostring(c.display) or "BY NPC"), 13, px(12.6))
+  -- Forever's own ids run to six digits each: one size down and single gaps, so "MODEL 145.." is whole (8 Nov)
+  set(DR.lcd2, ("NPC %d  MODEL %s"):format(npc, c and c.display and tostring(c.display) or "BY NPC"), 12, px(13.2))
   for k, b in pairs(DR.pose) do
     if k == "TURN" then b:Lit(DR.spinning) else b:Lit(DR.hero and DR.hero.anim ~= nil and DR.hero.anim == X.ANIM[k]) end
   end
