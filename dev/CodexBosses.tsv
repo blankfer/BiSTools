@@ -1,0 +1,127 @@
+# BiSTools/dev/CodexBosses.tsv - the bosses the game's own list (Tools/BossData.lua) has that ADVENT's cast does not.
+# Read by dev/codexdata.py, which slots each into its dungeon's plate in the game's order. 8 Nov 2026 (Arn: 'codex
+# missing 1 boss' - Wailing Caverns had no Kresh, Lord Pythas or Verdan). IDS ONLY; the name column is for people
+# and the bossdata match (the client's encounter name), never shipped. Every npc id was checked against Wowhead's
+# public tooltip (the name it answers); display ids are from DungeonJournal data (DJ) or FojjiCore's (Fojji),
+# UNVERIFIED until they draw - blank = drawn by the npc id.
+# key	npc	display	name	display source	note
+rfc	11517	11611	Oggleflint	DJ	
+rfc	11518	11429	Jergosh the Invoker	DJ	
+rfc	11519	2007	Bazzalan	DJ	
+thanes	261306	142826	Faldrim Anvilmar	DJ	
+thanes	261316	1070	Infurnus	Fojji	the client's encounter name; the npc is Magmatus (DJ: 'client encounter table currently calls this Infurnus')
+thanes	261311	142840	Plunder	DJ	
+thanes	261319	142837	Durgen Dirgehammer	DJ	
+ruins	255699	139050	Lordaeron Captain	Fojji	rare elite (Fojji: rare = true)
+dm	3586	556	Miner Johnson	DJ	
+dm	647	7113	Captain Greenskin	DJ	
+dm	645	1305	Cookie	DJ	
+wc	3653	5126	Kresh	DJ	
+wc	3670	4214	Lord Pythas	DJ	
+wc	5775	4256	Verdan the Everliving	DJ	
+sfk	4274	2352	Fenrus the Devourer	DJ	
+sfk	3927	11179	Wolf Master Nandos	DJ	
+bfd	12902	12822	Lorgus Jett	DJ	
+bfd	4830	1816	Old Serra'kis	DJ	
+gnomer	7079	5497	Viscous Fallout	DJ	
+gnomer	6229	6774	Crowd Pummeler 9-60	DJ	
+rfk	6168	6110	Roogug	DJ	
+rfk	4424	6097	Aggem Thorncurse	DJ	
+rfk	4428	4644	Death Speaker Jargba	DJ	
+wetlands	260808		Highland Horror		medium confidence: Alliance quest boss; a second Highland Horror stands outside in open Wetlands - id 260808 is the only one listed (wiki), its tooltip zone 16732 is not the open-world Wetlands id, so likely the instance one; no display id found
+dalaran	246008	129895	Mana Devourer	DJ	
+dalaran	247032	130235	Lyn the Ignored	DJ	
+dalaran	246931	130220	Mana Wraith	DJ	
+rfd	7356	6124	Plaguemaw the Rotting	DJ	
+rfd	7354	11382	Ragglesnout	DJ	
+rfd	8567	7864	Glutton	DJ	
+sm	3983	2044	Interrogator Vishas	DJ	
+sm	4543	11396	Bloodmage Thalnos	DJ	
+sm	3974	2040	Houndmaster Loksey	DJ	
+sm	4542	2605	High Inquisitor Fairbanks	DJ	
+sm	3977	2043	High Inquisitor Whitemane	DJ	
+drowned	270887	129945	Primeval Elemental	DJ	DJ: no npc of its own; 270887 is the client's 'Staging Area' copy (picture only) - same trick as Deathless Marrow 270885
+ulda	6910	5945	Revelosh	DJ	
+ulda	7206	10798	Ancient Stone Keeper	DJ	
+ulda	7291	6059	Galgann Firehammer	DJ	
+ulda	4854	11165	Grimlok	DJ	
+zf	7795		Hydromancer Velratha		no display offline (Fojji draws an icon)
+zf	8127	7353	Antu'sul	DJ	
+zf	7272		Theka the Martyr		no display offline (Fojji draws an icon)
+zf	7796		Nekrum Gutchewer		no display offline (Fojji draws an icon)
+zf	7275	6441	Shadowpriest Sezz'ziz	DJ	
+mara	13282	11172	Noxxion	DJ	
+mara	12258	12389	Razorlash	DJ	
+mara	13601	7125	Tinkerer Gizlock	DJ	
+mara	12236	12334	Lord Vyletongue	DJ	
+mara	13596	13589	Rotgrip	DJ	
+st	8443	8053	Avatar of Hakkar	DJ	summoned event boss
+st	5722	9584	Hazzas	DJ	
+st	5719	7975	Morphaz	DJ	
+st	5720	6375	Weaver	DJ	
+st	5721	7553	Dreamscythe	DJ	
+brd	9018	8761	High Interrogator Gerstahn	DJ	
+brd	9025	5781	Lord Roccor	DJ	
+brd	9319	9212	Houndmaster Grebmar	DJ	
+brd	9024	8762	Pyromancer Loregrain	DJ	
+brd	9017	1204	Lord Incendius	DJ	
+brd	9041	9089	Warder Stilgiss	DJ	
+brd	9056	8704	Fineous Darkvire	DJ	
+brd	9016	12162	Bael'Gar	DJ	
+brd	9033	8756	General Angerforge	DJ	
+brd	8983	8759	Golem Lord Argelmach	DJ	
+brd	9537	8658	Hurley Blackbreath	DJ	
+brd	9502	8177	Phalanx	DJ	
+brd	9543	8667	Ribbly Screwspigot	DJ	
+brd	9156	8329	Ambassador Flamelash	DJ	
+brd	8929	8705	Princess Moira Bronzebeard	DJ	
+lbrs	9236	9732	Shadow Hunter Vosh'gajin	DJ	
+lbrs	10596	9929	Mother Smolderweb	DJ	
+lbrs	10584	11583	Urok Doomhowl	DJ	
+lbrs	9736	9738	Quartermaster Zigris	DJ	
+lbrs	10220	9567	Halycon	DJ	
+lbrs	10268	9564	Gizrul the Slavener	DJ	
+ubrs	10430	10193	The Beast	DJ	
+ubrs	16042	14308	Lord Valthalak	DJ	summoned (Brazier set)
+dire	11490	11335	Zevrim Thornhoof	DJ	
+dire	13280	5489	Hydrospawn	DJ	
+dire	14327	14378	Lethtendris	DJ	
+dire	14354	7552	Pusillin	DJ	
+dire	11492	14416	Alzzin the Wildshaper	DJ	
+dire	11489	14383	Tendris Warpwood	DJ	
+dire	11488	11270	Illyanna Ravenoak	DJ	
+dire	11487	14384	Magister Kalendris	DJ	
+dire	11496	14173	Immol'thar	DJ	
+dire	11486	11256	Prince Tortheldrin	DJ	
+dire	14321	11561	Guard Fengus	DJ	
+dire	14323	11561	Guard Slip'kik	DJ	
+dire	14324	11537	Cho'Rush the Observer	DJ	
+dire	14506	14556	Lord Hel'nurath	DJ	
+dire	11467	11250	Tsu'zee	DJ	
+strat	10558	10482	Hearthsinger Forresten	DJ	
+strat	10808	571	Timmy the Cruel	DJ	
+strat	11032	10458	Malor the Zealous	Fojji	
+strat	10997	10674	Cannon Master Willey	DJ	
+strat	10811	10544	Archivist Galford	DJ	
+strat	10813	10691	Balnazzar	DJ	
+strat	10516	10771	The Unforgiven	DJ	
+strat	10437	9793	Nerub'enkan	DJ	
+strat	10438	10546	Maleki the Pallid	DJ	
+strat	10435	10433	Magistrate Barthilas	DJ	
+strat	11121	775	Black Guard Swordsmith	Fojji	
+strat	11120	10637	Crimson Hammersmith	Fojji	
+strat	11058		Ezra Grimm		id from Wowhead's classic search; no display found offline
+strat	11143	10669	Postmaster Malown	DJ	
+strat	10393	2606	Skul	DJ	
+strat	10809	7856	Stonespine	DJ	
+scholo	11622	12073	Rattlegore	DJ	
+scholo	10433	10248	Marduk Blackpool	DJ	
+scholo	10432	2606	Vectus	DJ	
+scholo	16118		Kormok		summoned (Ras's quest), no display found offline
+scholo	10508	7919	Ras Frostwhisperer	Fojji+DJ	client spelling; the npc is Ras Frostwhisper
+scholo	10505	11069	Instructor Malicia	DJ	
+scholo	11261	10901	Doctor Theolen Krastinov	DJ	
+scholo	10901	11492	Lorekeeper Polkelt	DJ	
+scholo	10507	10433	The Ravenian	DJ	
+scholo	10504	11072	Lord Alexei Barov	DJ	
+scholo	10502	11835	Lady Illucia Barov	DJ	
