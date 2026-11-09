@@ -8828,7 +8828,13 @@ do
     if type(npc) ~= "number" or npc < 1 or type(c.d) ~= "string" or not D.dungeons[c.d] then bad[#bad + 1] = tostring(npc) end
     if c.name ~= nil then bad[#bad + 1] = tostring(npc) .. " ships a name" end
   end
-  ok(n == 120 and #bad == 0, "120 creatures, each an npc id in a dungeon we ship, and no shipped names", n .. " " .. table.concat(bad, " "))
+  ok(n == 240 and #bad == 0, "240 creatures (ADVENT's 120 + every other game boss), each an npc id in a dungeon we ship, "
+    .. "and no shipped names", n .. " " .. table.concat(bad, " "))
+  -- Arn 8 Nov: "codex missing 1 boss" - the Wailing Caverns plate, in the game's own boss order
+  local wc = table.concat(D.dungeons.wc.list, " ")
+  ok(wc == "3671 3636 3669 3653 3670 3674 3673 5775 3654" and D.creatures[3670].boss and D.creatures[3653].boss
+     and D.creatures[5775].boss and D.creatures[3674].boss,
+     "Wailing Caverns: Kresh, Lord Pythas and Verdan on the plate in the game's order, and Skum a boss", wc)
   local inLists, vol = 0, {}
   for _, v in ipairs(D.volumes) do
     for _, id in ipairs(v.list) do
@@ -8839,7 +8845,7 @@ do
          id .. ": a title, a place, a level and our own line")
     end
   end
-  ok(inLists == 120, "every creature is listed once, in its own dungeon", inLists)
+  ok(inLists == 240, "every creature is listed once, in its own dungeon", inLists)
   ok(D.volumes[1].id == "dungeons" and D.volumes[2].id == "raids" and vol.mc == "raids" and #D.dungeons.mc.list == 10,
      "Volume I dungeons, Volume II raids: the Molten Core's ten")
   ok(D.creatures[11520].boss and D.creatures[11520].display == 7970 and D.creatures[11520].spells[1] == 11970,
@@ -8875,9 +8881,13 @@ do
 
   -- A DUNGEON SPREAD: the plate on the left, the last creature's page on the right
   row1.scripts.OnClick(row1)
-  ok(C.UI.view == "dungeon" and C.UI.dungeon == "rfc" and C.UI.sel == 11520, "click Ragefire Chasm: its spread, Taragaman's page")
-  local fig2 = f.figs[2]
-  ok(f.figs[1].shown and fig2.shown and not f.figs[3].shown, "two figures on the plate")
+  ok(C.UI.view == "dungeon" and C.UI.dungeon == "rfc" and C.UI.sel == 11519, "click Ragefire Chasm: its spread, the plate's last (Bazzalan)")
+  ok(table.concat(D.dungeons.rfc.list, " ") == "11517 11318 11520 11518 11519",
+     "every Ragefire boss on the plate, in the game's order: Oggleflint, (a trogg), Taragaman, Jergosh, Bazzalan")
+  local fig2 = f.figs[3]                      -- Taragaman, third on the plate
+  fig2.scripts.OnClick(fig2)
+  ok(C.UI.sel == 11520, "a figure clicked: Taragaman's page")
+  ok(f.figs[1].shown and fig2.shown and f.figs[5].shown, "five figures on the plate")
   ok(fig2.m.shown and fig2.m._display == 7970 and fig2.m._file > 0, "a figure is the creature's own model, drawn (shown before it was asked)")
   ok(f.hero.shown and f.hero._display == 7970 and f.hero._file > 0, "the page's big model too")
   ok(f.caps[1].shown and f.caps[1].text:find("^1"), "captions numbered like the plate", f.caps[1].text)
@@ -8891,7 +8901,7 @@ do
   ok(C.DB().names[11520] == nil and f.name.text ~= "TARAGAMAN THE HUNGERER", "no name yet: the client was only asked")
   W.runAfters(1.1)
   ok(C.DB().names[11520] == "Taragaman the Hungerer" and C.DB().names[11318] == "Ragefire Trogg", "a second later the names are in, and kept", tostring(C.DB().names[11520]))
-  ok(f.name.text == "TARAGAMAN THE HUNGERER" and f.caps[2].text:find("Taragaman the Hungerer", 1, true), "the page and the caption show it", f.name.text)
+  ok(f.name.text == "TARAGAMAN THE HUNGERER" and f.caps[3].text:find("Taragaman the Hungerer", 1, true), "the page and the caption show it", f.name.text)
   W.runAfters(2)
   ok(f.abil[1].desc.text == "Inflicts Fire damage to nearby enemies.", "a moment later: the client's own words", f.abil[1].desc.text)
   f.abil[1].scripts.OnEnter(f.abil[1])
@@ -9001,9 +9011,9 @@ do
   local none, why = A.CodexCreature(424242)
   ok(none == nil and why == "unknown", "an id the book never saw: nil, unknown")
   local list = A.CodexDungeon("rfc")
-  ok(list and #list == 2 and list[2] == 11520, "CodexDungeon: its creature ids")
+  ok(list and #list == 5 and list[3] == 11520, "CodexDungeon: its creature ids")
   list[1] = 0
-  ok(A.CodexDungeon("rfc")[1] == 11318 and select(2, A.CodexDungeon("nope")) == "unknown", "a copy; an unknown dungeon says so")
+  ok(A.CodexDungeon("rfc")[1] == 11517 and select(2, A.CodexDungeon("nope")) == "unknown", "a copy; an unknown dungeon says so")
   ok(A.CodexName(11520) == "Taragaman the Hungerer", "CodexName: a known name at once")
   ok(A.CodexName(448) == nil, "CodexName: an unknown one (any npc id, not in the book) starts the lookup")
   W.runAfters(1.1)
@@ -9108,12 +9118,13 @@ do
   ok(BS.near["Rhahk'Zor"] and r1.state.text == "IN SIGHT" and bdb.npcs and bdb.npcs["Rhahk'Zor"] == 644, "his plate: IN SIGHT, npc 644 kept")
   ok(f.model.shown and f.model._display == NS.Codex.DATA.creatures[644].display and f.caption.text == "Rhahk'Zor"
      and f.model:GetModelFileID() ~= 0, "the screen: him at once, by the Codex's model id for npc 644")
-  -- a boss the Codex has no model for (Cookie): by his creature id, which draws nothing the first time
+  -- a boss the Codex has no model for: by his creature id, which draws nothing the first time (the Codex has every
+  -- game boss since 8 Nov, so a made-up id stands in for one it lacks)
   local cookie = D[36].bosses[7]
-  bdb.npcs.Cookie = 645
+  bdb.npcs.Cookie = 99645
   BS.focus = cookie
   BS.Screen()
-  ok(f.model._creature == 645 and f.model:GetModelFileID() == 0 and f.caption.text == "Cookie", "Cookie (hovered): asked by npc, nothing yet")
+  ok(f.model._creature == 99645 and f.model:GetModelFileID() == 0 and f.caption.text == "Cookie", "Cookie (hovered): asked by npc, nothing yet")
   W.runAfters(1)
   ok(f.model:GetModelFileID() ~= 0 and f.model._anim == 0, "and asked again, he draws")
   BS.focus = nil
