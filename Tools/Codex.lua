@@ -36,6 +36,8 @@ C.pending = {}                    -- npc -> tries, the names still being fetched
 C.gaveUp = {}                     -- npc -> true: three asks, no name (this session)
 C.last = {}                       -- npc -> the GUID last met (one row per creature: a new spawn = a new meeting)
 C.lastLoot = {}                   -- npc -> the corpse GUID last counted
+C.lastAt = {}                     -- npc -> when its last meeting was counted (GetTime)
+C.NAME_GAP = 600                  -- known by NAME only (the id hidden): one meeting per this many seconds
 C.spellAsked = {}                 -- spell id -> true: its words were asked for this session
 
 local function plain(v)
@@ -54,6 +56,19 @@ function C.DB()
   local db = R:DBFor(tool)
   for _, k in ipairs({ "names", "met", "seen", "casts" }) do
     if type(db[k]) ~= "table" then db[k] = {} end
+  end
+  -- ONCE (8 Nov): before corpses counted as meetings, a dungeon's creatures were looted but never "met" (their ids
+  -- hidden while they lived). Each one looted was met at least as often as its most-seen item dropped.
+  if not db.metFromLoot then
+    db.metFromLoot = true
+    for npc, items in pairs(db.seen) do
+      local most = 0
+      for _, n in pairs(items) do if type(n) == "number" and n > most then most = n end end
+      if most > 0 then
+        local row = db.met[npc]
+        if not row then db.met[npc] = { n = most } elseif (row.n or 0) < most then row.n = most end
+      end
+    end
   end
   return db
 end
@@ -85,7 +100,7 @@ function C.AskNow(npc)
   name = okL and plain(name) or nil
   if type(name) ~= "string" or name == "" then return nil end
   local db = C.DB()
-  if db then db.names[npc] = name end
+  if db then db.names[npc] = name C.byName = nil end
   return name
 end
 
@@ -113,6 +128,7 @@ function C.Flush()
   end
   C.Schedule()
   if got and C.UI and C.UI.IsOpen() then C.UI.Paint() end
+  if got and C.Drive and C.Drive.IsOpen() then C.Drive.Paint() end
   return got
 end
 
@@ -155,7 +171,10 @@ function C.Spell(id)
     if req and not C.spellAsked[id] then
       C.spellAsked[id] = true
       pcall(req, id)
-      C_Timer.After(C.LOAD_WAIT, function() if C.UI and C.UI.IsOpen() then C.UI.Paint() end end)
+      C_Timer.After(C.LOAD_WAIT, function()
+        if C.UI and C.UI.IsOpen() then C.UI.Paint() end
+        if C.Drive and C.Drive.IsOpen() then C.Drive.Paint() end
+      end)
     end
   end
   return s
@@ -244,24 +263,77 @@ end
 
 -- ------------------------------------------------------------------ the learners
 
+--- The creature in the book with this name (its live name): one lookup table, made again after a name arrives.
+--- A shipped creature wins a shared name.
+function C.ByName(name)
+  local db = C.DB()
+  if not (db and type(name) == "string" and name ~= "") then return nil end
+  if not C.byName then
+    local by = {}
+    for npc, n in pairs(db.names) do
+      if C.DATA.creatures[npc] or db.met[npc] then
+        local cur = by[n]
+        if not cur or (C.DATA.creatures[npc] and not C.DATA.creatures[cur]) then by[n] = npc end
+      end
+    end
+    C.byName = by
+  end
+  return C.byName[name]
+end
+
+--- Is this a new meeting? By its spawn (`guid`), or - the id hidden - by name, once per C.NAME_GAP. A spawn seen
+--- right after a by-name meeting is that same meeting (its corpse looted, the id readable again), not a second.
+function C.Meet(npc, guid)
+  if guid and C.last[npc] == guid then return false end       -- the same spawn again: first, before any clock (lean)
+  local t = GetTime and GetTime() or 0
+  local recent = C.lastAt[npc] and (t - C.lastAt[npc]) < C.NAME_GAP
+  if guid then
+    if C.last[npc] == guid then return false end                -- the same spawn again: nothing new
+    local adopt = C.last[npc] == false and recent
+    C.last[npc] = guid
+    if adopt then return false end
+  else
+    if recent then return false end
+    C.last[npc] = false
+  end
+  C.lastAt[npc] = t
+  return true
+end
+
+--- One more meeting written into the book (a new row the first time).
+function C.Count(db, npc)
+  local row = db.met[npc]
+  if not row then
+    C.metCount = C.metCount or C.CountMet(db)
+    if C.metCount >= C.MET_MAX then return nil end
+    row = { n = 0 }
+    db.met[npc] = row
+    C.metCount = C.metCount + 1
+  end
+  row.n = (row.n or 0) + 1
+  return row
+end
+
 --- A creature in front of you (the target, a nameplate): met once per spawn, its facts read the first time.
+--- INSIDE A DUNGEON THE CLIENT HIDES WHO IT IS (8 Nov, Arn: "ive clearly met them and the counters are at zero" - the
+--- loot was written, the meetings were not): its GUID comes back secret, so it is known by its NAME instead.
 function C.Learn(unit)
   local db = C.DB()
   if not db then return false end
   local okG, guid = pcall(UnitGUID, unit)
   guid = okG and plain(guid) or nil
   local npc = C.NpcFromGUID(guid)
-  if not npc or C.last[npc] == guid then return false end       -- the same spawn again: nothing new
-  C.last[npc] = guid
-  local row = db.met[npc]
-  if not row then
-    C.metCount = C.metCount or C.CountMet(db)
-    if C.metCount >= C.MET_MAX then return false end
-    row = { n = 0 }
-    db.met[npc] = row
-    C.metCount = C.metCount + 1
+  if not npc then
+    if guid ~= nil then return false end                        -- a plain GUID that is not a creature (a player)
+    local okP, isPlayer = pcall(UnitIsPlayer, unit)
+    if okP and plain(isPlayer) == true then return false end    -- a player (hidden too: a creature's name decides)
+    local okN, name = pcall(UnitName, unit)
+    npc = C.ByName(okN and plain(name) or nil)
+    if not npc then return false end
   end
-  row.n = (row.n or 0) + 1
+  if not C.Meet(npc, guid) then return false end
+  local row = C.Count(db, npc)
+  if not row then return false end
   if not row.read then
     local function ask(fn)
       if not fn then return nil end
@@ -270,7 +342,7 @@ function C.Learn(unit)
     end
     local name, level = ask(UnitName), ask(UnitLevel)
     local rank, ctype, family = ask(UnitClassification), ask(UnitCreatureType), ask(UnitCreatureFamily)
-    if type(name) == "string" and name ~= "" and not db.names[npc] then db.names[npc] = name end
+    if type(name) == "string" and name ~= "" and not db.names[npc] then db.names[npc] = name C.byName = nil end
     if type(level) == "number" and level > 0 then row.level = level end
     if type(rank) == "string" and rank ~= "" then row.rank = rank end
     if type(ctype) == "string" and ctype ~= "" then row.type = ctype end
@@ -326,6 +398,12 @@ function C.LearnLoot()
         if npc then
           if fresh[guid] == nil then fresh[guid] = C.lastLoot[npc] ~= guid end
           local key = guid .. ":" .. item
+          -- a corpse you loot is a creature you met (the one way to tell spawns apart inside a dungeon, where
+          -- its GUID was hidden while it lived) - unless that meeting was counted already, by spawn or by name
+          if fresh[guid] and not counted[guid] then
+            counted[guid] = true
+            if C.Meet(npc, guid) then C.Count(db, npc) end
+          end
           if fresh[guid] and not counted[key] then
             counted[key] = true
             db.seen[npc] = db.seen[npc] or {}

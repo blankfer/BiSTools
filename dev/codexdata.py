@@ -125,6 +125,104 @@ def cast(known):
     return rows
 
 
+# EVERY BOSS (8 Nov 2026, Arn: "codex missing 1 boss"): the game's own boss list (Tools/BossData.lua, from the client's
+# DungeonEncounter) is the truth for who is a boss and in what order. A Codex dungeon -> its instance map id; Blackrock
+# Spire is one map for both halves, split at Pyroguard Emberseer (the game's order).
+BOSSMAP = {"rfc": 389, "thanes": 3065, "ruins": 2999, "dm": 36, "wc": 43, "sfk": 33, "bfd": 48, "gnomer": 90,
+           "rfk": 47, "wetlands": 2998, "dalaran": 2959, "rfd": 129, "sm": 189, "drowned": 2970, "ulda": 70,
+           "kroldok": 3039, "zf": 209, "mara": 349, "st": 109, "brd": 230, "lbrs": 229, "ubrs": 229, "dire": 429,
+           "strat": 329, "scholo": 289, "mc": 409}
+UBRS_FIRST = "Pyroguard Emberseer"
+# the client's encounter name -> the name ADVENT's cast gives the same creature
+ALIAS = {"Geilhast": "Gelihast", "Kirtonos": "Kirtonos the Herald", "The Butcher": "The Baron",
+         "Mana Elemental": "Arcanic Enigma", "Handler Ashka": "War Handler Ashka", "Overseer Mugg": "Overlord Mugg",
+         "Sneed": "Sneed's Shredder", "Infurnus": "Magmatus"}
+BOSSES_TSV = os.path.join(HERE, 'CodexBosses.tsv')
+BOSSDATA = os.path.join(HERE, '..', 'Tools', 'BossData.lua')
+
+
+def boss_lists():
+    """map id -> [(encounter name, group)] in the game's order, from Tools/BossData.lua."""
+    out, cur = {}, None
+    with open(BOSSDATA, encoding='utf-8') as fh:
+        for line in fh:
+            m = re.match(r'\s*\[(\d+)\] = \{ name = "', line)
+            if m:
+                cur = int(m.group(1))
+                out[cur] = []
+                continue
+            m = re.match(r'\s*\{ id = \d+, name = "((?:[^"\\]|\\.)*)"', line)
+            if m and cur is not None:
+                out[cur].append((m.group(1).replace('\\"', '"'), 'group = true' in line))
+    return out
+
+
+def game_bosses(key, lists_by_map):
+    if key not in BOSSMAP:
+        return []
+    bl = lists_by_map.get(BOSSMAP[key], [])
+    if BOSSMAP[key] == 229:
+        i = [n for n, _ in bl].index(UBRS_FIRST)
+        bl = bl[:i] if key == 'lbrs' else bl[i:]
+    return [ALIAS.get(n, n) for n, group in bl if not group]
+
+
+def extra_bosses():
+    """[(key, npc, display or None, name, source, note)] from dev/CodexBosses.tsv."""
+    rows = []
+    with open(BOSSES_TSV, encoding='utf-8') as fh:
+        for line in fh:
+            if line.startswith('#') or not line.strip():
+                continue
+            c = line.rstrip('\n').split('\t')
+            c += [''] * (6 - len(c))
+            rows.append((c[0], int(c[1]), int(c[2]) if c[2] else None, c[3], c[4], c[5]))
+    return rows
+
+
+def cast_names():
+    """npc -> ADVENT's name for it (AdventCast.lua), to match the game's boss list."""
+    return {int(m.group(1)): m.group(2)
+            for m in re.finditer(r'npc = (\d+),[^}]*name = "([^"]+)"', read('AdventCast.lua'))}
+
+
+def add_bosses(lists, creatures):
+    """Every game boss onto its dungeon's plate: ADVENT's creatures that are game bosses get boss = true; the missing
+    ones (CodexBosses.tsv) go in right after the game's previous boss on the plate, so the plate keeps room order."""
+    by_map, names = boss_lists(), cast_names()
+    extra = {}
+    for key, npc, display, name, src, note in extra_bosses():
+        if key not in lists:
+            sys.exit('codexdata: CodexBosses.tsv names an unknown dungeon %r' % key)
+        extra[(key, ALIAS.get(name, name))] = (npc, display, src, note)
+    added = 0
+    for key in list(lists):
+        order = game_bosses(key, by_map)
+        on_plate = {names.get(n): n for n in lists[key]}
+        for i, name in enumerate(order):
+            if name in on_plate:
+                creatures[on_plate[name]]['boss'] = True
+                continue
+            if (key, name) not in extra:
+                sys.exit('codexdata: %s has no creature for the game boss %r (add it to CodexBosses.tsv)' % (key, name))
+            npc, display, src, note = extra.pop((key, name))
+            if npc in creatures:
+                sys.exit('codexdata: CodexBosses.tsv npc %d is on a plate already' % npc)
+            at = 0
+            for prev in reversed(order[:i]):
+                if prev in on_plate:
+                    at = lists[key].index(on_plate[prev]) + 1
+                    break
+            lists[key].insert(at, npc)
+            on_plate[name] = npc
+            creatures[npc] = {'d': key, 'display': display, 'boss': True,
+                              'src': (src or 'npc id') + ' (CodexBosses.tsv' + ('; ' + note if note else '') + ')'}
+            added += 1
+    if extra:
+        sys.exit('codexdata: CodexBosses.tsv rows the game list does not have: %r' % sorted(extra))
+    return added
+
+
 def lua_str(s):
     return '"' + s.replace('\\', '\\\\').replace('"', '\\"') + '"'
 
@@ -152,6 +250,7 @@ def main():
             continue
         creatures[npc] = {'d': group, 'display': display, 'boss': boss, 'src': srcmark}
         lists.setdefault(group, []).append(npc)
+    added = add_bosses(lists, creatures)
     vol1 = [k for k in order if k in lists]
     vol1.sort(key=lambda k: (world[k]['level'], order.index(k)))
     vol2 = [k for k in RAIDS if k in lists]
@@ -159,7 +258,8 @@ def main():
     out = []
     out.append('-- BiSTools / Tools / CodexData.lua - BiS> Codex\'s shipped index. GENERATED by dev/codexdata.py from')
     out.append('-- BiSShell/Games/AdventCast.lua (the 120 ADVENT foes) and the ADVENT world files - edit those, then run')
-    out.append('-- `python dev/codexdata.py`. Never edit this file by hand.')
+    out.append('-- `python dev/codexdata.py`. Never edit this file by hand. Every boss of the game\'s own list (Tools/BossData.lua)')
+    out.append('-- is on its plate: ADVENT\'s, plus the rest from dev/CodexBosses.tsv, in the game\'s order.')
     out.append('--')
     out.append('-- IDS ONLY, and our own short words (Arn, 8 Nov 2026: "nothing scraped from websites to keep it lean"). Every')
     out.append('-- creature\'s NAME comes live from the game (C_TooltipInfo.GetHyperlink, second ask - CODEX-RESEARCH.md),')
@@ -210,8 +310,8 @@ def main():
     out.append('}')
     with open(OUT, 'w', encoding='utf-8', newline='\n') as fh:
         fh.write('\n'.join(out) + '\n')
-    print('codexdata: %d creatures, %d dungeons (+%d raids) -> %s' % (len(creatures), len(vol1), len(vol2),
-                                                                    os.path.normpath(OUT)))
+    print('codexdata: %d creatures (%d game bosses added), %d dungeons (+%d raids) -> %s' % (
+        len(creatures), added, len(vol1), len(vol2), os.path.normpath(OUT)))
 
 
 if __name__ == '__main__':
