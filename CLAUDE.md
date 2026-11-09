@@ -111,7 +111,7 @@ Read ../_bisdev/CLAUDE.md first.
     `BF.Lines` = /cleartarget, /targetexact, `/tm [exists] !N`, `/ping [exists] attack`; rows (`BF.RowMacro`, ping on
     shift), MARK ALL (`BF.AllMacro`, as many as fit `BF.MACRO_MAX` 255, `BF.allAt` goes on), FIND (`BF.FindMacro`, one a
     press, in sight first, pinged) in the window and on `BiSToolsBossFind` (`/bist bosses key <KEY>`). Written out of
-    combat only (`BF.Write`, `BF.dirty`); the window steps away at PLAYER_REGEN_DISABLED, back after. Eyes (registered
+    combat only (`BF.Write`, `BF.dirty`); in a fight the window STAYS, quiet (`BF.Dim`, 8 Nov: Arn's window kept vanishing): at PLAYER_REGEN_DISABLED (before the lockdown) alpha `BF.FIGHT_ALPHA`, every key's mouse off (`BF.Clickables`), off the Escape list, the grid's OnUpdate (`f.tick`) off, `BF.FIGHT_HELP` in gold; all back at PLAYER_REGEN_ENABLED. The mock's EnableMouse refuses a secure frame in combat. Eyes (registered
     only inside a place, `BF.Eyes`): nameplates = IN SIGHT (`BF.near`), PostClick target name = MARKED, ENCOUNTER_END
     success or seen dead = DOWN. Window `BiSToolsBosses` 343x240 @1.45 (Arn 8 Nov: 1.2 "lil small"): rows (8 a page), the synthwave screen (`BF.BuildScreen`,
     rolling grid at `BF.FPS` while shown) with the boss in 3D (`BF.NpcOf`: met npc `db.npcs` from its GUID, else the

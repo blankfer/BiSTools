@@ -520,7 +520,12 @@ _G.CreateFrame = function(kind, name, parent, template)
     return g
   end
   function f:SetMovable() end
-  function f:EnableMouse() end
+  -- RECORDED, and REFUSED in combat for a secure frame - the client's rule (8 Nov 2026, the boss window's fight dim;
+  -- this stub used to take anything silently, which would have let a mid-fight switch pass here and fail live)
+  function f:EnableMouse(on)
+    if W.combat and self.template and self.template:find("Secure") then error("EnableMouse on a secure frame in combat", 2) end
+    self.mouse = on and true or false
+  end
   function f:EnableMouseWheel(on) self.wheel = on end
   function f:SetClampedToScreen() end
   function f:RegisterForDrag() end
@@ -9176,16 +9181,34 @@ do
   BS.events.scripts.OnEvent(BS.events, "PLAYER_TARGET_CHANGED")
   ok(BS.run.down[D[36].bosses[4].id] and f.readDown.text == "2 / 8", "targeting his corpse: Gilnid down")
 
-  -- A FIGHT: the window steps away, nothing secure is touched, all comes back after
-  W.combat = true
+  -- A FIGHT: the window STAYS, dimmed and unclickable (Arn, 8 Nov: "closed so many times during combat that it stopped
+  -- opening by itself and i forgot about it ... dim it during combat and make it unclickable"). In the client's order:
+  -- PLAYER_REGEN_DISABLED arrives BEFORE the lockdown, the one moment a secure button's mouse may still be switched.
   BS.events.scripts.OnEvent(BS.events, "PLAYER_REGEN_DISABLED")
-  ok(not f:IsShown() and BS.back, "a pull: the window steps away")
+  W.combat = true
+  local anyMouse = f.mouse ~= false
+  for _, b in ipairs(BS.Clickables(f)) do if b.mouse ~= false then anyMouse = true end end
+  local onEsc = false
+  for _, n in ipairs(UISpecialFrames) do if n == "BiSToolsBosses" then onEsc = true end end
+  ok(f:IsShown() and not BS.back and f.alpha == BS.FIGHT_ALPHA and f.dimmed,
+     "a pull: the window stays, dimmed", tostring(f.alpha))
+  ok(not anyMouse, "and nothing on it takes a click - not a row, not a key, not the window")
+  ok(not onEsc, "and Escape leaves it alone mid-fight (closing secure buttons in a fight is refused)")
+  ok(f:GetScript("OnUpdate") == nil and f.help.text == BS.FIGHT_HELP,
+     "QUIET (Arn: 'like a quiet cockpit screen would'): the grid stops rolling, and one line says the keys are locked")
+  ok(not BS.Dim(false), "and it is not woken inside the lockdown")
   ok(pcall(BS.Down, D[36].bosses[2], "fight") and BS.dirty, "a kill mid-fight writes nothing secure (no error), it waits")
-  ok(not BS.Toggle(true), "it will not open in a fight")
+  ok(BS.Toggle(false) == true and f:IsShown() and f.dimmed, "in a fight it is neither closed nor woken (secure keys)")
   W.combat = false
   BS.events.scripts.OnEvent(BS.events, "PLAYER_REGEN_ENABLED")
   ok(f:IsShown() and not BS.dirty and BS.mark[D[36].bosses[3].id] == 8 and f.rows[3].attrs.macrotext:find("!8", 1, true),
     "after: the window is back, the marks rewritten (Miner Johnson has the skull)")
+  local allMouse = f.mouse ~= false
+  for _, b in ipairs(BS.Clickables(f)) do if b.mouse == false then allMouse = false end end
+  local backOnEsc = false
+  for _, n in ipairs(UISpecialFrames) do if n == "BiSToolsBosses" then backOnEsc = true end end
+  ok(f.alpha == 1 and not f.dimmed and allMouse and backOnEsc, "full strength again, every key clickable, Escape closes it")
+  ok(f:GetScript("OnUpdate") == f.tick and f.help.text == BS.HELP, "and the grid rolls again, the usual help line back")
 
   -- the key
   S("bosses key F7")
