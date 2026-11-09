@@ -113,6 +113,7 @@ function C.Flush()
   end
   C.Schedule()
   if got and C.UI and C.UI.IsOpen() then C.UI.Paint() end
+  if got and C.Drive and C.Drive.IsOpen() then C.Drive.Paint() end
   return got
 end
 
@@ -155,7 +156,10 @@ function C.Spell(id)
     if req and not C.spellAsked[id] then
       C.spellAsked[id] = true
       pcall(req, id)
-      C_Timer.After(C.LOAD_WAIT, function() if C.UI and C.UI.IsOpen() then C.UI.Paint() end end)
+      C_Timer.After(C.LOAD_WAIT, function()
+        if C.UI and C.UI.IsOpen() then C.UI.Paint() end
+        if C.Drive and C.Drive.IsOpen() then C.Drive.Paint() end
+      end)
     end
   end
   return s

@@ -9048,6 +9048,82 @@ do
   local tickers = 0
   for _, t in ipairs(W.tickers) do if t.alive and t.codex then tickers = tickers + 1 end end
   ok(tickers == 0, "the Codex runs no ticker")
+
+  -- AFTER DARK (Arn 8 Nov: "make a full screen ryan gosling drive treatment for the codex" ... "Build it")
+  local DV = C.Drive
+  ok(DV and not DV.IsOpen(), "the full screen exists and starts closed")
+  C.UI.Show(3670)                                  -- Lord Pythas, from the window
+  ok(f:IsShown() and f.full and f.full.label.text == "FULL", "the window has a FULL key")
+  f.full.scripts.OnClick(f.full)
+  local dv = BiSToolsCodexDrive
+  ok(DV.IsOpen() and dv:IsShown() and not f:IsShown(), "FULL: the full screen opens and the window steps out")
+  ok(dv.strata == nil or dv.strata == "FULLSCREEN_DIALOG", "over everything")
+  local inEsc = false
+  for _, n in ipairs(UISpecialFrames) do if n == "BiSToolsCodexDrive" then inEsc = true end end
+  ok(inEsc, "Escape closes it")
+  ok(DV.Current() == 3670 and DV.hero.npc == 3670 and DV.hero._display == 4214 and DV.hero:GetModelFileID() ~= 0,
+     "Lord Pythas in the headlights: his own model, drawn", tostring(DV.hero._display))
+  ok(DV.credit.sub.text:find("BOSS", 1, true) and DV.credit.sub.text:find("WAILING CAVERNS", 1, true),
+     "the credit: a boss, in the Wailing Caverns", DV.credit.sub.text)
+  -- the atlas: Wailing Caverns in the game's order, Pythas picked
+  local a = DV.atlas
+  ok(a.title.text == "The Wailing Caverns" and a.rows[5].entry.npc == 3670 and a.rows[5].keep and a.dots[5].npc == 3670,
+     "the road atlas: the Wailing Caverns, Pythas fifth and picked", a.title.text)
+  a.rows[1].scripts.OnEnter(a.rows[1])
+  ok(a.rows[1].wash.alpha >= 0.3 and a.rows[1].bar.alpha == 1, "an atlas line pops under the mouse")
+  a.rows[1].scripts.OnLeave(a.rows[1])
+  -- drive to Lady Anacondra: Pythas goes into the mirror
+  a.rows[1].scripts.OnClick(a.rows[1])
+  ok(DV.Current() == 3671 and DV.history[1] == 3670 and DV.mirror.sub.text == "THE PAGE BEFORE", "a click drives there; the mirror keeps Pythas")
+  DV.mirror.scripts.OnClick(DV.mirror)
+  ok(DV.Current() == 3670 and DV.history[1] == nil, "the mirror: back to Pythas")
+  -- the cluster
+  ok(DV.lamps.BOSS.word and DV.place.value.text:find("/ 8", 1, true), "the BOSS lamp, and the place gauge counts its 8 bosses", DV.place.value.text)
+  ok(DV.lcd2.text:find("NPC 3670", 1, true) and DV.lcd2.text:find("4214", 1, true), "the LCD: creature and model", DV.lcd2.text)
+  -- the pose switches
+  DV.pose.DEATH.scripts.OnClick(DV.pose.DEATH)
+  ok(DV.hero._anim == 1 and DV.pose.DEATH.on, "DEATH: he falls, the switch lit")
+  DV.pose.TURN.scripts.OnClick(DV.pose.TURN)
+  ok(DV.hero.scripts.OnUpdate ~= nil and DV.pose.TURN.on, "TURN spins him (an OnUpdate while on)")
+  DV.pose.TURN.scripts.OnClick(DV.pose.TURN)
+  ok(DV.hero.scripts.OnUpdate == nil, "and stops")
+  -- the radio: a letter is the index under it; presets
+  DV.letters[11].scripts.OnClick(DV.letters[11])
+  ok(C.UI.view == "index" and C.UI.letter == "K" and DV.presets.INDEX.on and a.hdR.text == "UNDER K", "the band's K: the index under K")
+  DV.presets.CONTENTS.scripts.OnClick(DV.presets.CONTENTS)
+  ok(C.UI.view == "contents" and a.title.text == "Contents" and a.rows[1].entry.dungeon == "rfc", "CONTENTS: the places")
+  DV.knobR.scripts.OnClick(DV.knobR)
+  ok(a.page.text:find("^PAGE 2"), "the right knob turns the atlas's page", a.page.text)
+  a.rows[1].scripts.OnClick(a.rows[1])
+  ok(C.UI.view == "dungeon" and DV.Current() ~= nil and C.DATA.creatures[DV.Current()].d == C.UI.dungeon,
+     "a place picked: you drive to its first boss")
+  DV.presets.RAIDS.scripts.OnClick(DV.presets.RAIDS)
+  ok(C.UI.dungeon == "mc" and DV.presets.RAIDS.on, "RAIDS: the Molten Core")
+  -- the visor: loot seen
+  DV.Pick(11520)
+  ok(DV.visor.tickets[1]:IsShown() and DV.visor.tickets[1].item == 14149, "the visor: Taragaman's cape, clipped up")
+  -- the abilities
+  ok(DV.abil.rows[1]:IsShown() and DV.abil.rows[1].name.text == "Fire Nova", "his Fire Nova on the dash")
+  fitsIn(a, "the road atlas")
+  fitsIn(DV.radio, "the radio")
+  -- LEAN: the rain is the only thing that runs, and only while it is open
+  local tick = DV.rain.scripts.OnUpdate
+  ok(tick ~= nil, "open: the rain falls")
+  local rainCost = Cost.Count(function() for _ = 1, DV.FPS do tick(DV.rain, 1 / DV.FPS) end end)
+  print(("   cost: codex full screen, 1 s of rain = %d calls"):format(rainCost))
+  ok(rainCost <= DV.FPS * DV.DROPS * 3, "a second of rain stays in its budget", rainCost)
+  -- a fight closes it, and the window comes back
+  DV.back.scripts.OnEvent(DV.back, "PLAYER_REGEN_DISABLED")
+  ok(not DV.IsOpen() and DV.rain.scripts.OnUpdate == nil and f:IsShown(), "a fight: closed, the rain stopped, the window back")
+  W.combat = true
+  ok(DV.Open() == false and not DV.IsOpen(), "and it does not open in one")
+  W.combat = false
+  -- the key closes it
+  S("codex full")
+  ok(DV.IsOpen(), "/bist codex full opens it")
+  DV.key.scripts.OnClick(DV.key)
+  ok(not DV.IsOpen() and f:IsShown(), "the key: closed, the window back where you were")
+  C.UI.Toggle(false)
   -- off: it stops listening
   S("off codex")
   ok(not C.Listening(), "switched off: it listens to nothing")

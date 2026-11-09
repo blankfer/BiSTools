@@ -1,5 +1,13 @@
 ## Unreleased
 
+- **BiS> Codex, after dark: the book full screen.** Press FULL on the Codex (or type `/bist codex full`) and you're behind the wheel at night, with the creature standing in your headlights on a wet road and its name in pink over the night like an opening title. Drag it to turn it; switches on the dash make it stand, attack, cast or fall.
+  - **Rear-view mirror:** the page you read before. Click it to go back.
+  - **Sun visor:** what it was seen to drop, clipped up like tickets. Shift-click one to link it.
+  - **Gauges:** its level, how many of this place's bosses you've met, times met on the odometer, and BOSS / ELITE / MET lamps.
+  - **The radio is the index.** The tuning band is A to Z, the green display is the search, the knobs turn the atlas's pages, and the presets are Contents, Dungeons, Raids and Index.
+  - **The road atlas** on the passenger seat is the dungeon's page: its creatures on a dotted route in room order. Click one to drive to it.
+  - **Turn the key to close** (Escape does too). It closes when a fight starts and doesn't open in one. The window comes back where you were.
+  - It fits any screen: one 16:9 picture, scaled to fit.
 - **BiS> Codex has every boss.** The Codex only knew the creatures from ADVENT, so dungeons were missing bosses (Wailing Caverns had no Kresh, Lord Pythas or Verdan). Now every boss the game lists for each of its 25 dungeons and the Molten Core is on the plate, 120 more, in the game's own order. Skum, Gilnid, Gelihast, Plugger Spazzring and Guard Mol'dar are marked as bosses too. A few of the new bosses have no model number yet and are drawn by their creature number instead.
 - **For other addons:** `BiSToolsAPI.BossFace(name)` (API version 6) - a boss's creature and model by its name, from the boss finder and the Codex. BiS Memories uses it to draw dungeon bosses on their postcards.
 - **BiS> bosses, a boss finder.** Walk into a dungeon or raid and the list of its bosses comes up, in the game's own order, each with the raid mark it will get (skull first, then cross, square, moon...).
