@@ -153,8 +153,10 @@ function BF.Lines(e, ping)
   local out = { "/cleartarget", "/targetexact " .. e.name }
   local m = BF.mark and BF.mark[e.id]
   if m then out[#out + 1] = "/tm [exists] !" .. m end
-  if ping == "always" then out[#out + 1] = "/ping [exists] " .. BF.PING
-  elseif ping == "shift" then out[#out + 1] = "/ping [mod:shift,exists] " .. BF.PING end
+  -- the ping NAMES its unit (8 Nov, Arn: "bis tools boss no ping on shift click" - "/ping [mod:shift,exists]" pinged
+  -- nothing; the family's working pings are all "/ping [@unit] kind", BiSHealing's [@mouseover] since 1 Oct)
+  if ping == "always" then out[#out + 1] = "/ping [@target,exists] " .. BF.PING
+  elseif ping == "shift" then out[#out + 1] = "/ping [mod:shift,@target,exists] " .. BF.PING end
   return table.concat(out, "\n")
 end
 
@@ -383,7 +385,10 @@ function BF.Enter()
       local was = db.run
       BF.run = BF.Run(db, map)
       BF.Scan()
-      if db.auto ~= false and BF.run ~= was and not fighting() then BF.Toggle(true) end
+      -- up by itself once a run; and back again if it was open when you left (a wipe's run back, a hearth) -
+      -- leaving shuts it below without touching db.open; only your own close does
+      local fresh = db.auto ~= false and BF.run ~= was
+      if (fresh or db.open) and not fighting() then BF.Toggle(true) end
     else
       BF.run = nil
       if BF.frame and BF.frame:IsShown() and not fighting() then BF.frame:Hide() end
@@ -563,22 +568,41 @@ function BF.NeedleAngle(down, all)
   return math.rad(-135 + 270 * math.min(1, down / all))
 end
 
+--- Where the window stands: where it was dragged to (db.pos, in its own scale), else a little above the middle.
+function BF.Place()
+  local f, pos = BF.frame, BF.db and BF.db.pos
+  if not f then return end
+  f:ClearAllPoints()
+  if type(pos) == "table" and type(pos[1]) == "string" then
+    f:SetPoint(pos[1], UIParent, pos[2] or pos[1], tonumber(pos[3]) or 0, tonumber(pos[4]) or 0)
+  else
+    f:SetPoint("CENTER", UIParent, "CENTER", 0, 80)
+  end
+end
+
 function BF.Build()
   if BF.frame then return BF.frame end
   local k = K()
   local f = CreateFrame("Frame", "BiSToolsBosses", UIParent)
   BF.frame = f
   f:SetSize(BF.W, BF.H)
-  f:SetPoint("CENTER", 0, 80)
   f:SetFrameStrata("DIALOG")
   f:SetScale(BF.SCALE)
-  if UISpecialFrames then table.insert(UISpecialFrames, "BiSToolsBosses") end   -- Escape closes it (out of fights:
-  f:EnableMouse(true)                                                              -- it is off the list while dimmed)
+  BF.Place()
+  -- NOT on the Escape list (8 Nov, Arn: "even if i am not clicked on the window if i hit esc it closes it"): in a dungeon
+  -- Escape is pressed all run long to drop a target or stop a cast, and it shut the list each time. Its x, the skull and
+  -- /bist bosses close it.
+  f:EnableMouse(true)
   f:SetMovable(true)
   f:SetClampedToScreen(true)
   f:RegisterForDrag("LeftButton")
-  f:SetScript("OnDragStart", function(self) if not fighting() then self:StartMoving() end end)
-  f:SetScript("OnDragStop", f.StopMovingOrSizing)
+  f:SetScript("OnDragStart", function(self)
+    if fighting() then return end
+    self:StartMoving()
+    self.dragging = true
+  end)
+  -- WHERE YOU LEFT IT (8 Nov, Arn: "the bis bosses always open in the middle of the screen"): kept in db.pos
+  f:SetScript("OnDragStop", function(self) BF.EndDrag(self) end)
   k.tex(f, "BACKGROUND", "frame", 0.97)
   k.border(f, "edge", 1)
   f.title = k.fs(f, "BiS> BOSSES", 10, "accent")
@@ -716,7 +740,8 @@ function BF.Build()
     BF.GridAt(BF.t)
   end
   f:SetScript("OnUpdate", f.tick)
-  f:SetScript("OnHide", function() BF.focus = nil end)
+  -- hidden mid-drag (a zone change, the tool switched off): the drag ends with it
+  f:SetScript("OnHide", function(self) BF.focus = nil BF.EndDrag(self) end)
   f:Hide()
   return f
 end
@@ -884,7 +909,7 @@ function BF.IsOpen() return BF.frame ~= nil and BF.frame:IsShown() end
 -- incombat they can still click stuff behind it"): barely there, and every part lets the mouse through to what is under it
 BF.FIGHT_ALPHA = 0.12
 BF.FIGHT_HELP = "FIGHT · screen quiet, keys locked - back after the fight"
-BF.HELP = "click: target + mark   shift: + ping   FIND: one at a time   esc: close"
+BF.HELP = "click: target + mark   shift: + ping   FIND: one at a time   x: close"
 
 function BF.Clickables(f)
   local list = { f.close, f.prev, f.next, f.all, f.find, f.reset }
@@ -892,16 +917,28 @@ function BF.Clickables(f)
   return list
 end
 
-local function escapeList(on)
-  local list = UISpecialFrames
-  if type(list) ~= "table" then return end
-  for i = #list, 1, -1 do if list[i] == "BiSToolsBosses" then table.remove(list, i) end end
-  if on then list[#list + 1] = "BiSToolsBosses" end
+--- The drag ends: the window lets go of the mouse, and where it stands is kept (plain numbers only - a secret
+--- position is never written down).
+function BF.EndDrag(f)
+  if not (f and f.dragging) then return false end
+  f.dragging = nil
+  pcall(f.StopMovingOrSizing, f)
+  local ok, p, _, rp, x, y = pcall(f.GetPoint, f)
+  local function plain(v) return (v ~= nil and not (issecretvalue and issecretvalue(v))) and v or nil end
+  p, rp, x, y = plain(p), plain(rp), plain(x), plain(y)
+  if ok and BF.db and type(p) == "string" and type(x) == "number" and type(y) == "number" then
+    BF.db.pos = { p, type(rp) == "string" and rp or p, x, y }
+  end
+  return true
 end
 
 --- Dim (a fight starts) or wake (it ended). Out of the lockdown only; returns false when refused.
+--- A FIGHT MID-DRAG (8 Nov, Arn: "we got into combat when i reloaded and moved the window" - it held on to his mouse and
+--- nothing could be clicked, not even to quit): the window's mouse goes off below, so it would never hear the button
+--- come up. The drag ENDS first, here, while the client still allows it (PLAYER_REGEN_DISABLED, before the lockdown).
 function BF.Dim(on)
   local f = BF.frame
+  if f and on then BF.EndDrag(f) end
   if not f or fighting() then return false end
   f.dimmed = on and true or false
   f:SetAlpha(on and BF.FIGHT_ALPHA or 1)
@@ -911,7 +948,6 @@ function BF.Dim(on)
   if on then
     for _, p in ipairs({ f.screen, f.model, f.gauge, f.tape }) do if p and p.EnableMouse then p:EnableMouse(false) end end
   end
-  escapeList(not on)
   f:SetScript("OnUpdate", (not on) and f.tick or nil)
   if f.help then
     f.help:SetText(on and BF.FIGHT_HELP or BF.HELP)
@@ -928,6 +964,7 @@ function BF.Toggle(want)
     NS.Print("BiS> bosses opens after the fight")
     return f:IsShown()
   end
+  if BF.db then BF.db.open = want and true or false end   -- yours: it comes back with you after a death or a hearth
   if want then
     BF.Scan()
     BF.Write()
@@ -1078,7 +1115,8 @@ R:Register({
   OnOpen = function(_, db, recenter)
     BF.db = db
     if recenter then
-      if BF.frame then BF.frame:ClearAllPoints() BF.frame:SetPoint("CENTER", 0, 80) end
+      db.pos = nil                                  -- "reset window positions": back to the middle, for good
+      BF.Place()
       return
     end
     BF.Toggle(true)

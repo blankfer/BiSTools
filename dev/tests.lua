@@ -332,7 +332,9 @@ end
 --   /cleartarget                  your target goes (and becomes the "last target")
 --   /targetexact <name>           a nearby unit of exactly that name, else nothing changes
 --   /tm [exists] !<n>             the mark on your target (W.tmLog), only if you have one
---   /ping [exists] <kind>         a ping on your target (W.pings); [mod:shift,exists] only with shift held
+--   /ping [@target,exists] <kind> a ping on your target (W.pings); [mod:shift,@target,exists] only with shift held.
+--                                 NO @unit = NO PING (Arn 8 Nov: "bis tools boss no ping on shift click" - the line was
+--                                 "/ping [mod:shift,exists] attack"; the family's working pings all name the unit)
 --   /targetlasttarget [noexists]  no target now: the last one back
 W.tmLog, W.pings, W.macros = {}, {}, {}
 function W.RunMacro(text)
@@ -359,7 +361,9 @@ function W.RunMacro(text)
     elseif tmC == "exists" and tmN then
       if W.target then W.tmLog[#W.tmLog + 1] = { name = W.target.name, mark = tonumber(tmN) } W.target.mark = tonumber(tmN) end
     elseif pC == "exists" or pC == "mod:shift,exists" then
-      if W.target and (pC == "exists" or W.shift) then W.pings[#W.pings + 1] = { name = W.target.name, kind = pK } end
+      -- a ping that names nobody: the client takes the line and pings nothing
+    elseif pC == "@target,exists" or pC == "mod:shift,@target,exists" then
+      if W.target and (pC == "@target,exists" or W.shift) then W.pings[#W.pings + 1] = { name = W.target.name, kind = pK } end
     elseif ln == "/targetlasttarget [noexists]" then
       if not W.target then W.target = W.last end
     else
@@ -524,14 +528,18 @@ _G.CreateFrame = function(kind, name, parent, template)
   -- this stub used to take anything silently, which would have let a mid-fight switch pass here and fail live)
   function f:EnableMouse(on)
     if W.combat and self.template and self.template:find("Secure") then error("EnableMouse on a secure frame in combat", 2) end
+    -- A WINDOW MID-DRAG THAT STOPS TAKING THE MOUSE NEVER HEARS THE BUTTON COME UP (Arn 8 Nov, the boss window: "we got
+    -- into combat when i reloaded and moved the window ... it held on to my mouse, and i could not click anything"):
+    -- the client keeps it moving with the cursor and every click goes nowhere. Recorded, so a suite can forbid it.
+    if not on and self.moving then W.strandedDrag = (W.strandedDrag or 0) + 1 end
     self.mouse = on and true or false
   end
   function f:EnableMouseWheel(on) self.wheel = on end
   function f:SetClampedToScreen() end
   function f:RegisterForDrag() end
   function f:RegisterForClicks(c) self.clicks = c end
-  function f:StartMoving() end
-  function f:StopMovingOrSizing() end
+  function f:StartMoving() self.moving = true end
+  function f:StopMovingOrSizing() self.moving = nil end
   -- SHOW AND HIDE RUN OnShow / OnHide, on a real change only, as the client does (6 Nov 2026, the XP food glow
   -- plays while the button is up and stops when it goes). The old mock only flipped a flag, so "does the pulse
   -- stop when the button hides" had no answer.
@@ -9092,12 +9100,25 @@ do
   ok(f.scale == 1.45 and math.abs(f.w / f.h - 1.43) < 0.01, "1.43:1, at 1.45 (Arn 8 Nov: 1.2 was 'lil small')", f.w .. "x" .. f.h)
   local esc = false
   for _, n in ipairs(UISpecialFrames) do if n == "BiSToolsBosses" then esc = true end end
-  ok(esc, "Escape closes it")
+  ok(not esc, "Escape leaves it alone (Arn 8 Nov: 'even if i am not clicked on the window if i hit esc it closes it' - "
+    .. "Escape drops a target all run long)")
+  -- where you left it (Arn 8 Nov: "the bis bosses always open in the middle of the screen")
+  ok(f.point and f.point[1] == "CENTER" and f.point[5] == 80 and bdb.pos == nil, "never dragged: a little above the middle")
+  f.scripts.OnDragStart(f)
+  f.scripts.OnDragStop(f)
+  ok(type(bdb.pos) == "table" and bdb.pos[1] == "TOPLEFT" and bdb.pos[2] == "CENTER" and bdb.pos[3] == 12 and bdb.pos[4] == -34,
+     "a drag: where it stopped is kept")
+  f:ClearAllPoints()
+  BS.Place()                                       -- what the next login's build does
+  ok(f.point and f.point[1] == "TOPLEFT" and f.point[3] == "CENTER" and f.point[4] == 12 and f.point[5] == -34,
+     "the next login: it opens where it was left")
+  R:Get("bosses"):OnOpen(bdb, true)
+  ok(bdb.pos == nil and f.point[1] == "CENTER", "reset window positions: the middle again, for good")
   ok(BS.ShowBox() and BS.BoxButton(), "the BiS> tools box shows its skull button inside")
   ok(BS.mark[D[36].bosses[1].id] == 8 and BS.mark[D[36].bosses[2].id] == 7 and BS.mark[D[36].bosses[8].id] == 1,
     "the marks: skull for the first, cross for the next ... star for the eighth")
   local r1 = f.rows[1]
-  ok(r1.attrs.type == "macro" and r1.attrs.macrotext == "/cleartarget\n/targetexact Rhahk'Zor\n/tm [exists] !8\n/ping [mod:shift,exists] attack\n/targetlasttarget [noexists]",
+  ok(r1.attrs.type == "macro" and r1.attrs.macrotext == "/cleartarget\n/targetexact Rhahk'Zor\n/tm [exists] !8\n/ping [mod:shift,@target,exists] attack\n/targetlasttarget [noexists]",
     "a row: clear, the boss by its exact name, its mark, a ping only with shift, the old target back if not found", r1.attrs.macrotext)
   ok(r1.icon.shown and r1.icon.file == BS.MARK_ICON .. 8 and r1.name.text == "Rhahk'Zor" and r1.name.wrap == false, "row 1: the skull, the name on one line")
 
@@ -9184,7 +9205,19 @@ do
   -- A FIGHT: the window STAYS, dimmed and unclickable (Arn, 8 Nov: "closed so many times during combat that it stopped
   -- opening by itself and i forgot about it ... dim it during combat and make it unclickable"). In the client's order:
   -- PLAYER_REGEN_DISABLED arrives BEFORE the lockdown, the one moment a secure button's mouse may still be switched.
+  -- AND THE PLAYER IS MID-DRAG (Arn 8 Nov: "we got into combat when i reloaded and moved the window" - it held on to
+  -- his mouse and nothing could be clicked; he had to kill the game): the drag must END before the mouse goes off.
+  W.strandedDrag = nil
+  f.scripts.OnDragStart(f)
+  ok(f.moving, "the window is being dragged when the pull comes")
   BS.events.scripts.OnEvent(BS.events, "PLAYER_REGEN_DISABLED")
+  ok(not f.moving and not W.strandedDrag, "the pull ENDS the drag before the mouse goes off - no stranded window",
+     tostring(W.strandedDrag))
+  ok(type(bdb.pos) == "table" and bdb.pos[1] == "TOPLEFT", "and where it was dropped is kept")
+  f.scripts.OnDragStart(f)
+  f:Hide()
+  ok(not f.moving and not f.dragging, "hidden mid-drag: the drag ends too")
+  f:Show()
   W.combat = true
   local anyMouse = f.mouse ~= false
   for _, b in ipairs(BS.Clickables(f)) do if b.mouse ~= false then anyMouse = true end end
@@ -9195,7 +9228,7 @@ do
   for _, p in ipairs({ f.screen, f.model, f.gauge, f.tape }) do if p and p.mouse == true then anyMouse = true end end
   ok(not anyMouse, "and nothing on it takes a click - not a row, not a key, not the window, not its picture: what is behind it can be clicked")
   ok(BS.FIGHT_ALPHA <= 0.15, "barely there (Arn: 'dim it way more')", BS.FIGHT_ALPHA)
-  ok(not onEsc, "and Escape leaves it alone mid-fight (closing secure buttons in a fight is refused)")
+  ok(not onEsc, "and Escape still leaves it alone mid-fight")
   ok(f:GetScript("OnUpdate") == nil and f.help.text == BS.FIGHT_HELP,
      "QUIET (Arn: 'like a quiet cockpit screen would'): the grid stops rolling, and one line says the keys are locked")
   ok(not BS.Dim(false), "and it is not woken inside the lockdown")
@@ -9209,7 +9242,8 @@ do
   for _, b in ipairs(BS.Clickables(f)) do if b.mouse == false then allMouse = false end end
   local backOnEsc = false
   for _, n in ipairs(UISpecialFrames) do if n == "BiSToolsBosses" then backOnEsc = true end end
-  ok(f.alpha == 1 and not f.dimmed and allMouse and backOnEsc, "full strength again, every key clickable, Escape closes it")
+  ok(f.alpha == 1 and not f.dimmed and allMouse and not backOnEsc,
+    "full strength again, every key clickable, and still not on the Escape list")
   ok(f:GetScript("OnUpdate") == f.tick and f.help.text == BS.HELP, "and the grid rolls again, the usual help line back")
 
   -- the key
@@ -9220,14 +9254,25 @@ do
 
   -- out and back within the hour: the same run; RESET: a fresh one
   local run = BS.run
+  BS.Toggle(true)
   _G.IsInInstance = function() return false, "none" end
   fireAll("ZONE_CHANGED_NEW_AREA")
   ok(BS.map == nil and not f:IsShown() and not BS.events.events.NAME_PLATE_UNIT_ADDED and not BS.ShowBox(),
-    "out: the window, the box button and the eyes all go")
+    "out (a wipe's release, a hearth): the window, the box button and the eyes all go")
+  ok(bdb.open == true, "but leaving is not closing it: it was open")
   _G.IsInInstance = function() return true, "party" end
   W.now = W.now + 600
   fireAll("PLAYER_ENTERING_WORLD")
-  ok(BS.run == run and BS.run.down[D[36].bosses[1].id] and not f:IsShown(), "back within the hour: the same run, no pop-up again")
+  ok(BS.run == run and BS.run.down[D[36].bosses[1].id] and f:IsShown(),
+    "back within the hour: the same run, and the window comes back with you (Arn: it 'stopped opening by itself')")
+  f.close.scripts.OnClick(f.close)
+  ok(not f:IsShown() and bdb.open == false, "its x closes it")
+  _G.IsInInstance = function() return false, "none" end
+  fireAll("ZONE_CHANGED_NEW_AREA")
+  _G.IsInInstance = function() return true, "party" end
+  W.now = W.now + 60
+  fireAll("PLAYER_ENTERING_WORLD")
+  ok(not f:IsShown(), "closed by you, out and back: it stays closed (once a run is enough)")
   S("bosses reset")
   ok(BS.run ~= run and not next(BS.run.down), "RESET: a fresh run")
 
