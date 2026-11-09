@@ -72,15 +72,8 @@ function B.Build()
     f:StartMoving()
     B.moving = true
   end)
-  head:SetScript("OnDragStop", function()
-    if not B.moving then return end
-    B.moving = false
-    f:StopMovingOrSizing()
-    local point, _, rel, x, y = f:GetPoint(1)
-    B.DB().pos = { point or "CENTER", x or 0, y or 0, rel or point or "CENTER" }
-    B.DB().dock = "free"
-    B.docked = false
-  end)
+  head:SetScript("OnDragStop", function() B.EndDrag() end)
+  f:SetScript("OnHide", function() B.EndDrag() end)          -- hidden mid-drag (no buttons left): the drag ends too
   head:SetScript("OnMouseUp", function(_, button)
     if button == "LeftButton" and IsShiftKeyDown and IsShiftKeyDown() then B.NextDock() end
   end)
@@ -337,12 +330,30 @@ do
   end
 end
 
+--- The drag ends: the box lets go and stays where it was dropped (free). 8 Nov 2026, the drag audit after the boss window
+--- held Arn's mouse until he killed the game: the box holds secure buttons, so inside the lockdown the client will not
+--- let go of it - a drag still on when the fight starts would have its mouse-up refused and ride the cursor all fight.
+--- So this runs at PLAYER_REGEN_DISABLED (the moment before the lockdown) as well as at the mouse-up and on hide.
+function B.EndDrag()
+  local f = B.frame
+  if not (f and B.moving) then return false end
+  B.moving = false
+  f:StopMovingOrSizing()
+  local point, _, rel, x, y = f:GetPoint(1)
+  B.DB().pos = { point or "CENTER", x or 0, y or 0, rel or point or "CENTER" }
+  B.DB().dock = "free"
+  B.docked = false
+  return true
+end
+
 local ev = CreateFrame("Frame")
 ev:RegisterEvent("PLAYER_LOGIN")
+ev:RegisterEvent("PLAYER_REGEN_DISABLED")                  -- a drag still on ends (B.EndDrag), nothing else
 ev:RegisterEvent("PLAYER_REGEN_ENABLED")
 -- into or out of a battleground: the "+ rival" button comes or goes (the loading screen is out of combat)
 ev:RegisterEvent("PLAYER_ENTERING_WORLD")
 ev:SetScript("OnEvent", function(_, event)
+  if event == "PLAYER_REGEN_DISABLED" then B.EndDrag() return end
   if event == "PLAYER_REGEN_ENABLED" and not B.dirty then return end
   B.Refresh()
 end)

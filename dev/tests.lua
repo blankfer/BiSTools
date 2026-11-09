@@ -1,6 +1,6 @@
 -- BiSTools headless harness. Run from the addon root:  lua5.1 dev/tests.lua
 -- ------------------------------------------------------------ WoW mock
-local W = { combat = false, target = nil, plates = {}, marks = {}, now = 0, forbidden = {} }
+local W = { combat = false, target = nil, plates = {}, marks = {}, now = 0, forbidden = {}, secureFrames = {} }
 _G.__W = W
 -- the TOC is the truth for the version and for what loads, in what order
 local function readTOC()
@@ -498,7 +498,7 @@ _G.CreateFrame = function(kind, name, parent, template)
   -- RAISE puts a frame in front of its strata's others (6 Nov 2026, the hoard over Processing): counted, and the
   -- frame raised last is the one in front (W.front)
   function f:Raise() self.raised = (self.raised or 0) + 1 W.front = self end
-  function f:SetParent(p) self.parent = p end
+  -- (a second, plain SetParent stood here and quietly overrode the combat refusal above - 8 Nov 2026, the drag audit)
   function f:GetCenter() return self.cx or 0, self.cy or 0 end
   function f:GetEffectiveScale() return 1 end
   function f:SetAlpha(a) self.alpha = a end
@@ -538,8 +538,33 @@ _G.CreateFrame = function(kind, name, parent, template)
   function f:SetClampedToScreen() end
   function f:RegisterForDrag() end
   function f:RegisterForClicks(c) self.clicks = c end
-  function f:StartMoving() self.moving = true end
-  function f:StopMovingOrSizing() self.moving = nil end
+  -- PROTECTED = secure itself, or holding a secure frame (IsProtected's second answer, "explicit", exists for the second
+  -- kind: the tools box holds the farm's and the rivals' secure buttons, the summon list its secure rows). Inside the
+  -- lockdown the client refuses to move either - and refuses to LET GO of one still moving, so a drag on it that was
+  -- going when the fight started rides the cursor all fight (8 Nov 2026, the drag audit). Counted in W.strandedDrag.
+  function f:IsProtected()
+    local own = self.template and self.template:find("Secure") and true or false
+    if own then return true, true end
+    for s in pairs(W.secureFrames) do                          -- anywhere below it, not only a direct child
+      local p, hops = s.parent, 0
+      while type(p) == "table" and hops < 50 do
+        if p == self then return true, false end
+        p, hops = p.parent, hops + 1
+      end
+    end
+    return false, false
+  end
+  function f:StartMoving()
+    if W.combat and self:IsProtected() then error("StartMoving on a protected frame in combat", 2) end
+    self.moving = true
+  end
+  function f:StopMovingOrSizing()
+    if self.moving and W.combat and self:IsProtected() then
+      W.strandedDrag = (W.strandedDrag or 0) + 1                   -- refused: still on the cursor
+      return
+    end
+    self.moving = nil
+  end
   -- SHOW AND HIDE RUN OnShow / OnHide, on a real change only, as the client does (6 Nov 2026, the XP food glow
   -- plays while the button is up and stops when it goes). The old mock only flipped a flag, so "does the pulse
   -- stop when the button hides" had no answer.
@@ -593,6 +618,7 @@ _G.CreateFrame = function(kind, name, parent, template)
     if self.scripts.PostClick then self.scripts.PostClick(self, "LeftButton", true) end
   end
   if name then frames[name] = true _G[name] = f end
+  if type(template) == "string" and template:find("Secure") then W.secureFrames[f] = true end   -- for IsProtected
   return f
 end
 
@@ -1365,6 +1391,34 @@ ok(fits(BiSToolsSummonRequest.label, BiSToolsSummonRequest.w - 8), "footer label
 ok(BiSToolsSummonRequest.label.text:find("cancel"), "and still says cancel")
 BiSToolsSummonRequest.scripts.OnClick(BiSToolsSummonRequest)
 ok(fits(BiSToolsSummonAll.label, BiSToolsSummonAll.w - 8), "all label fits")
+-- A FIGHT MID-DRAG (8 Nov 2026, the drag audit after the boss window held Arn's mouse until he killed the game): the
+-- list holds secure rows, so inside the lockdown the client will not let go of it. Every way to drag it - the window,
+-- its header, a shift-drag on a row - must end at PLAYER_REGEN_DISABLED, before the lockdown.
+do
+  local function deliverTo(fr, e) if fr.events[e] and fr.scripts.OnEvent then fr.scripts.OnEvent(fr, e) return true end end
+  local sf = BiSToolsSummon
+  ok(sf:IsProtected(), "the summon list holds secure rows: the client protects it")
+  local keepPos = SM.db and SM.db.pos
+  local function drag(handle, what)
+    W.strandedDrag = nil
+    if SM.db then SM.db.pos = nil end
+    W.shift = true
+    handle.scripts.OnDragStart(handle)
+    W.shift = false
+    ok(sf.moving, what .. ": being dragged when the pull comes")
+    ok(deliverTo(SM.events, "PLAYER_REGEN_DISABLED"), what .. ": the list hears the fight start")
+    W.combat = true
+    handle.scripts.OnDragStop(handle)
+    W.combat = false
+    ok(not sf.moving and not W.strandedDrag, what .. ": the pull ENDS the drag, not left on the cursor",
+       tostring(W.strandedDrag))
+    ok(SM.db and SM.db.pos, what .. ": and where it was dropped is kept")
+  end
+  drag(sf, "the window")
+  drag(SM.title.parent, "its header")
+  drag(BiSToolsSummonRow1, "a shift-drag on a row")
+  if SM.db then SM.db.pos = keepPos end
+end
 -- header budget: W minus the button strip (56) minus the left pad (4); the title
 -- is the BiS> prompt (Arn, 8 Sep: "prompt BiS> _ blinking should be in the header
 -- and cycle relevant messages: addon name, summoners at the stone ...")
@@ -4285,6 +4339,24 @@ do
   box.head.scripts.OnDragStart(box.head) box.head.scripts.OnDragStop(box.head)
   box.StartMoving, box.StopMovingOrSizing = keepMove, keepStop
   ok(moved == 1 and Bx.DB().dock == "free" and not Bx.docked and Bx.DB().pos, "dragged, even docked: it stays where it is dropped")
+  -- A FIGHT MID-DRAG (8 Nov 2026, the drag audit after the boss window held Arn's mouse until he killed the game): the
+  -- box holds secure buttons, so inside the lockdown the client will not let go of it - a mouse-up that comes in the
+  -- fight is refused and the box rides the cursor all fight. The drag ends at PLAYER_REGEN_DISABLED, before the lockdown.
+  do
+    local function deliverTo(fr, e) if fr.events[e] and fr.scripts.OnEvent then fr.scripts.OnEvent(fr, e) return true end end
+    ok(box:IsProtected(), "the box holds secure buttons: the client protects it")
+    W.strandedDrag = nil
+    Bx.DB().pos = nil
+    box.head.scripts.OnDragStart(box.head)
+    ok(box.moving, "the box is being dragged when the pull comes")
+    ok(deliverTo(Bx.events, "PLAYER_REGEN_DISABLED"), "the box hears the fight start")
+    W.combat = true
+    box.head.scripts.OnDragStop(box.head)                      -- the button comes up inside the fight
+    W.combat = false
+    ok(not box.moving and not W.strandedDrag, "the pull ENDS the drag: the box is not left on the cursor",
+       tostring(W.strandedDrag))
+    ok(Bx.DB().pos and Bx.DB().dock == "free", "and where it was dropped is kept, written before the lockdown")
+  end
   Bx.Refresh()
   ok(box.point[2] == UIParent, "and stays free while BiS> now is up")
   W.shift = true box.head.scripts.OnMouseUp(box.head, "LeftButton") W.shift = false
