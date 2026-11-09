@@ -1,5 +1,6 @@
 ## Unreleased
 
+- **For other addons:** `BiSToolsAPI.BossFace(name)` (API version 6) - a boss's creature and model by its name, from the boss finder and the Codex. BiS Memories uses it to draw dungeon bosses on their postcards.
 - **BiS> bosses, a boss finder.** Walk into a dungeon or raid and the list of its bosses comes up, in the game's own order, each with the raid mark it will get (skull first, then cross, square, moon...).
   - **Click a boss** to target it and put its mark on it. Shift-click also pings it for your party. If the boss isn't nearby, nothing is marked and you keep your old target.
   - **MARK ALL** looks for every boss and marks each one it finds. A long list takes a second or third press, and each press carries on from where the last one stopped.
