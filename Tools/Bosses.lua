@@ -596,13 +596,13 @@ function BF.Build()
   f:SetMovable(true)
   f:SetClampedToScreen(true)
   f:RegisterForDrag("LeftButton")
-  f:SetScript("OnDragStart", function(self) if not fighting() then self:StartMoving() end end)
-  -- WHERE YOU LEFT IT (8 Nov, Arn: "the bis bosses always open in the middle of the screen"): kept in db.pos
-  f:SetScript("OnDragStop", function(self)
-    self:StopMovingOrSizing()
-    local p, _, rp, x, y = self:GetPoint()
-    if BF.db and type(p) == "string" then BF.db.pos = { p, rp or p, x or 0, y or 0 } end
+  f:SetScript("OnDragStart", function(self)
+    if fighting() then return end
+    self:StartMoving()
+    self.dragging = true
   end)
+  -- WHERE YOU LEFT IT (8 Nov, Arn: "the bis bosses always open in the middle of the screen"): kept in db.pos
+  f:SetScript("OnDragStop", function(self) BF.EndDrag(self) end)
   k.tex(f, "BACKGROUND", "frame", 0.97)
   k.border(f, "edge", 1)
   f.title = k.fs(f, "BiS> BOSSES", 10, "accent")
@@ -740,7 +740,8 @@ function BF.Build()
     BF.GridAt(BF.t)
   end
   f:SetScript("OnUpdate", f.tick)
-  f:SetScript("OnHide", function() BF.focus = nil end)
+  -- hidden mid-drag (a zone change, the tool switched off): the drag ends with it
+  f:SetScript("OnHide", function(self) BF.focus = nil BF.EndDrag(self) end)
   f:Hide()
   return f
 end
@@ -916,9 +917,28 @@ function BF.Clickables(f)
   return list
 end
 
+--- The drag ends: the window lets go of the mouse, and where it stands is kept (plain numbers only - a secret
+--- position is never written down).
+function BF.EndDrag(f)
+  if not (f and f.dragging) then return false end
+  f.dragging = nil
+  pcall(f.StopMovingOrSizing, f)
+  local ok, p, _, rp, x, y = pcall(f.GetPoint, f)
+  local function plain(v) return (v ~= nil and not (issecretvalue and issecretvalue(v))) and v or nil end
+  p, rp, x, y = plain(p), plain(rp), plain(x), plain(y)
+  if ok and BF.db and type(p) == "string" and type(x) == "number" and type(y) == "number" then
+    BF.db.pos = { p, type(rp) == "string" and rp or p, x, y }
+  end
+  return true
+end
+
 --- Dim (a fight starts) or wake (it ended). Out of the lockdown only; returns false when refused.
+--- A FIGHT MID-DRAG (8 Nov, Arn: "we got into combat when i reloaded and moved the window" - it held on to his mouse and
+--- nothing could be clicked, not even to quit): the window's mouse goes off below, so it would never hear the button
+--- come up. The drag ENDS first, here, while the client still allows it (PLAYER_REGEN_DISABLED, before the lockdown).
 function BF.Dim(on)
   local f = BF.frame
+  if f and on then BF.EndDrag(f) end
   if not f or fighting() then return false end
   f.dimmed = on and true or false
   f:SetAlpha(on and BF.FIGHT_ALPHA or 1)
