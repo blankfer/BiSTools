@@ -46,6 +46,7 @@ Tools\Pups.lua
 Tools\CodexData.lua
 Tools\Codex.lua
 Tools\CodexWindow.lua
+Tools\CodexDrive.lua
 Tools\BossData.lua
 Tools\Bosses.lua
 API.lua

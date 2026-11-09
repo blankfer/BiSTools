@@ -260,7 +260,7 @@ function X.Build()
     "Every creature in the book, by name: the ones shipped and the ones you have met.")
   f.keys.index:SetPoint("TOPLEFT", 152, -6)
   local lcd = CreateFrame("Frame", nil, f)
-  lcd:SetSize(372, 16)
+  lcd:SetSize(336, 16)                -- 372 before the FULL key (8 Nov)
   lcd:SetPoint("TOPLEFT", 192, -6)
   k.tex(lcd, "BACKGROUND", "bg", 1)
   k.border(lcd, "line2", 1)
@@ -269,6 +269,9 @@ function X.Build()
   f.lcd.codexSize = 8
   f.close = X.Key(f, "x", 20, 16, function() X.Toggle(false) end, "Close the Codex.")
   f.close:SetPoint("TOPRIGHT", -8, -6)
+  -- AFTER DARK (8 Nov, Arn: "a full screen ryan gosling drive treatment"): the book full screen, Tools/CodexDrive.lua
+  f.full = X.Key(f, "FULL", 32, 16, function() if C.Drive then C.Drive.Open() end end, "The Codex full screen, after dark.")
+  f.full:SetPoint("RIGHT", f.close, "LEFT", -4, 0)
 
   -- A to Z (and ? for the names the game has not told us yet)
   f.az = {}
@@ -557,7 +560,7 @@ function X.Retry()
   X.retrying = true
   C_Timer.After(X.RETRY, function()
     X.retrying = false
-    if not X.IsOpen() then return end
+    if not (X.IsOpen() or (C.Drive and C.Drive.IsOpen())) then return end   -- the full screen's model too
     local again = false
     for _, m in ipairs(X.models or {}) do
       if m.npc and not m.drawn and m:IsVisible() and (m.tries or 0) < X.RETRY_TRIES then
@@ -788,7 +791,7 @@ function X.Paint()
 end
 
 function X.LCD(text)
-  X.Set(X.frame.lcd, upper(text), 372 - 12)
+  X.Set(X.frame.lcd, upper(text), 336 - 12)
 end
 
 function X.TocEntries()
@@ -1015,7 +1018,7 @@ R:Register({
   name = "codex",
   short = "cdx",
   desc = "an illustrated book of creatures: their 3D models, abilities and what they drop",
-  usage = "/bist codex [name | creature id]",
+  usage = "/bist codex [name | creature id | full]",
   -- new after 1.0: a save from before 1.0 never had it, so the 1.0 freeze must not write it ON (the pups lesson)
   defaultOff = true,
   slashWhenOff = true,              -- /bist codex is the player's own click: it switches the tool on, like the Hub
@@ -1040,6 +1043,11 @@ R:Register({
     if not R:Enabled("codex") then R:SetEnabled("codex", true) end
     args = tostring(args or ""):gsub("^%s+", ""):gsub("%s+$", "")
     local id = tonumber(args)
+    local word = args:lower()
+    if word == "full" or word == "drive" then
+      if C.Drive then C.Drive.Toggle() end
+      return
+    end
     if id then
       local ok, why = X.Show(id)
       if not ok then NS.Print("codex: no creature %d in the book yet (%s)", id, tostring(why)) end
