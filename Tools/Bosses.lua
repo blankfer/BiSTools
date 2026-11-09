@@ -573,7 +573,7 @@ function BF.Build()
   f:SetFrameStrata("DIALOG")
   f:SetScale(BF.SCALE)
   if UISpecialFrames then table.insert(UISpecialFrames, "BiSToolsBosses") end   -- Escape closes it (out of fights:
-  f:EnableMouse(true)                                                              -- it steps away when one starts)
+  f:EnableMouse(true)                                                              -- it is off the list while dimmed)
   f:SetMovable(true)
   f:SetClampedToScreen(true)
   f:RegisterForDrag("LeftButton")
@@ -704,17 +704,18 @@ function BF.Build()
   end
   f.reset = key(f, "RESET", 60, 20, nil, function() BF.Reset() end)
   f.reset:SetPoint("LEFT", f.find, "RIGHT", 6, 0)
-  f.help = k.fs(f, "click: target + mark   shift: + ping   FIND: one at a time   esc: close", 7, "dim")
+  f.help = k.fs(f, BF.HELP, 7, "dim")
   f.help:SetPoint("BOTTOMLEFT", 8, 6)
   -- the screen's clock: only while shown (the client runs no OnUpdate for a hidden frame)
   local acc = 0
-  f:SetScript("OnUpdate", function(_, elapsed)
+  f.tick = function(_, elapsed)
     acc = acc + (elapsed or 0)
     if acc < 1 / BF.FPS then return end
     BF.t = (BF.t or 0) + acc * 0.5
     acc = 0
     BF.GridAt(BF.t)
-  end)
+  end
+  f:SetScript("OnUpdate", f.tick)
   f:SetScript("OnHide", function() BF.focus = nil end)
   f:Hide()
   return f
@@ -871,6 +872,54 @@ end
 
 function BF.IsOpen() return BF.frame ~= nil and BF.frame:IsShown() end
 
+-- IN A FIGHT IT STAYS, DIMMED (Arn, 8 Nov: "the boss window closed so many times during combat that it stopped opening
+-- by itself and i forgot about it ... dim it during combat and make it unclickable"). It used to step away at every pull
+-- and come back after; now it stays where it is at BF.FIGHT_ALPHA, still painting (DOWN, MARKED, the gauge), and takes no
+-- click: every key's mouse is switched off in the one moment the client still allows it (PLAYER_REGEN_DISABLED, before
+-- the lockdown), and back on after. Escape leaves it alone while dimmed - closing a frame of secure buttons mid-fight
+-- is refused - so it comes off the Escape list for the fight.
+-- AND QUIET (Arn, same day: "like a quiet cockpit screen would"): nothing moves - the grid stops rolling (its OnUpdate
+-- comes off, so a fight costs the screen nothing) - and the help line says, in gold, why the keys do not answer.
+-- WAY DIMMER (Arn, same day: "dim it way more incase someone has it over someting important and they cant move it
+-- incombat they can still click stuff behind it"): barely there, and every part lets the mouse through to what is under it
+BF.FIGHT_ALPHA = 0.12
+BF.FIGHT_HELP = "FIGHT · screen quiet, keys locked - back after the fight"
+BF.HELP = "click: target + mark   shift: + ping   FIND: one at a time   esc: close"
+
+function BF.Clickables(f)
+  local list = { f.close, f.prev, f.next, f.all, f.find, f.reset }
+  for _, r in ipairs(f.rows or {}) do list[#list + 1] = r end
+  return list
+end
+
+local function escapeList(on)
+  local list = UISpecialFrames
+  if type(list) ~= "table" then return end
+  for i = #list, 1, -1 do if list[i] == "BiSToolsBosses" then table.remove(list, i) end end
+  if on then list[#list + 1] = "BiSToolsBosses" end
+end
+
+--- Dim (a fight starts) or wake (it ended). Out of the lockdown only; returns false when refused.
+function BF.Dim(on)
+  local f = BF.frame
+  if not f or fighting() then return false end
+  f.dimmed = on and true or false
+  f:SetAlpha(on and BF.FIGHT_ALPHA or 1)
+  f:EnableMouse(not on)
+  for _, b in ipairs(BF.Clickables(f)) do if b and b.EnableMouse then b:EnableMouse(not on) end end
+  -- the parts that never take a click are made sure of too: a model or a gauge that caught the mouse would block what is behind
+  if on then
+    for _, p in ipairs({ f.screen, f.model, f.gauge, f.tape }) do if p and p.EnableMouse then p:EnableMouse(false) end end
+  end
+  escapeList(not on)
+  f:SetScript("OnUpdate", (not on) and f.tick or nil)
+  if f.help then
+    f.help:SetText(on and BF.FIGHT_HELP or BF.HELP)
+    f.help:SetTextColor(rgb(on and "gold" or "dim"))
+  end
+  return true
+end
+
 --- Open or close. Never in a fight: the window holds secure buttons, and those cannot appear or go in one.
 function BF.Toggle(want)
   local f = BF.Build()
@@ -982,11 +1031,12 @@ function BF.OnEvent(event, a1, a2, _, _, a5)
       end
     end
   elseif event == "PLAYER_REGEN_DISABLED" then
-    -- the fight starts: the window steps away (it holds secure buttons, which cannot go once the fight is on)
-    if BF.frame and BF.frame:IsShown() then BF.back = true BF.frame:Hide() end
+    -- the fight starts: the window stays, dimmed and unclickable (BF.Dim) - it no longer steps away
+    if BF.frame and BF.frame:IsShown() then BF.Dim(true) end
   elseif event == "PLAYER_REGEN_ENABLED" then
     if BF.dirty then BF.Write() end
     if BF.keyDirty and BF.db then BF.ApplyKey(BF.db) end
+    if BF.frame and BF.frame.dimmed then BF.Dim(false) end
     if BF.back then BF.back = nil BF.Toggle(true) end
   end
 end
