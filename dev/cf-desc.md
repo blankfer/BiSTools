@@ -1,4 +1,4 @@
-# BiS Tools — CurseForge page text (1.0.0)
+# BiS Tools — CurseForge page text (1.1.0)
 
 Paste everything below the line into the project description
 (CurseForge → BiS Tools, project 1686340 → Edit → Description), in the Markdown editor.
@@ -10,7 +10,11 @@ and lists stay flat.
 **Deliberately NOT on the page: summon** (Forever has no summoning stones, the tool does not load
 there) **and threat** (a beta, off by default). The page is for Forever.
 
-Changed since the previous text (8 Nov, 1.0.0 - Forever 1.0): "Settings" rewritten - a new install starts with
+Changed for 1.1.0 (9 Nov): two new sections before "Farm" - **BiS> bosses** (the boss finder) and
+**BiS> Codex** (the book, and after dark full screen) - their commands in the table, and the opener's
+bold line names them. Pictures for the gallery: `C:\Users\arnol\Pictures\BiS-CF\2026-11-09\tools-*.jpg`.
+
+Changed in the text before (8 Nov, 1.0.0 - Forever 1.0): "Settings" rewritten - a new install starts with
 every tool off (existing players keep theirs), the options dashboard (Esc > Options > AddOns > BiS> > BiS> Tools),
 and the minimap button (right-click again closes the options). Rivals: the ping and the guildmate crest start off on
 a new install, each with its own tick - the "you hear it" and crest lines say so.
@@ -19,7 +23,7 @@ a new install, each with its own tick - the "you hear it" and crest lines say so
 
 # BiS Tools
 
-**Your XP buffs in one stop, your disenchanting in one window, what killed you, who to watch for, who heals them, and what to farm. For WoW Forever.**
+**Your XP buffs in one stop, your disenchanting in one window, every boss in a dungeon marked, a picture book of every creature, what killed you, who to watch for, who heals them, and what to farm. For WoW Forever.**
 
 You're dead, and you never saw it coming. BiS Tools opens the game's own record of the hits that killed you: who landed the last one, who helped, with what, and how fast. Click a player on that screen and they're your rival. The next time they walk into view, you'll know.
 
@@ -91,6 +95,26 @@ Tick "guildmates" in the options and, out in the world on your own, a guildmate 
 
 A stranger buffs you on the road and you're mid-pull, or just didn't notice. Switch on `/bist social on` and BiS Tools does it for you: a random friendly emote at them, a thank or a hug or a bow. Two to five minutes between emotes, never the same person twice in ten, never in a fight, and your group left alone. It's off until you turn it on.
 
+## BiS> bosses: every boss in the place, marked
+
+Walk into a dungeon or raid and its boss list comes up, in the game's own order, each with the raid mark it will get: skull first, then cross, square, moon.
+
+- **Click a boss** to target it and mark it. Shift-click pings it for your party too. If the boss isn't nearby, nothing changes and you keep your target.
+- **MARK ALL** marks every boss it can find. **FIND** goes one at a time, the ones in sight first: targeted, marked and pinged. `/bist bosses key F7` puts FIND on a key.
+- **A cockpit to watch it on:** a needle that climbs as bosses go down, a strip with one light per boss (green down, gold in sight, purple marked), and the boss in 3D over a synthwave sunset.
+- **It stays put.** A boss is ticked off when its fight ends and the mark passes to the next. In a fight the window fades almost away and clicks go straight through it. Escape leaves it alone (you press Escape all run); die, release or hearth out and it's back when you walk in.
+- **Every dungeon and raid on Forever:** 43 places, 335 bosses, from the game's own data. Fights of several, like The Seven, are listed and ticked off but never targeted.
+
+## BiS> Codex: a picture book of every creature
+
+`/bist codex` opens a two-page book inside a cockpit panel. Contents by volume (Dungeons, Raids), each dungeon's plate of its creatures in 3D, and a page for every creature: its model (turn it, make it stand, attack, cast or fall), a data plate (level, type, rank, where it lives, how often you've met it), its abilities in the game's own words, and what you've seen it drop. An A to Z index and a search cover the lot.
+
+- **Every boss is in it**, every dungeon on Forever and the Molten Core.
+- **It learns as you play.** Every creature you target joins the book with its level, the spells you see it cast and the loot you take from it, dungeon creatures included.
+- **Everything comes from your game.** BiS Tools ships only the creatures' numbers; the names, words and models are your client's own.
+
+**After dark.** Press FULL (or `/bist codex full`) and you're behind the wheel at night: the creature stands in your headlights on a wet road, its name in pink over the city like an opening title. Drag it to turn it. The rear-view mirror is the page you read before, the sun visor holds what it drops like tickets (shift-click to link one), the gauges count levels and meetings, the radio's tuning band is the A to Z, and the road atlas on the seat is the dungeon's route. Turn the key to close. It fits any screen and steps aside the moment a fight starts.
+
 ## Farm
 
 Type a mob's name, kill one, or right-click it and pick **BiS: track in farm**.
@@ -141,6 +165,8 @@ The farm's skull, the rival target button, the XP buff buttons, and in battlegro
 | `/bist recap style scope` | the crosshair: rails, L, aim, box, scope, drop, chevron, tee, none |
 | `/bist bg mark` · `why` · `clear` | battlegrounds: read the board now · what it saw · forget everyone |
 | `/bist social on` · `off` · `group` · `why` | the thank-you emote for buffs |
+| `/bist bosses` · `/bist bosses key F7` | the boss finder · FIND on a key |
+| `/bist codex` · `/bist codex full` · `/bist codex <name>` | the Codex · after dark · look one up |
 | `/bist farm` | the farm window |
 | `/bist farm key F5` | the skull key |
 | `/bist sounds` · `/bist sounds favs` | the sound explorer · your starred sounds |
