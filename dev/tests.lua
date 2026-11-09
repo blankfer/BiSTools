@@ -332,7 +332,9 @@ end
 --   /cleartarget                  your target goes (and becomes the "last target")
 --   /targetexact <name>           a nearby unit of exactly that name, else nothing changes
 --   /tm [exists] !<n>             the mark on your target (W.tmLog), only if you have one
---   /ping [exists] <kind>         a ping on your target (W.pings); [mod:shift,exists] only with shift held
+--   /ping [@target,exists] <kind> a ping on your target (W.pings); [mod:shift,@target,exists] only with shift held.
+--                                 NO @unit = NO PING (Arn 8 Nov: "bis tools boss no ping on shift click" - the line was
+--                                 "/ping [mod:shift,exists] attack"; the family's working pings all name the unit)
 --   /targetlasttarget [noexists]  no target now: the last one back
 W.tmLog, W.pings, W.macros = {}, {}, {}
 function W.RunMacro(text)
@@ -359,7 +361,9 @@ function W.RunMacro(text)
     elseif tmC == "exists" and tmN then
       if W.target then W.tmLog[#W.tmLog + 1] = { name = W.target.name, mark = tonumber(tmN) } W.target.mark = tonumber(tmN) end
     elseif pC == "exists" or pC == "mod:shift,exists" then
-      if W.target and (pC == "exists" or W.shift) then W.pings[#W.pings + 1] = { name = W.target.name, kind = pK } end
+      -- a ping that names nobody: the client takes the line and pings nothing
+    elseif pC == "@target,exists" or pC == "mod:shift,@target,exists" then
+      if W.target and (pC == "@target,exists" or W.shift) then W.pings[#W.pings + 1] = { name = W.target.name, kind = pK } end
     elseif ln == "/targetlasttarget [noexists]" then
       if not W.target then W.target = W.last end
     else
@@ -9120,7 +9124,7 @@ do
   ok(BS.mark[D[36].bosses[1].id] == 8 and BS.mark[D[36].bosses[2].id] == 7 and BS.mark[D[36].bosses[8].id] == 1,
     "the marks: skull for the first, cross for the next ... star for the eighth")
   local r1 = f.rows[1]
-  ok(r1.attrs.type == "macro" and r1.attrs.macrotext == "/cleartarget\n/targetexact Rhahk'Zor\n/tm [exists] !8\n/ping [mod:shift,exists] attack\n/targetlasttarget [noexists]",
+  ok(r1.attrs.type == "macro" and r1.attrs.macrotext == "/cleartarget\n/targetexact Rhahk'Zor\n/tm [exists] !8\n/ping [mod:shift,@target,exists] attack\n/targetlasttarget [noexists]",
     "a row: clear, the boss by its exact name, its mark, a ping only with shift, the old target back if not found", r1.attrs.macrotext)
   ok(r1.icon.shown and r1.icon.file == BS.MARK_ICON .. 8 and r1.name.text == "Rhahk'Zor" and r1.name.wrap == false, "row 1: the skull, the name on one line")
 
