@@ -886,12 +886,30 @@ function DR.Build()
     DR.Spin(false)
     if DR.hero then dragStop(DR.hero) end
     if DR.find then DR.find.box:ClearFocus() end
+    DR.Settle()
     if DR.was then
       DR.was = nil
       X.Toggle(true)
     end
   end)
   return back
+end
+
+--- The book's place made whole for the window (Arn's BugSack, 8 Nov: closing on a dungeon the window had never shown
+--- left C.UI.plate nil and its paint died): the plate holding the pick, the index's page and list.
+function DR.Settle()
+  if X.view == "dungeon" then
+    local dd = X.dungeon and C.DATA.dungeons[X.dungeon]
+    if not dd then X.view = "contents" return end
+    local at = 1
+    for i, id in ipairs(dd.list) do if id == X.sel then at = i end end
+    X.plate = math.ceil(at / X.FIG)
+  elseif X.view == "index" then
+    X.letter = X.letter or "A"
+    X.list = C.Index(X.letter, X.search)
+    X.offset = 0
+    for i, id in ipairs(X.list) do if id == X.sel then X.offset = math.floor((i - 1) / X.IDX) * X.IDX end end
+  end
 end
 
 --- How big: the largest 16:9 that fits the screen (asked each time it opens).

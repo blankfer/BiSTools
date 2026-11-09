@@ -9123,6 +9123,19 @@ do
   ok(DV.IsOpen(), "/bist codex full opens it")
   DV.key.scripts.OnClick(DV.key)
   ok(not DV.IsOpen() and f:IsShown(), "the key: closed, the window back where you were")
+  -- Arn's BugSack (8 Nov): the window on its Contents (no plate ever set), FULL, Escape -> "arithmetic on field 'plate'"
+  C.UI.Contents()
+  C.UI.plate, C.UI.sel, C.UI.dungeon = nil, nil, nil
+  f.full.scripts.OnClick(f.full)
+  ok(DV.IsOpen() and C.UI.view == "dungeon" and C.UI.dungeon == "rfc", "from the Contents: the full screen starts in Ragefire")
+  local okHide, why = pcall(function() DV.back:Hide() end)
+  ok(okHide and f:IsShown() and C.UI.plate == 1, "Escape: the window comes back on Ragefire's plate, no error", tostring(why))
+  -- and from an index page the full screen opened
+  DV.Open()
+  DV.Index("T")
+  C.UI.offset, C.UI.list = nil, nil
+  okHide, why = pcall(function() DV.back:Hide() end)
+  ok(okHide and f:IsShown() and C.UI.view == "index" and C.UI.offset == 0, "from an index page: the window's index, no error", tostring(why))
   C.UI.Toggle(false)
   -- off: it stops listening
   S("off codex")
