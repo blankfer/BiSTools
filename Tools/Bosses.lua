@@ -880,7 +880,9 @@ function BF.IsOpen() return BF.frame ~= nil and BF.frame:IsShown() end
 -- is refused - so it comes off the Escape list for the fight.
 -- AND QUIET (Arn, same day: "like a quiet cockpit screen would"): nothing moves - the grid stops rolling (its OnUpdate
 -- comes off, so a fight costs the screen nothing) - and the help line says, in gold, why the keys do not answer.
-BF.FIGHT_ALPHA = 0.35
+-- WAY DIMMER (Arn, same day: "dim it way more incase someone has it over someting important and they cant move it
+-- incombat they can still click stuff behind it"): barely there, and every part lets the mouse through to what is under it
+BF.FIGHT_ALPHA = 0.12
 BF.FIGHT_HELP = "FIGHT · screen quiet, keys locked - back after the fight"
 BF.HELP = "click: target + mark   shift: + ping   FIND: one at a time   esc: close"
 
@@ -905,6 +907,10 @@ function BF.Dim(on)
   f:SetAlpha(on and BF.FIGHT_ALPHA or 1)
   f:EnableMouse(not on)
   for _, b in ipairs(BF.Clickables(f)) do if b and b.EnableMouse then b:EnableMouse(not on) end end
+  -- the parts that never take a click are made sure of too: a model or a gauge that caught the mouse would block what is behind
+  if on then
+    for _, p in ipairs({ f.screen, f.model, f.gauge, f.tape }) do if p and p.EnableMouse then p:EnableMouse(false) end end
+  end
   escapeList(not on)
   f:SetScript("OnUpdate", (not on) and f.tick or nil)
   if f.help then

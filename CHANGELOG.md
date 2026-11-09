@@ -5,7 +5,7 @@
   - **MARK ALL** looks for every boss and marks each one it finds. A long list takes a second or third press, and each press carries on from where the last one stopped.
   - **FIND** goes one boss at a time, the ones in sight first: targeted, marked and pinged. `/bist bosses key F7` puts it on a key.
   - **A cockpit to watch it on:** a gauge whose needle climbs as bosses go down, a strip with one light per boss (green down, gold in sight, purple marked), and a screen with the boss in 3D over a synthwave sunset.
-  - A boss is ticked off when its fight ends, and its mark passes to the next one. Leave and come back within the hour and it's the same run; RESET starts a new one. During a fight the window stays where it is, like a quiet cockpit screen: dimmed, nothing moving, no clicks taken, and one gold line saying the keys are locked. It wakes up when the fight ends.
+  - A boss is ticked off when its fight ends, and its mark passes to the next one. Leave and come back within the hour and it's the same run; RESET starts a new one. During a fight the window stays where it is, like a quiet cockpit screen: faded almost away, nothing moving, and clicks go straight through it to whatever is behind, and one gold line saying the keys are locked. It wakes up when the fight ends.
   - It knows every dungeon and raid on WoW Forever (43 of them, 335 bosses), from the game's own data. Fights of several, like The Seven or Ring of Law, are listed and ticked off but never targeted.
   - Starts off; switch it on in the Hub or with `/bist on bosses`. Short word: `/bist boss`. Options: open by itself in a dungeon, and a skull button in the BiS> tools box.
   - For other addons: BiSToolsAPI version 5 answers `Bosses` and `BossesShow`.

@@ -9192,7 +9192,9 @@ do
   for _, n in ipairs(UISpecialFrames) do if n == "BiSToolsBosses" then onEsc = true end end
   ok(f:IsShown() and not BS.back and f.alpha == BS.FIGHT_ALPHA and f.dimmed,
      "a pull: the window stays, dimmed", tostring(f.alpha))
-  ok(not anyMouse, "and nothing on it takes a click - not a row, not a key, not the window")
+  for _, p in ipairs({ f.screen, f.model, f.gauge, f.tape }) do if p and p.mouse == true then anyMouse = true end end
+  ok(not anyMouse, "and nothing on it takes a click - not a row, not a key, not the window, not its picture: what is behind it can be clicked")
+  ok(BS.FIGHT_ALPHA <= 0.15, "barely there (Arn: 'dim it way more')", BS.FIGHT_ALPHA)
   ok(not onEsc, "and Escape leaves it alone mid-fight (closing secure buttons in a fight is refused)")
   ok(f:GetScript("OnUpdate") == nil and f.help.text == BS.FIGHT_HELP,
      "QUIET (Arn: 'like a quiet cockpit screen would'): the grid stops rolling, and one line says the keys are locked")
