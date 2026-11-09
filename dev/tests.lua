@@ -528,14 +528,18 @@ _G.CreateFrame = function(kind, name, parent, template)
   -- this stub used to take anything silently, which would have let a mid-fight switch pass here and fail live)
   function f:EnableMouse(on)
     if W.combat and self.template and self.template:find("Secure") then error("EnableMouse on a secure frame in combat", 2) end
+    -- A WINDOW MID-DRAG THAT STOPS TAKING THE MOUSE NEVER HEARS THE BUTTON COME UP (Arn 8 Nov, the boss window: "we got
+    -- into combat when i reloaded and moved the window ... it held on to my mouse, and i could not click anything"):
+    -- the client keeps it moving with the cursor and every click goes nowhere. Recorded, so a suite can forbid it.
+    if not on and self.moving then W.strandedDrag = (W.strandedDrag or 0) + 1 end
     self.mouse = on and true or false
   end
   function f:EnableMouseWheel(on) self.wheel = on end
   function f:SetClampedToScreen() end
   function f:RegisterForDrag() end
   function f:RegisterForClicks(c) self.clicks = c end
-  function f:StartMoving() end
-  function f:StopMovingOrSizing() end
+  function f:StartMoving() self.moving = true end
+  function f:StopMovingOrSizing() self.moving = nil end
   -- SHOW AND HIDE RUN OnShow / OnHide, on a real change only, as the client does (6 Nov 2026, the XP food glow
   -- plays while the button is up and stops when it goes). The old mock only flipped a flag, so "does the pulse
   -- stop when the button hides" had no answer.
@@ -9335,7 +9339,19 @@ do
   -- A FIGHT: the window STAYS, dimmed and unclickable (Arn, 8 Nov: "closed so many times during combat that it stopped
   -- opening by itself and i forgot about it ... dim it during combat and make it unclickable"). In the client's order:
   -- PLAYER_REGEN_DISABLED arrives BEFORE the lockdown, the one moment a secure button's mouse may still be switched.
+  -- AND THE PLAYER IS MID-DRAG (Arn 8 Nov: "we got into combat when i reloaded and moved the window" - it held on to
+  -- his mouse and nothing could be clicked; he had to kill the game): the drag must END before the mouse goes off.
+  W.strandedDrag = nil
+  f.scripts.OnDragStart(f)
+  ok(f.moving, "the window is being dragged when the pull comes")
   BS.events.scripts.OnEvent(BS.events, "PLAYER_REGEN_DISABLED")
+  ok(not f.moving and not W.strandedDrag, "the pull ENDS the drag before the mouse goes off - no stranded window",
+     tostring(W.strandedDrag))
+  ok(type(bdb.pos) == "table" and bdb.pos[1] == "TOPLEFT", "and where it was dropped is kept")
+  f.scripts.OnDragStart(f)
+  f:Hide()
+  ok(not f.moving and not f.dragging, "hidden mid-drag: the drag ends too")
+  f:Show()
   W.combat = true
   local anyMouse = f.mouse ~= false
   for _, b in ipairs(BS.Clickables(f)) do if b.mouse ~= false then anyMouse = true end end
