@@ -9270,7 +9270,11 @@ do
   -- other addons ask (BiSToolsAPI version 5)
   local A = BiSToolsAPI
   local here = A.Bosses()
-  ok(A.version == 5 and here and here.map == 36 and here.here and #here.bosses == 8 and type(here.bosses[1].state) == "string"
+  -- version 6: a boss's look by its name (BiS Memories' postcards: in a dungeon the kill keeps only the name)
+  ok(A.version >= 6 and type(A.BossFace) == "function", "BiSToolsAPI 6: BossFace")
+  ok(A.BossFace("Rhahk'Zor") == 644, "a boss the finder met: its npc id", tostring(A.BossFace("Rhahk'Zor")))
+  ok(A.BossFace("Nobody At All") == nil and A.BossFace(nil) == nil and A.BossFace(5) == nil, "nobody known: nil, never an error")
+  ok(A.version >= 5 and here and here.map == 36 and here.here and #here.bosses == 8 and type(here.bosses[1].state) == "string"
      and here.bosses[1].mark == 8, "BiSToolsAPI 5: Bosses() - where you stand, with this run's states and marks")
   here.bosses[1].name = "changed"
   ok(D[36].bosses[1].name == "Rhahk'Zor", "a copy: the caller cannot change the list")

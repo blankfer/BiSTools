@@ -50,10 +50,16 @@
 --                    a boss place" outside). nil, "unknown" for a map the list does not have.
 --   BossesShow()   -> opens the boss list (as a player's click would; never switches the tool on, never in a fight):
 --                    true, or nil and why.
+--
+-- Since version 6 (8 Nov 2026, for BiS Memories - Arn: "this shows the boss from adventure the ones from acutal dungeon
+-- dont"; inside a dungeon the game hides the creature's id at the kill, so a memory keeps only the boss's name).
+--   BossFace(name) -> npcId, displayId (either may be nil) for a boss by its name: the one the boss finder met there,
+--                    else the Codex's boss of that name (its names come in live, so an unknown one may answer a
+--                    second later). nil when nobody knows it.
 --------------------------------------------------------------------------------
 local _, NS = ...
 
-local API = { major = 1, version = 5 }
+local API = { major = 1, version = 6 }
 BiSToolsAPI = API
 
 local function Party()
@@ -223,6 +229,17 @@ function API.Bosses(mapId)
     out.bosses[#out.bosses + 1] = row
   end
   return out
+end
+
+-- a boss's look by its name (version 6): the boss finder's own lookup, plain numbers only
+function API.BossFace(name)
+  local BF = NS.Bosses
+  if type(name) ~= "string" or name == "" or not (BF and BF.NpcOf) then return nil end
+  local ok, npc, display = pcall(BF.NpcOf, { name = name })
+  if not ok then return nil end
+  npc, display = tonumber(npc), tonumber(display)
+  if not npc and not display then return nil end
+  return npc, display
 end
 
 function API.BossesShow()
