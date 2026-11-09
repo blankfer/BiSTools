@@ -566,15 +566,27 @@ function BF.NeedleAngle(down, all)
   return math.rad(-135 + 270 * math.min(1, down / all))
 end
 
+--- Where the window stands: where it was dragged to (db.pos, in its own scale), else a little above the middle.
+function BF.Place()
+  local f, pos = BF.frame, BF.db and BF.db.pos
+  if not f then return end
+  f:ClearAllPoints()
+  if type(pos) == "table" and type(pos[1]) == "string" then
+    f:SetPoint(pos[1], UIParent, pos[2] or pos[1], tonumber(pos[3]) or 0, tonumber(pos[4]) or 0)
+  else
+    f:SetPoint("CENTER", UIParent, "CENTER", 0, 80)
+  end
+end
+
 function BF.Build()
   if BF.frame then return BF.frame end
   local k = K()
   local f = CreateFrame("Frame", "BiSToolsBosses", UIParent)
   BF.frame = f
   f:SetSize(BF.W, BF.H)
-  f:SetPoint("CENTER", 0, 80)
   f:SetFrameStrata("DIALOG")
   f:SetScale(BF.SCALE)
+  BF.Place()
   -- NOT on the Escape list (8 Nov, Arn: "even if i am not clicked on the window if i hit esc it closes it"): in a dungeon
   -- Escape is pressed all run long to drop a target or stop a cast, and it shut the list each time. Its x, the skull and
   -- /bist bosses close it.
@@ -583,7 +595,12 @@ function BF.Build()
   f:SetClampedToScreen(true)
   f:RegisterForDrag("LeftButton")
   f:SetScript("OnDragStart", function(self) if not fighting() then self:StartMoving() end end)
-  f:SetScript("OnDragStop", f.StopMovingOrSizing)
+  -- WHERE YOU LEFT IT (8 Nov, Arn: "the bis bosses always open in the middle of the screen"): kept in db.pos
+  f:SetScript("OnDragStop", function(self)
+    self:StopMovingOrSizing()
+    local p, _, rp, x, y = self:GetPoint()
+    if BF.db and type(p) == "string" then BF.db.pos = { p, rp or p, x or 0, y or 0 } end
+  end)
   k.tex(f, "BACKGROUND", "frame", 0.97)
   k.border(f, "edge", 1)
   f.title = k.fs(f, "BiS> BOSSES", 10, "accent")
@@ -1076,7 +1093,8 @@ R:Register({
   OnOpen = function(_, db, recenter)
     BF.db = db
     if recenter then
-      if BF.frame then BF.frame:ClearAllPoints() BF.frame:SetPoint("CENTER", 0, 80) end
+      db.pos = nil                                  -- "reset window positions": back to the middle, for good
+      BF.Place()
       return
     end
     BF.Toggle(true)

@@ -18,6 +18,7 @@
   - **A cockpit to watch it on:** a gauge whose needle climbs as bosses go down, a strip with one light per boss (green down, gold in sight, purple marked), and a screen with the boss in 3D over a synthwave sunset.
   - A boss is ticked off when its fight ends, and its mark passes to the next one. Leave and come back within the hour and it's the same run; RESET starts a new one. During a fight the window stays where it is, like a quiet cockpit screen: faded almost away, nothing moving, and clicks go straight through it to whatever is behind, and one gold line saying the keys are locked. It wakes up when the fight ends.
   - **It stays put:** Escape no longer closes it (in a dungeon Escape gets pressed all the time, to drop a target or stop a cast); its x, the skull button or `/bist bosses` do. If it was open when you died and released, or hearthed out, it comes back when you walk back in. Close it yourself and it stays closed.
+  - **It opens where you left it.** Drag it somewhere and it comes back there, even after a reload. "Reset window positions" puts it back in the middle.
   - It knows every dungeon and raid on WoW Forever (43 of them, 335 bosses), from the game's own data. Fights of several, like The Seven or Ring of Law, are listed and ticked off but never targeted.
   - Starts off; switch it on in the Hub or with `/bist on bosses`. Short word: `/bist boss`. Options: open by itself in a dungeon, and a skull button in the BiS> tools box.
   - For other addons: BiSToolsAPI version 5 answers `Bosses` and `BossesShow`.
