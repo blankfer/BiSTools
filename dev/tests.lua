@@ -8672,22 +8672,55 @@ do
   ok(bb:IsShown(), "back in town: the button")
   bb.scripts.OnClick(bb, "LeftButton")
   ok(not f:IsShown(), "it toggles the window")
-  -- the profession window: a button on it
-  _G.TradeSkillFrame = CreateFrame("Frame", "TradeSkillFrame", UIParent)
+  -- THE PROFESSION WINDOW, AS FOREVER HAS IT (TSM's Forever branch, read 9 Nov): ProfessionsFrame, with a BookPage - the
+  -- list of your professions - shown instead of a profession's page; GetTradeSkillLine names the open one
+  local OPEN = "Enchanting"
+  local keepTSL, keepTSUI = rawget(_G, "GetTradeSkillLine"), rawget(_G, "C_TradeSkillUI")
+  _G.GetTradeSkillLine = function() return OPEN, 43, 75 end
+  _G.ProfessionsFrame = CreateFrame("Frame", "ProfessionsFrame", UIParent)
+  ProfessionsFrame.BookPage = CreateFrame("Frame", nil, ProfessionsFrame)
+  ProfessionsFrame.BookPage:Hide()
   fire("TRADE_SKILL_SHOW")
-  ok(P.tsButton and P.tsButton:GetParent() == TradeSkillFrame, "the profession window gets a BiS> processing button")
-  ok(P.tsButton.point and P.tsButton.point[1] == "TOPRIGHT" and P.tsButton.point[4] == -60, "beside the title, top right")
-  -- NEVER UNDER TSM'S BUTTON (Arn, 9 Nov: ours peeked out from behind TradeSkillMaster's "TSM" button in the same spot)
-  local tsmBtn = CreateFrame("Button", nil, TradeSkillFrame)
-  tsmBtn:SetText("TSM")
-  tsmBtn:SetPoint("TOPRIGHT", TradeSkillFrame, "TOPRIGHT", -60, -14)
-  local first = P.tsButton
+  local tb = P.tsButton
+  ok(tb and tb:GetParent() == ProfessionsFrame and tb:IsShown(), "Enchanting open: the window gets a BiS> processing button")
+  ok(tb.point and tb.point[1] == "TOPRIGHT" and tb.point[4] == P.TS_X and tb.point[5] == P.TS_Y, "top right, in its own spot")
+  -- NEVER UNDER TSM'S BUTTON (Arn, 9 Nov, twice: ours peeked out from behind it). TSM's as TSM builds it: a plain frame,
+  -- no text of its own (its "TSM" is on an inner font string), made AFTER the window opened, TOPRIGHT -50, -4, 60 wide.
+  -- The first fix looked for a child button saying TSM - the mock had one, the client did not, and it shipped broken.
+  local tsm = CreateFrame("Frame", nil, ProfessionsFrame)
+  tsm:SetPoint("TOPRIGHT", ProfessionsFrame, "TOPRIGHT", -50, -4)
+  local tsmLeft, oursRight, oursLeft = -50 - 60, P.TS_X, P.TS_X - P.TS_W
+  ok(oursRight <= tsmLeft - 4 and oursLeft < tsmLeft, "our spot ends left of TSM's, with a gap: neither covers the other",
+     oursRight .. " vs " .. tsmLeft)
+  ok(P.TS_Y == -4, "and in the same row as TSM's (its Forever offset)")
   fire("TRADE_SKILL_SHOW")
-  ok(P.tsButton == first, "opened again: the same button, not a second one")
-  local pt = P.tsButton.point
-  ok(pt and pt[1] == "RIGHT" and pt[2] == tsmBtn and pt[3] == "LEFT" and pt[4] == -4,
-     "TSM's button there (built after ours): ours moves just left of it", pt and tostring(pt[1]) .. " " .. tostring(pt[3]))
-  ok(P.TSMButton(TradeSkillFrame) == tsmBtn, "found by what it says")
+  ok(P.tsButton == tb and tb.point[4] == P.TS_X, "opened again: the same button, the same spot")
+  -- ONLY ON ENCHANTING (Arn, 9 Nov: "only show it on enchanting")
+  OPEN = "First Aid"
+  fire("TRADE_SKILL_SHOW")
+  ok(not tb:IsShown(), "First Aid open: no button")
+  OPEN = "UNKNOWN"
+  _G.C_TradeSkillUI = { GetBaseProfessionInfo = function() return { professionName = "Enchanting", profession = 3 } end }
+  ProfessionsFrame:Hide() ProfessionsFrame:Show()
+  ok(tb:IsShown(), "the window's own answer (C_TradeSkillUI's profession name, what TSM reads on Forever) counts, on its OnShow")
+  _G.C_TradeSkillUI = { GetBaseProfessionInfo = function() return { professionName = "Enchanting Fakes", profession = 99 } end }
+  fire("TRADE_SKILL_SHOW")
+  ok(not tb:IsShown(), "a name that is not exactly my enchanting's: no")
+  _G.C_TradeSkillUI = keepTSUI
+  OPEN = "Enchanting"
+  fire("TRADE_SKILL_SHOW")
+  ok(tb:IsShown(), "Enchanting again: back")
+  ProfessionsFrame.BookPage:Show()
+  ok(not tb:IsShown(), "the profession BOOK page (the list of professions): no button - heard as the page shows")
+  ProfessionsFrame.BookPage:Hide()
+  ok(tb:IsShown(), "back to Enchanting's page: the button again")
+  local keepPI = _G.GetProfessionInfo
+  _G.GetProfessionInfo = function() return "Leatherworking", 133611, 47, 75, 2, 0, 165 end
+  fire("TRADE_SKILL_SHOW")
+  ok(not tb:IsShown(), "no enchanting of my own: never")
+  _G.GetProfessionInfo = keepPI
+  fire("TRADE_SKILL_SHOW")
+  _G.GetTradeSkillLine = keepTSL
   P.tsButton.scripts.OnClick(P.tsButton, "LeftButton")
   ok(f:IsShown(), "and it opens the window")
   -- a fight: put away while the client still allows it, never painted in it.
