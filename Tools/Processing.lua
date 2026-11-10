@@ -970,13 +970,69 @@ function P.ShowBox()
   return R:Enabled("processing") and town and not fighting() and (P.count or 0) > 0 and P.Knows() or false
 end
 
---- On the profession window, beside its title.
+--- THE SPOT ON THE PROFESSION WINDOW: top right, in the row TradeSkillMaster leaves free. TSM's own "TSM" switch sits at
+--- TOPRIGHT -50, -4, 60 wide (its CraftingUI, the Forever branch), and is built AFTER the window opens, with its text
+--- on an inner font string - so looking for it failed live (Arn, 9 Nov, second screenshot: ours still behind it). Ours
+--- takes the spot just left of that lane, whether TSM is installed or not.
+P.TS_X, P.TS_Y, P.TS_W = -116, -4, 96
+
+--- My enchanting's name, in the client's language (GetProfessionInfo, skill line 333), or nil.
+function P.EnchantName()
+  if not (GetProfessions and GetProfessionInfo) then return nil end
+  for _, i in ipairs({ ask(GetProfessions) }) do
+    if type(i) == "number" then
+      local name, _, _, _, _, _, line = ask(GetProfessionInfo, i)
+      if plain(line) == P.LINE then
+        name = plain(name)
+        return type(name) == "string" and name ~= "" and name or nil
+      end
+    end
+  end
+  return nil
+end
+
+--- Is the profession window showing ENCHANTING? (Arn, 9 Nov: "only show it on enchanting, we figure out what we can
+--- process on the other things later" - the button sat on First Aid too.) The window's own answer -
+--- C_TradeSkillUI.GetBaseProfessionInfo's names, what TSM reads on Forever (the old GetTradeSkillLine is MISSING on
+--- 1.60.1: the census, and the fence went red on it) - against YOUR enchanting's name, so no English word is needed. Anything unknown = no: a missing button is a smaller wrong than
+--- one on every profession; the tools box keeps its door.
+function P.EnchantingOpen()
+  local mine = P.EnchantName()
+  if not mine then return false end
+  local T = C_TradeSkillUI
+  if T and T.GetBaseProfessionInfo then
+    local info = ask(T.GetBaseProfessionInfo)
+    if type(info) == "table" then
+      for _, k in ipairs({ "parentProfessionName", "professionName" }) do
+        if plain(info[k]) == mine then return true end
+      end
+    end
+  end
+  return false
+end
+
+--- The profession window's button: made once, shown only on Enchanting's page - never on the profession BOOK page
+--- (ProfessionsFrame.BookPage, the list of your professions, where it showed in Arn's first screenshot). Looked at
+--- again when the window shows, when its book page comes or goes (TSM hooks the same two), and at TRADE_SKILL_SHOW.
 function P.TradeSkillButton()
   local host = _G.ProfessionsFrame or _G.TradeSkillFrame
-  if not host or P.tsButton then return P.tsButton end
-  local b = textButton(host, "BiS> processing", 96, function() P.Toggle(true) end)
-  b:SetPoint("TOPRIGHT", host, "TOPRIGHT", -60, -14)
-  P.tsButton = b
+  if not host then return P.tsButton end
+  local b = P.tsButton
+  if not b then
+    b = textButton(host, "BiS> processing", P.TS_W, function() P.Toggle(true) end)
+    b:SetPoint("TOPRIGHT", host, "TOPRIGHT", P.TS_X, P.TS_Y)
+    P.tsButton = b
+    local function look() P.TradeSkillButton() end
+    if host.HookScript then pcall(host.HookScript, host, "OnShow", look) end
+    local book = host.BookPage
+    if book and book.HookScript then
+      pcall(book.HookScript, book, "OnShow", look)
+      pcall(book.HookScript, book, "OnHide", look)
+    end
+  end
+  local book = host.BookPage
+  local onBook = book and book.IsShown and book:IsShown() and true or false
+  if not onBook and P.EnchantingOpen() then b:Show() else b:Hide() end
   return b
 end
 
