@@ -1,5 +1,6 @@
-## Unreleased
+## 1.2.0
 
+- **BiS> processing button: Enchanting only, and out of TSM's way.** The button on the profession window now shows only when your Enchanting is open - not on First Aid, Cooking or the others, and not on the page that lists all your professions. It sits just left of TSM's button instead of under it, so both can be clicked.
 - **Retired: the threat beta and the pup finder** (Arn, 9 Nov). `/bist threat` and `/bist pups` are gone, and so is the pups button on the tools box. Your other tools and settings are untouched.
 
 ## 1.1.0
