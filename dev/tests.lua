@@ -8674,9 +8674,10 @@ do
   ok(not f:IsShown(), "it toggles the window")
   -- THE PROFESSION WINDOW, AS FOREVER HAS IT (TSM's Forever branch, read 9 Nov): ProfessionsFrame, with a BookPage - the
   -- list of your professions - shown instead of a profession's page; GetTradeSkillLine names the open one
+  -- (GetTradeSkillLine is MISSING on Forever - the census; the mock has none, as the client)
   local OPEN = "Enchanting"
-  local keepTSL, keepTSUI = rawget(_G, "GetTradeSkillLine"), rawget(_G, "C_TradeSkillUI")
-  _G.GetTradeSkillLine = function() return OPEN, 43, 75 end
+  local keepTSUI = rawget(_G, "C_TradeSkillUI")
+  _G.C_TradeSkillUI = { GetBaseProfessionInfo = function() return { professionName = OPEN, profession = 3 } end }
   _G.ProfessionsFrame = CreateFrame("Frame", "ProfessionsFrame", UIParent)
   ProfessionsFrame.BookPage = CreateFrame("Frame", nil, ProfessionsFrame)
   ProfessionsFrame.BookPage:Hide()
@@ -8699,14 +8700,16 @@ do
   OPEN = "First Aid"
   fire("TRADE_SKILL_SHOW")
   ok(not tb:IsShown(), "First Aid open: no button")
-  OPEN = "UNKNOWN"
-  _G.C_TradeSkillUI = { GetBaseProfessionInfo = function() return { professionName = "Enchanting", profession = 3 } end }
+  OPEN = "Enchanting"
   ProfessionsFrame:Hide() ProfessionsFrame:Show()
-  ok(tb:IsShown(), "the window's own answer (C_TradeSkillUI's profession name, what TSM reads on Forever) counts, on its OnShow")
-  _G.C_TradeSkillUI = { GetBaseProfessionInfo = function() return { professionName = "Enchanting Fakes", profession = 99 } end }
+  ok(tb:IsShown(), "back on Enchanting, heard on the window's own OnShow")
+  OPEN = "Enchanting Fakes"
   fire("TRADE_SKILL_SHOW")
   ok(not tb:IsShown(), "a name that is not exactly my enchanting's: no")
-  _G.C_TradeSkillUI = keepTSUI
+  _G.C_TradeSkillUI = { GetBaseProfessionInfo = function() return { professionName = "Enchanting Fakes", parentProfessionName = "Enchanting" } end }
+  fire("TRADE_SKILL_SHOW")
+  ok(tb:IsShown(), "the parent profession's name counts too (TSM reads both)")
+  _G.C_TradeSkillUI = { GetBaseProfessionInfo = function() return { professionName = OPEN, profession = 3 } end }
   OPEN = "Enchanting"
   fire("TRADE_SKILL_SHOW")
   ok(tb:IsShown(), "Enchanting again: back")
@@ -8720,7 +8723,10 @@ do
   ok(not tb:IsShown(), "no enchanting of my own: never")
   _G.GetProfessionInfo = keepPI
   fire("TRADE_SKILL_SHOW")
-  _G.GetTradeSkillLine = keepTSL
+  _G.C_TradeSkillUI = nil
+  fire("TRADE_SKILL_SHOW")
+  ok(not tb:IsShown(), "no answer from the window at all: hidden (the tools box keeps its door)")
+  _G.C_TradeSkillUI = keepTSUI
   P.tsButton.scripts.OnClick(P.tsButton, "LeftButton")
   ok(f:IsShown(), "and it opens the window")
   -- a fight: put away while the client still allows it, never painted in it.

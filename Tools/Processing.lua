@@ -992,9 +992,9 @@ function P.EnchantName()
 end
 
 --- Is the profession window showing ENCHANTING? (Arn, 9 Nov: "only show it on enchanting, we figure out what we can
---- process on the other things later" - the button sat on First Aid too.) The window's own answer - on Forever
---- C_TradeSkillUI.GetBaseProfessionInfo's names (what TSM reads there), else GetTradeSkillLine's name - against YOUR
---- enchanting's name, so no English word is needed. Anything unknown = no: a missing button is a smaller wrong than
+--- process on the other things later" - the button sat on First Aid too.) The window's own answer -
+--- C_TradeSkillUI.GetBaseProfessionInfo's names, what TSM reads on Forever (the old GetTradeSkillLine is MISSING on
+--- 1.60.1: the census, and the fence went red on it) - against YOUR enchanting's name, so no English word is needed. Anything unknown = no: a missing button is a smaller wrong than
 --- one on every profession; the tools box keeps its door.
 function P.EnchantingOpen()
   local mine = P.EnchantName()
@@ -1007,10 +1007,6 @@ function P.EnchantingOpen()
         if plain(info[k]) == mine then return true end
       end
     end
-  end
-  if GetTradeSkillLine then
-    local open = plain(ask(GetTradeSkillLine))
-    if open == mine then return true end
   end
   return false
 end
