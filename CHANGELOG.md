@@ -1,3 +1,7 @@
+## Unreleased
+
+- **Retired: the threat beta and the pup finder** (Arn, 9 Nov). `/bist threat` and `/bist pups` are gone, and so is the pups button on the tools box. Your other tools and settings are untouched.
+
 ## 1.1.0
 
 - **Fixed: BiS> processing could stick to your mouse.** If a fight started while you were dragging the window, it was put away with the drag still on, and when it came back after the fight it followed your cursor. A fight now ends the drag first. The hoard window, closed with Escape mid-drag, lets go too.

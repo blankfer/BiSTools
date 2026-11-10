@@ -31,8 +31,6 @@ Tools\Recap.lua
 Tools\Rivals.lua
 Tools\Box.lua
 Tools\Social.lua
-Tools\Threat.lua
-Tools\ThreatWindow.lua
 Tools\Battleground.lua
 Tools\Overlay.lua
 Tools\Party.lua
@@ -42,7 +40,6 @@ Tools\Sounds.lua
 Tools\XP.lua
 Tools\Disenchant.lua
 Tools\Processing.lua
-Tools\Pups.lua
 Tools\CodexData.lua
 Tools\Codex.lua
 Tools\CodexWindow.lua

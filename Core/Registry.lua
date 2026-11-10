@@ -28,7 +28,7 @@ NS.Registry = R
 -- name is longer than 4 letters answers to a word of 4 or fewer too. The long names keep working - a macro or a habit
 -- never breaks - and the saved settings stay under the long name.
 R.SHORT = { processing = "proc", disenchant = "de", recap = "rcap", rides = "ride", rivals = "riv", social = "soc",
-            sounds = "snd", summon = "sum", threat = "thr", party = "pty" }
+            sounds = "snd", summon = "sum", party = "pty" }
 
 function R:Register(tool)
   assert(tool and tool.name, "BiSTools: tool needs a name")
