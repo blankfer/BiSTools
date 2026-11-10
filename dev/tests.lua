@@ -8676,6 +8676,18 @@ do
   _G.TradeSkillFrame = CreateFrame("Frame", "TradeSkillFrame", UIParent)
   fire("TRADE_SKILL_SHOW")
   ok(P.tsButton and P.tsButton:GetParent() == TradeSkillFrame, "the profession window gets a BiS> processing button")
+  ok(P.tsButton.point and P.tsButton.point[1] == "TOPRIGHT" and P.tsButton.point[4] == -60, "beside the title, top right")
+  -- NEVER UNDER TSM'S BUTTON (Arn, 9 Nov: ours peeked out from behind TradeSkillMaster's "TSM" button in the same spot)
+  local tsmBtn = CreateFrame("Button", nil, TradeSkillFrame)
+  tsmBtn:SetText("TSM")
+  tsmBtn:SetPoint("TOPRIGHT", TradeSkillFrame, "TOPRIGHT", -60, -14)
+  local first = P.tsButton
+  fire("TRADE_SKILL_SHOW")
+  ok(P.tsButton == first, "opened again: the same button, not a second one")
+  local pt = P.tsButton.point
+  ok(pt and pt[1] == "RIGHT" and pt[2] == tsmBtn and pt[3] == "LEFT" and pt[4] == -4,
+     "TSM's button there (built after ours): ours moves just left of it", pt and tostring(pt[1]) .. " " .. tostring(pt[3]))
+  ok(P.TSMButton(TradeSkillFrame) == tsmBtn, "found by what it says")
   P.tsButton.scripts.OnClick(P.tsButton, "LeftButton")
   ok(f:IsShown(), "and it opens the window")
   -- a fight: put away while the client still allows it, never painted in it.

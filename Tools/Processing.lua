@@ -970,13 +970,37 @@ function P.ShowBox()
   return R:Enabled("processing") and town and not fighting() and (P.count or 0) > 0 and P.Knows() or false
 end
 
---- On the profession window, beside its title.
+--- A button on the profession window whose text is "TSM" (TradeSkillMaster's switch to its own crafting window), or nil.
+--- Found by what it says, not by a name we would have to know.
+function P.TSMButton(host)
+  if not (host and host.GetChildren) then return nil end
+  for _, kid in ipairs({ host:GetChildren() }) do
+    if kid ~= P.tsButton and kid.GetText then
+      local ok, t = pcall(kid.GetText, kid)
+      if ok and type(t) == "string" and not (issecretvalue and issecretvalue(t)) and t:find("TSM", 1, true) then return kid end
+    end
+  end
+  return nil
+end
+
+--- On the profession window, beside its title. NEVER UNDER TSM'S BUTTON (Arn, 9 Nov screenshot: "BiS> processing" peeked out
+--- from behind TradeSkillMaster's "TSM" button - both sat in the same top-right spot): with that button there, ours sits
+--- just left of it. Placed again at every opening, since TSM may build its button after ours.
 function P.TradeSkillButton()
   local host = _G.ProfessionsFrame or _G.TradeSkillFrame
-  if not host or P.tsButton then return P.tsButton end
-  local b = textButton(host, "BiS> processing", 96, function() P.Toggle(true) end)
-  b:SetPoint("TOPRIGHT", host, "TOPRIGHT", -60, -14)
-  P.tsButton = b
+  if not host then return P.tsButton end
+  local b = P.tsButton
+  if not b then
+    b = textButton(host, "BiS> processing", 96, function() P.Toggle(true) end)
+    P.tsButton = b
+  end
+  local tsm = P.TSMButton(host)
+  b:ClearAllPoints()
+  if tsm then
+    b:SetPoint("RIGHT", tsm, "LEFT", -4, 0)
+  else
+    b:SetPoint("TOPRIGHT", host, "TOPRIGHT", -60, -14)
+  end
   return b
 end
 
