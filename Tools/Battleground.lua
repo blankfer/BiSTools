@@ -10,8 +10,8 @@
              NEON SABER - a white-hot core in soft glow layers, standing at the left of the plate,
              with a dark hilt (Arn: "a white neon white saber looking thing")
     KILLER   the enemy with the most killing blows wears a RED GLOW round the plate (Arn: "red cross
-             hairs glowing like the threat meter on their top killing blow person") - the threat
-             tool's glow, sides and bottom, open at the top so the name stays clear
+             hairs glowing like the threat meter on their top killing blow person") - the old threat
+             tool's glow (retired 9 Nov 2026), sides and bottom, open at the top so the name stays clear
 
   The scoreboard is asked every T.EVERY seconds while you are in a battleground (RequestBattlefield-
   ScoreData; the answer arrives as UPDATE_BATTLEFIELD_SCORE) and never outside one. Read through
@@ -431,6 +431,9 @@ B.LOOKS = {
 -- "very small and kinda hard to see". Bigger, outlined letters, a thicker box, a gentler pulse.
 B.TAG = { 110, 28 }
 B.TAG_EDGE = 2
+-- THE FLASH: full to B.PULSE_LOW and back, B.PULSE_DUR each way. Borrowed from the threat tool until it was retired
+-- (9 Nov 2026); the same numbers, now our own.
+B.PULSE_LOW, B.PULSE_DUR = 0.3, 0.5
 B.TAG_PULSE_LOW = 0.7               -- dims to 70% only: a tag must be read, not just noticed
 B.TAG_WORD = { healer = "Healer", killer = "Killer" }
 
@@ -535,8 +538,7 @@ function B.NewSaber(kind, look)
       end
     end
     f:Fit(B.TAG[1], B.TAG[2])
-    local T = NS.Threat
-    pulse(f, B.TAG_PULSE_LOW, T and T.PULSE_DUR or 0.5)
+    pulse(f, B.TAG_PULSE_LOW, B.PULSE_DUR)
     return f
   end
   if f.CreateLine and pcall(function()
@@ -561,9 +563,8 @@ function B.NewSaber(kind, look)
     f.hilts[1] = hilt
   end
   f.hilt = f.hilts[1]
-  -- the threat meter's flash, the same for both (Arn: "i want that kind of pulsing")
-  local T = NS.Threat
-  pulse(f, T and T.PULSE_LOW or 0.3, T and T.PULSE_DUR or 0.5)
+  -- the old threat meter's flash, the same for both (Arn: "i want that kind of pulsing")
+  pulse(f, B.PULSE_LOW, B.PULSE_DUR)
   return f
 end
 

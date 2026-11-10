@@ -8,7 +8,7 @@ crowns. In the house voice (`_bisdev/docs/voice.md`): the opener and "Why it wor
 and lists stay flat.
 
 **Deliberately NOT on the page: summon** (Forever has no summoning stones, the tool does not load
-there) **and threat** (a beta, off by default). The page is for Forever.
+there). The threat beta and the pup finder were retired on 9 Nov. The page is for Forever.
 
 Changed for 1.1.0 (9 Nov): two new sections before "Farm" - **BiS> bosses** (the boss finder) and
 **BiS> Codex** (the book, and after dark full screen) - their commands in the table, and the opener's

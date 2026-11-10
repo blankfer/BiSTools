@@ -596,9 +596,6 @@ local function newMark(kind)
   return f
 end
 
--- a crosshair frame of a kind, outside the plate system: the threat window's preview draws one
-RC.NewMark = newMark
-
 --- Put the crosshair on this nameplate unit for that rival. Answers true when it stands.
 function RC.MarkPlate(unit, rival, kind)
   kind = kind or "own"
