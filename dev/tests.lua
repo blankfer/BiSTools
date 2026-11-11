@@ -7339,6 +7339,11 @@ do
         .. " will become well fed and gain 10 Attack Power for 15 min. Additionally, experience gained from kills is"
         .. " increased by 5%."
     end
+    if id == 1249508 then                                      -- the Bristle Whisker Catfish, Arn's BiS? answer 11 Nov
+      return "Restores 530 health over 24 sec.  Must remain seated while eating. If you spend at least 10 sec eating, you"
+        .. " will become well fed and gain 8 Fishing Skill for 15 min. Additionally, experience gained from kills is"
+        .. " increased by 5%."
+    end
     if id == BAG_SPELL then                                    -- Arn's bag tooltip, 6 Nov
       return "Resting inside for at least one minute will provide a bonus to experience earned, stacking up to 3 times."
     end
@@ -7599,6 +7604,38 @@ do
   ok(X.pick == 4592, "the text there now: the next bag change asks again and picks it - not lost for the session",
      tostring(X.pick))
   db.food = keepFav
+  -- THE CATFISH (Arn, 11 Nov BiS? answer: 4593's text says experience, yet cached "not XP food", no write-off): at
+  -- login the client did not know the item's use spell yet. That is "not loaded", never "not food".
+  X.xpItem, X.blank, X.waiting, X.waitingItem, X.gaveUp, X.retried = {}, {}, {}, {}, {}, {}
+  X.pick = nil
+  BAGS[4592], SLOTS[0][6] = nil, false
+  BAGS[4593], SLOTS[0][7] = 45, 4593
+  local itemReady = false
+  local realSpell3 = _G.C_Item.GetItemSpell
+  _G.C_Item.GetItemSpell = function(id)
+    if id == 4593 then if itemReady then return "Nutritious Food", 1249508 end return nil end
+    return realSpell3(id)
+  end
+  local itemAsked = {}
+  local keepReq = _G.C_Item.RequestLoadItemDataByID
+  _G.C_Item.RequestLoadItemDataByID = function(id) itemAsked[#itemAsked + 1] = id end
+  fire("BAG_UPDATE_DELAYED")
+  for _ = 1, 3 do fire("UNIT_AURA", "player") end
+  local catAsks = 0
+  for _, a in ipairs(itemAsked) do if a == 4593 then catAsks = catAsks + 1 end end
+  ok(X.xpItem[4593] == nil and X.pick == nil and catAsks == 1,
+     "the catfish's use spell not known yet: asked to load, once - no verdict", tostring(X.xpItem[4593]))
+  itemReady = true
+  X.events.scripts.OnEvent(X.events, "ITEM_DATA_LOAD_RESULT", 4593, true)
+  ok(X.pick == 4593 and X.xpItem[4593] == true, "the item loads: the client says so, the catfish is picked at once",
+     tostring(X.pick))
+  X.events.scripts.OnEvent(X.events, "ITEM_DATA_LOAD_RESULT", 12345, true)
+  ok(X.pick == 4593, "another item loading (a tooltip, a bag): ignored")
+  _G.C_Item.GetItemSpell, _G.C_Item.RequestLoadItemDataByID = realSpell3, keepReq
+  BAGS[4593], SLOTS[0][7] = nil, false
+  BAGS[4592], SLOTS[0][6] = 80, 4592                        -- the Mud Snapper back for the tests after
+  X.xpItem, X.waitingItem = {}, {}
+  fire("BAG_UPDATE_DELAYED")
   -- LEAN: one second chance per item, so a text that never comes cannot keep the bag scan running all evening
   X.gaveUp, X.retried = { [777] = true }, {}
   X.Retry()
