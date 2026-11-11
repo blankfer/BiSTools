@@ -183,7 +183,7 @@ end
 --- Is this item an XP food? Its use spell's text says experience. Remembered per item. An empty text is "not loaded
 --- yet": the client is asked to load it (SPELL_DATA_LOAD_RESULT looks again) and it is given X.LOAD_WAIT seconds
 --- before it counts as not food. A client with neither lookup decides nothing and remembers nothing.
-X.xpItem, X.blank, X.waiting = {}, {}, {}
+X.xpItem, X.blank, X.waiting, X.waitingItem = {}, {}, {}, {}
 X.gaveUp, X.retried = {}, {}                   -- written off by the wait, not by its text; one second chance each
 X.LOAD_WAIT = 30
 
@@ -214,7 +214,20 @@ function X.IsXPItem(id)
   if not ((C_Item and C_Item.GetItemSpell) or GetItemSpell) or not ((C_Spell and C_Spell.GetSpellDescription)
      or GetSpellDescription) then return nil end
   local sid = itemSpell(id)
-  if type(sid) ~= "number" then X.xpItem[id] = false return false end        -- not a usable item
+  -- NO USE SPELL YET IS "NOT LOADED YET" TOO (11 Nov, Arn's BiS? answer: 45 Bristle Whisker Catfish (4593) on him, its
+  -- text "experience gained from kills is increased by 5%", yet cached "not XP food" with no write-off: at login the
+  -- client did not know the item's use spell yet, and a missing spell was taken as "not a usable item" for the whole
+  -- session). Food-class items only get here (X.MayBeFood): the client is asked to load the item
+  -- (ITEM_DATA_LOAD_RESULT looks again) and it gets the same X.LOAD_WAIT, then the same one second chance (X.Retry).
+  if type(sid) ~= "number" then
+    X.blank[id] = X.blank[id] or now()
+    if now() - X.blank[id] >= X.LOAD_WAIT then X.xpItem[id] = false X.gaveUp[id] = true return false end
+    if not X.waitingItem[id] then
+      X.waitingItem[id] = true
+      ask(C_Item and C_Item.RequestLoadItemDataByID, id)
+    end
+    return nil
+  end
   local d = spellText(sid)
   if type(d) ~= "string" or d == "" then
     X.blank[id] = X.blank[id] or now()
@@ -235,7 +248,7 @@ function X.Retry()
   for id in pairs(X.gaveUp) do
     if not X.retried[id] then
       X.retried[id] = true
-      X.gaveUp[id], X.xpItem[id], X.blank[id] = nil, nil, nil
+      X.gaveUp[id], X.xpItem[id], X.blank[id], X.waitingItem[id] = nil, nil, nil, nil
       local sid = itemSpell(id)
       if sid then X.waiting[sid] = nil end
     end
@@ -501,13 +514,18 @@ end
 
 local ev = CreateFrame("Frame")
 for _, e in ipairs({ "UNIT_AURA", "BAG_UPDATE_DELAYED", "PLAYER_LEVEL_UP", "PLAYER_REGEN_ENABLED", "PLAYER_ENTERING_WORLD",
-                     "UNIT_SPELLCAST_SUCCEEDED", "SPELL_DATA_LOAD_RESULT", "UPDATE_EXHAUSTION" }) do
+                     "UNIT_SPELLCAST_SUCCEEDED", "SPELL_DATA_LOAD_RESULT", "ITEM_DATA_LOAD_RESULT", "UPDATE_EXHAUSTION" }) do
   pcall(ev.RegisterEvent, ev, e)
 end
 ev:SetScript("OnEvent", function(_, event, unit, _, spellId)
   if event == "SPELL_DATA_LOAD_RESULT" then                     -- (spellID, success): only a food text we asked for
     if not X.waiting[unit] then return end
     X.waiting[unit] = nil
+    X.dirty = true
+  end
+  if event == "ITEM_DATA_LOAD_RESULT" then                      -- (itemID, success): only a food item we asked for
+    if not X.waitingItem[unit] then return end
+    X.waitingItem[unit] = nil
     X.dirty = true
   end
   if event == "BAG_UPDATE_DELAYED" or event == "PLAYER_ENTERING_WORLD" then X.dirty = true end   -- even in a fight
