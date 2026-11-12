@@ -1,3 +1,8 @@
+## 1.2.1
+
+- **The tools box docks around BiS Healing's radar.** With the radar look up, shift-click on the box's header walks it right, below, left and above the radar - clear of it, not on top of it - and it follows when you move or resize the radar. Auto puts it on the right, or the left when the right would run off your screen. Needs BiS Healing 1.4.0; with classic or cockpit it docks to BiS> now as before.
+- **Fixed: some XP food never got its button.** Food whose details the game hadn't loaded yet at login (Bristle Whisker Catfish, for one) was written off as "not XP food" for the whole session. It now waits for the game to load it and looks again.
+
 ## 1.2.0
 
 - **BiS> processing button: Enchanting only, and out of TSM's way.** The button on the profession window now shows only when your Enchanting is open - not on First Aid, Cooking or the others, and not on the page that lists all your professions. It sits just left of TSM's button instead of under it, so both can be clicked.
