@@ -4369,6 +4369,43 @@ do
   ok(box.point[2] == UIParent, "and stays free while BiS> now is up")
   W.shift = true box.head.scripts.OnMouseUp(box.head, "LeftButton") W.shift = false
   ok(Bx.DB().dock == "auto" and Bx.docked, "shift-click brings a dragged box back to BiS> now")
+  -- ROUND THE RADAR (Arn, 11 Nov 2026: "it trys to send the window and anchor it to the radar but only the left side
+  -- is right"): with BiS Healing's radar look up, BiS> now sits hidden under it - the box docks to the radar's outline
+  do
+    local radar = CreateFrame("Frame", nil, nil)
+    local hull = CreateFrame("Frame", nil, radar)
+    at(hull, 2400, 2800, 900, 500)
+    local keepAPI = _G.BiSHealingAPI
+    _G.BiSHealingAPI = { major = 1, version = 2, RadarEdge = function() return hull, 12, radar end }
+    local keepUI = _G.UIParent                                  -- the mock has none: a screen edge for this check only
+    _G.UIParent = { GetRight = function() return 3440 end, GetEffectiveScale = function() return 1 end }
+    Bx.DB().dock = "auto"
+    Bx.Refresh()
+    ok(Bx.onRadar and Bx.dock == "right" and box.point[2] == hull and box.point[1] == "TOPLEFT" and box.point[3] == "TOPRIGHT"
+       and box.point[4] == 18, "the radar showing: the box docks to the radar's outline (right of it, past its soft edge), not BiS> now")
+    W.shift = true box.head.scripts.OnMouseUp(box.head, "LeftButton") W.shift = false
+    ok(Bx.dock == "right" and box.point[2] == hull, "shift-click: right of the radar")
+    W.shift = true box.head.scripts.OnMouseUp(box.head, "LeftButton") W.shift = false
+    ok(Bx.dock == "below" and box.point[2] == hull and box.point[3] == "BOTTOMLEFT", "then below the radar")
+    W.shift = true box.head.scripts.OnMouseUp(box.head, "LeftButton") W.shift = false
+    ok(Bx.dock == "left" and box.point[2] == hull and box.point[1] == "TOPRIGHT" and box.point[3] == "TOPLEFT", "then left of it")
+    W.shift = true box.head.scripts.OnMouseUp(box.head, "LeftButton") W.shift = false
+    ok(Bx.dock == "top" and box.point[2] == hull and box.point[1] == "BOTTOMLEFT" and box.point[3] == "TOPLEFT", "then above it")
+    W.shift = true box.head.scripts.OnMouseUp(box.head, "LeftButton") W.shift = false
+    at(hull, 3200, 3420, 900, 500)                                -- the radar hard against the screen's right
+    Bx.Refresh()
+    ok(Bx.dock == "left" and box.point[2] == hull, "auto, the radar at the screen's right edge: the box goes on its left")
+    _G.BiSHealingAPI = { major = 1, version = 2, RadarEdge = function() return nil, "not shown" end }
+    Bx.Refresh()
+    ok(not Bx.onRadar and box.point[2] == now, "the radar gone (another look): back to BiS> now")
+    _G.BiSHealingAPI = { major = 1, version = 1 }
+    Bx.Refresh()
+    ok(box.point[2] == now, "an older BiS Healing (API version 1): BiS> now as before")
+    _G.BiSHealingAPI = keepAPI
+    _G.UIParent = keepUI
+    Bx.DB().dock = nil
+    Bx.Refresh()
+  end
   now:Hide() if now.scripts.OnHide then now.scripts.OnHide(now) end
   ok(not Bx.docked and box.point[2] == UIParent, "BiS> now hidden: the box stands on its own")
   _G.BiSHealingNowBlock, _G.BiSHealingForeverHeader = nil, nil
