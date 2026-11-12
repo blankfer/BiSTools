@@ -229,6 +229,16 @@ function B.RadarEdge()
   if not (type(api) == "table" and api.major == 1 and (tonumber(api.version) or 0) >= 2 and api.RadarEdge) then return nil end
   local ok, edge, margin, frame = pcall(api.RadarEdge)
   if not (ok and edge) then return nil end
+  -- ONLY A FRAME (12 Nov 2026, Arn's BugSack, 9x: "Cannot anchor protected frames to regions"). The box holds secure
+  -- buttons, so the client refuses to pin it to a texture - and BiS Healing 1.3.0's first RadarEdge handed the hull,
+  -- a texture. A region -> the radar's own frame instead (a little inside the soft edge, but placed, and no error).
+  local function isFrame(x) return type(x) == "table" and x.IsObjectType and x:IsObjectType("Frame") end
+  local okF, fr = pcall(isFrame, edge)
+  if not (okF and fr) then
+    local okR, rf = pcall(isFrame, frame)
+    if not (okR and rf) then return nil end
+    edge = frame
+  end
   return edge, tonumber(margin) or 0, frame
 end
 

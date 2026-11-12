@@ -226,7 +226,11 @@ end }
 
 local function num3(a, b, c) return type(a) == "number" and type(b) == "number" and type(c) == "number" end
 local function Texture()
-  local t = { shown = true }
+  local t = { shown = true, region = true }
+  -- A REGION, NOT A FRAME (12 Nov 2026, Arn's BugSack: "Cannot anchor protected frames to regions" - the tools box
+  -- docked to the radar's hull, a texture). The frame mock's SetPoint refuses a protected frame pinned to one of these.
+  function t:GetObjectType() return "Texture" end
+  function t:IsObjectType(k) return k == "Texture" or k == "Region" end
   -- size and anchor are REMEMBERED: a label pinned beside an icon starts where the icon ends, and
   -- the fit check below cannot know that if the icon forgot both (they were no-ops)
   function t:SetAllPoints() self.all = true end
@@ -489,7 +493,15 @@ _G.CreateFrame = function(kind, name, parent, template)
   function f:ClearFocus() end
   function f:GetHeight() return self.h end
   function f:GetWidth() return self.w end                -- the client answers both (12 Oct 2026)
-  function f:SetPoint(p, rel, rp, x, y) self.point = { p, rel, rp, x, y } end
+  function f:SetPoint(p, rel, rp, x, y)
+    -- the client, measured 12 Nov 2026 (out of combat too): "Action[SetPoint] failed because[Cannot anchor protected
+    -- frames to regions]" - a frame holding secure buttons may only be pinned to a FRAME
+    if type(rel) == "table" and rel.region and self.IsProtected and self:IsProtected() then
+      error("Action[SetPoint] failed because[Cannot anchor protected frames to regions]", 2)
+    end
+    self.point = { p, rel, rp, x, y }
+  end
+  function f:IsObjectType(k) return k == "Frame" or k == "Region" or k == self.kind end
   function f:ClearAllPoints() self.point = nil end
   function f:GetPoint() return "TOPLEFT", nil, "CENTER", 12, -34 end
   function f:SetFrameStrata() end
@@ -4373,7 +4385,7 @@ do
   -- is right"): with BiS Healing's radar look up, BiS> now sits hidden under it - the box docks to the radar's outline
   do
     local radar = CreateFrame("Frame", nil, nil)
-    local hull = CreateFrame("Frame", nil, radar)
+    local hull = CreateFrame("Frame", nil, radar)                -- BiS Healing's edge FRAME (RD.edgeFrame, over the hull)
     at(hull, 2400, 2800, 900, 500)
     local keepAPI = _G.BiSHealingAPI
     _G.BiSHealingAPI = { major = 1, version = 2, RadarEdge = function() return hull, 12, radar end }
@@ -4383,6 +4395,18 @@ do
     Bx.Refresh()
     ok(Bx.onRadar and Bx.dock == "right" and box.point[2] == hull and box.point[1] == "TOPLEFT" and box.point[3] == "TOPRIGHT"
        and box.point[4] == 18, "the radar showing: the box docks to the radar's outline (right of it, past its soft edge), not BiS> now")
+    -- 12 Nov 2026, Arn's BugSack (9x): "Cannot anchor protected frames to regions" - 1.3.0's RadarEdge handed the hull,
+    -- a TEXTURE. The mock now refuses that pin like the client; the box takes the radar's own frame instead.
+    do
+      local tex = radar:CreateTexture()
+      at(tex, 2400, 2800, 900, 500)
+      _G.BiSHealingAPI = { major = 1, version = 2, RadarEdge = function() return tex, 12, radar end }
+      local okP, err = pcall(Bx.Refresh)
+      ok(okP and Bx.onRadar and box.point[2] == radar,
+         "BiS Healing hands a texture for the radar's edge: no error, the box docks to the radar's frame (" .. tostring(err) .. ")")
+      _G.BiSHealingAPI = { major = 1, version = 2, RadarEdge = function() return hull, 12, radar end }
+      Bx.Refresh()
+    end
     W.shift = true box.head.scripts.OnMouseUp(box.head, "LeftButton") W.shift = false
     ok(Bx.dock == "right" and box.point[2] == hull, "shift-click: right of the radar")
     W.shift = true box.head.scripts.OnMouseUp(box.head, "LeftButton") W.shift = false
