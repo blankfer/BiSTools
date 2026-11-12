@@ -496,7 +496,14 @@ _G.CreateFrame = function(kind, name, parent, template)
   function f:SetPoint(p, rel, rp, x, y)
     -- the client, measured 12 Nov 2026 (out of combat too): "Action[SetPoint] failed because[Cannot anchor protected
     -- frames to regions]" - a frame holding secure buttons may only be pinned to a FRAME
-    if type(rel) == "table" and rel.region and self.IsProtected and self:IsProtected() then
+    -- ...ANYWHERE DOWN THE CHAIN (Arn's second BugSack, same day: a frame laid on a texture was refused the same way)
+    local function regionIn(x, depth)
+      if type(x) ~= "table" or depth > 30 then return false end
+      if x.region then return true end
+      local q = x.point or x.anchor
+      return q ~= nil and regionIn(q[2], depth + 1)
+    end
+    if type(rel) == "table" and regionIn(rel, 0) and self.IsProtected and self:IsProtected() then
       error("Action[SetPoint] failed because[Cannot anchor protected frames to regions]", 2)
     end
     self.point = { p, rel, rp, x, y }
@@ -4404,8 +4411,19 @@ do
       local okP, err = pcall(Bx.Refresh)
       ok(okP and Bx.onRadar and box.point[2] == radar,
          "BiS Healing hands a texture for the radar's edge: no error, the box docks to the radar's frame (" .. tostring(err) .. ")")
+      -- a FRAME laid on that texture (BiS Healing's first fix, the second BugSack): the pin is refused all the same -
+      -- the box places itself by screen position instead, beside the radar, and says nothing
+      local laid = CreateFrame("Frame", nil, radar)
+      laid:SetPoint("TOPLEFT", tex, "TOPLEFT", 0, 0)
+      at(laid, 2400, 2800, 900, 500)
+      _G.BiSHealingAPI = { major = 1, version = 2, RadarEdge = function() return laid, 12, radar end }
+      local okL, errL = pcall(Bx.Refresh)
+      ok(okL and Bx.onRadar and Bx.pinnedBy == "screen" and box.point[2] == _G.UIParent and box.point[1] == "TOPLEFT"
+         and box.point[4] == 2818 and box.point[5] == 900 - 18,
+         "a frame on a texture: refused like the client, so the box goes right of the radar BY SCREEN POSITION (" .. tostring(errL) .. ")")
       _G.BiSHealingAPI = { major = 1, version = 2, RadarEdge = function() return hull, 12, radar end }
       Bx.Refresh()
+      ok(Bx.pinnedBy == "edge" and box.point[2] == hull, "and a clean frame chain: pinned to the edge again")
     end
     W.shift = true box.head.scripts.OnMouseUp(box.head, "LeftButton") W.shift = false
     ok(Bx.dock == "right" and box.point[2] == hull, "shift-click: right of the radar")
