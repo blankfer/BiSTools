@@ -220,14 +220,102 @@ function B.WouldCoverGrid(now)
   return x1 < gr and x2 > gl and bottom < gt and top > gb
 end
 
---- Where the box stands: docked to BiS> now when it is up, else where it was dragged.
+--[[ ROUND THE RADAR (11 Nov 2026, Arn: "when i try and shift click the bis tools it trys to send the window and anchor
+  it to the radar but only the left side is right"). With BiS Healing's radar look, BiS> now sits hidden under the
+  radar's corner, so right / below / top landed on the radar. While the radar shows, the box docks to the radar's
+  whole outline (BiSHealingAPI v2 RadarEdge: the hull, every rail, plus its soft edge), the same four sides. ]]
+function B.RadarEdge()
+  local api = _G.BiSHealingAPI
+  if not (type(api) == "table" and api.major == 1 and (tonumber(api.version) or 0) >= 2 and api.RadarEdge) then return nil end
+  local ok, edge, margin, frame = pcall(api.RadarEdge)
+  if not (ok and edge) then return nil end
+  -- ONLY A FRAME (12 Nov 2026, Arn's BugSack, 9x: "Cannot anchor protected frames to regions"). The box holds secure
+  -- buttons, so the client refuses to pin it to a texture - and BiS Healing 1.3.0's first RadarEdge handed the hull,
+  -- a texture. A region -> the radar's own frame instead (a little inside the soft edge, but placed, and no error).
+  local function isFrame(x) return type(x) == "table" and x.IsObjectType and x:IsObjectType("Frame") end
+  local okF, fr = pcall(isFrame, edge)
+  if not (okF and fr) then
+    local okR, rf = pcall(isFrame, frame)
+    if not (okR and rf) then return nil end
+    edge = frame
+  end
+  return edge, tonumber(margin) or 0, frame
+end
+
+--- AUTO round the radar: on its right, unless the box would run off the screen there - then its left.
+function B.RadarAuto(edge, margin, frame)
+  local f = B.frame
+  local okR, r = pcall(function() return edge:GetRight() end)
+  local k = (frame and frame.GetEffectiveScale and frame:GetEffectiveScale()) or 1
+  local bk = (f and f.GetEffectiveScale and f:GetEffectiveScale()) or 1
+  local screen = (UIParent and UIParent.GetRight and UIParent:GetRight() or 0) * ((UIParent and UIParent.GetEffectiveScale and UIParent:GetEffectiveScale()) or 1)
+  local w = (f and f.GetWidth and f:GetWidth()) or B.MIN_W
+  if okR and type(r) == "number" and screen > 0 and (r + margin + 6) * k + w * bk > screen then return "left" end
+  return "right"
+end
+
+--- The same four spots by SCREEN POSITION, pinned to UIParent: what the box does when the client refuses the pin to the
+--- radar (12 Nov 2026, Arn's second BugSack - the client walks the WHOLE anchor chain, so a frame laid on a texture is
+--- refused too). It does not glide with the radar; the hooks below place it again when the radar moves or resizes.
+function B.PinAbsolute(f, side, edge, g, H, frame)
+  local l, r, t, b = rect(edge)
+  local ui = _G.UIParent
+  if not (l and ui) then return false end
+  local ek = (frame and frame.GetEffectiveScale and frame:GetEffectiveScale()) or 1
+  local fk = (f.GetEffectiveScale and f:GetEffectiveScale()) or 1
+  local c = ek / fk
+  l, r, t, b = l * c, r * c, t * c, b * c
+  local w, h = (f.GetWidth and f:GetWidth()) or B.MIN_W, (f.GetHeight and f:GetHeight()) or B.SIZE
+  local x, y
+  if side == "below" then x, y = l, b - (g + H)
+  elseif side == "left" then x, y = l - g - w, t - H
+  elseif side == "top" then x, y = l, t + g + h
+  else x, y = r + g, t - H end
+  f:ClearAllPoints()
+  return (pcall(f.SetPoint, f, "TOPLEFT", ui, "BOTTOMLEFT", x, y))
+end
+
+function B.PlaceRadar(f, want, edge, margin, frame)
+  local side = want
+  if side == "auto" then side = B.RadarAuto(edge, margin, frame) end
+  if side ~= "below" and side ~= "left" and side ~= "top" then side = "right" end
+  local g, H = margin + 6, B.HEADER + B.LIFT
+  local ok = pcall(function()
+    if side == "below" then f:SetPoint("TOPLEFT", edge, "BOTTOMLEFT", 0, -(g + H))
+    elseif side == "left" then f:SetPoint("TOPRIGHT", edge, "TOPLEFT", -g, -H)
+    elseif side == "top" then f:SetPoint("BOTTOMLEFT", edge, "TOPLEFT", 0, g)
+    else f:SetPoint("TOPLEFT", edge, "TOPRIGHT", g, -H) end
+  end)
+  B.pinnedBy = ok and "edge" or (B.PinAbsolute(f, side, edge, g, H, frame) and "screen") or nil
+  if not B.pinnedBy then return false end
+  B.dock, B.docked, B.onRadar = side, true, true
+  -- the radar moving, resizing, coming or going moves us too: hooked once; the relayout waits for a fight's end
+  if frame and not B.radarHooked then
+    if frame.HookScript then
+      frame:HookScript("OnShow", function() B.Refresh() end)
+      frame:HookScript("OnHide", function() B.Refresh() end)
+    end
+    if hooksecurefunc then
+      pcall(hooksecurefunc, frame, "SetPoint", function() B.Refresh() end)
+      pcall(hooksecurefunc, frame, "SetScale", function() B.Refresh() end)
+    end
+    B.radarHooked = true
+  end
+end
+
+--- Where the box stands: round the radar while it shows, else docked to BiS> now when it is up, else where it was
+--- dragged.
 function B.Place()
   local f = B.frame
   if not f then return end
   local now = _G.BiSHealingNowBlock
   f:ClearAllPoints()
   local want = B.DB().dock or "auto"
-  if now and now.IsShown and now:IsShown() and want ~= "free" then
+  B.onRadar = nil
+  local edge, margin, rframe = B.RadarEdge()
+  if edge and want ~= "free" and B.PlaceRadar(f, want, edge, margin, rframe) ~= false then
+    -- docked round the radar (pinned to its edge, or by screen position when the client refused that pin)
+  elseif now and now.IsShown and now:IsShown() and want ~= "free" then
     -- AUTO: RIGHT OF IT, UNLESS THAT IS ON THE GRID (Arn, 12 Oct, BiS> now on the grid's left: "it
     -- overlapped into the healing frames"). Then BELOW it, which is open ground wherever BiS> now sits.
     local side = want
