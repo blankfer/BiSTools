@@ -801,7 +801,7 @@ do
     if sv.enabled[key] ~= want then wrong[#wrong + 1] = key .. "=" .. tostring(sv.enabled[key]) end
     wrote = wrote + 1
   end
-  ok(sv.forever10 == true and wrote == 15 and #wrong == 0, "an existing save at the 1.0 load: every tool frozen as it was, written out", table.concat(wrong, " "))
+  ok(sv.forever10 == true and wrote == 16 and #wrong == 0, "an existing save at the 1.0 load: every tool frozen as it was, written out", table.concat(wrong, " "))
   -- a tool 0.20.2 never had is not "as it was" - it was nothing (Arn, 8 Nov: his cousin's pups came up on)
   ok(sv.enabled.codex == false, "the codex, new in 1.0, starts OFF on an existing save too", tostring(sv.enabled.codex))
   ok(R:DBFor(R:Get("farm")).shown == true and R:DBFor(R:Get("summon")).nag == true, "and the farm window and the summon nag as they were (on)")
@@ -2193,7 +2193,7 @@ do
   -- left click: the Hub, one row per tool
   mm.scripts.OnClick(mm, "LeftButton")
   local hub = BiSToolsHub
-  ok(hub and hub:IsShown() and #hub.rows == 15 and hub.rows[14].key == "codex" and hub.rows[15].key == "bosses", "left click opens the Hub with a row per registered tool")   -- +disenchant, +processing, 6 Nov; threat and pups retired 9 Nov
+  ok(hub and hub:IsShown() and #hub.rows == 16 and hub.rows[14].key == "codex" and hub.rows[15].key == "bosses" and hub.rows[16].key == "alts", "left click opens the Hub with a row per registered tool")   -- +disenchant, +processing, 6 Nov; threat and pups retired 9 Nov
   ok(hub.scale == 1.2, "the Tools list is 20% bigger (Arn: \"lets make this 20% bigger\")")
   ok(hub.rows[1].key == "farm" and hub.rows[2].key == "summon" and hub.rows[3].key == "recap" and hub.rows[4].key == "rivals"
      and hub.rows[5].key == "social" and hub.rows[6].key == "bg" and hub.rows[7].key == "map" and hub.rows[8].key == "party"
@@ -2202,10 +2202,10 @@ do
   -- RIVALS & PALS, their own tool (Arn, 14 Oct: "decouple from recap ... be its own thing")
   ok(hub.rows[4].name.text == "rivals & pals", "the rivals tool's row is titled rivals & pals")
   ok(hub.rows[1].name.text == "farm" and hub.rows[1].state.text:find("on", 1, true), "row: name + on")
-  ok(hub.con.slots.count and hub.con.slots.count.text == "12 of 15 on", "prompt slot counts the tools that are on (party, codex and bosses - new in 1.0 - start off; rides, sounds, xp, disenchant and processing on)", hub.con.slots.count.text)
+  ok(hub.con.slots.count and hub.con.slots.count.text == "12 of 16 on", "prompt slot counts the tools that are on (party, codex, bosses and alts - new in 1.0 - start off; rides, sounds, xp, disenchant and processing on)", hub.con.slots.count.text)
   ok(hub.con:Width() <= H.W - 15 - 8, "hub prompt fits its header budget")
   ok(hub.closeBtn.point[4] == -3, "only an x in the header, at -3")
-  ok(hub.foot and hub.foot.label.text == "options" and hub.h == 16 + 15 * 16 + 4 + 16, "footer 'options' button; height = header + rows + footer")
+  ok(hub.foot and hub.foot.label.text == "options" and hub.h == 16 + 16 * 16 + 4 + 16, "footer 'options' button; height = header + rows + footer")
   -- row click opens the tool window; shift-click drags it to the middle
   BiSToolsFarm:Hide() F.db.pos = { "TOPLEFT", 400, -300, "TOPLEFT" }
   hub.rows[1].scripts.OnClick(hub.rows[1], "LeftButton")
@@ -2255,7 +2255,7 @@ do
   for _, r in ipairs(BiSToolsOptions and BiSToolsOptions.rows or {}) do end
   -- right click toggles the tool; opening an off tool switches it on first
   hub.rows[2].scripts.OnClick(hub.rows[2], "RightButton")
-  ok(not R:Enabled("summon") and hub.rows[2].state.text:find("off", 1, true) and hub.con.slots.count.text == "11 of 15 on", "right click: summon off, row and count follow", hub.con.slots.count.text)
+  ok(not R:Enabled("summon") and hub.rows[2].state.text:find("off", 1, true) and hub.con.slots.count.text == "11 of 16 on", "right click: summon off, row and count follow", hub.con.slots.count.text)
   ok(lib:Enabled(), "and the lib is untouched by it")
   hub.rows[2].scripts.OnClick(hub.rows[2], "LeftButton")
   ok(R:Enabled("summon") and BiSToolsSummon:IsShown() and db_summon().mode == "on", "click on an off tool: switched on and its window pinned open")
@@ -2293,7 +2293,8 @@ do
   -- (+ codex (1), 8 Nov: the book's open button - and its section header)
   -- (+ bosses (3), 8 Nov: open in a dungeon, the box button, the list's open button - and its section header)
   -- (threat (2) and pups (2), each with its section header, retired 9 Nov)
-  ok(#opt.rows == 11 + 3 + 5 + 7 + 1 + 8 + 2 + 4 + 7 + 4 + 4 + 5 + 1 + 1 + 1 + 1 + 3 + 2 + 4, "one row per section header and per option", #opt.rows)
+  -- (+ alts (1), 14 Nov: the main & alts window's open button - and its section header)
+  ok(#opt.rows == 11 + 3 + 5 + 7 + 1 + 8 + 2 + 4 + 7 + 4 + 4 + 5 + 1 + 1 + 1 + 1 + 3 + 2 + 4 + 2, "one row per section header and per option", #opt.rows)
   -- THE BiSTheme STANDARD, 1.43:1 (Arn, 14 Oct): its sections poured into columns, the window that shape
   ok(math.abs(opt.w / opt.h - 1.43) < 0.01 and (opt.columns or 1) >= 2, "options: 1.43:1, in columns", opt.w .. "x" .. opt.h)
   local function find(label) for _, r in ipairs(opt.rows) do if r.name and r.name.text == label then return r end end end
@@ -2380,7 +2381,7 @@ do
   local farmHdr = opt.rows[5]
   ok(farmHdr.ctl and farmHdr.ctl.on == true, "farm section box shows on")
   farmHdr.ctl.scripts.OnClick(farmHdr.ctl)
-  ok(not R:Enabled("farm") and farmHdr.ctl.on == false and hub.con.slots.count.text == "11 of 15 on", "box off: farm off, hub count follows", hub.con.slots.count.text)
+  ok(not R:Enabled("farm") and farmHdr.ctl.on == false and hub.con.slots.count.text == "11 of 16 on", "box off: farm off, hub count follows", hub.con.slots.count.text)
   farmHdr.ctl.scripts.OnClick(farmHdr.ctl)
   ok(R:Enabled("farm"), "and back on")
   -- toggle: nag
@@ -2496,7 +2497,7 @@ do
     local spec = page.spec
     ok(spec.title == "Tools" and spec.api and spec.api.name == "BiSToolsAPI" and spec.open and spec.open.label == "the tools list",
        "titled Tools, the API named, a big button to the tools")
-    ok(spec.status() == H.Status() and spec.status():find("of 15 tools on", 1, true), "its status line: N of 15 tools on", spec.status())
+    ok(spec.status() == H.Status() and spec.status():find("of 16 tools on", 1, true), "its status line: N of 16 tools on", spec.status())
     -- THE DASHBOARD (Arn, 7 Nov live: "dont just shrink remake them all"): the page draws itself and never takes
     -- the options window in
     ok(spec.build and spec.refresh and spec.window == nil, "the page is a dashboard, not the options window in a box")
@@ -2505,7 +2506,7 @@ do
     local optParent = BiSToolsOptions.parent
     ok(optParent ~= page.frame.body and not BiSToolsOptions:IsShown(), "the options window stays where it lives, hidden")
     local d = page.frame.body.dash
-    ok(d and #d.rows == 16 and d.rows[1].entry.general, "the list: BiS Tools itself, then all 15 tools", d and #d.rows)
+    ok(d and #d.rows == 17 and d.rows[1].entry.general, "the list: BiS Tools itself, then all 16 tools", d and #d.rows)
     -- THE FAMILY RULE (Arn, 8 Nov: "its a theme so itll keep all the pages looking the same"): the page is the kit's
     -- BiSTheme.Dashboard, fed the Registry's own tables; the hand-built copy in Hub.lua is gone
     ok(d.model and d.model.list == "TOOLS" and d.list.head.text == "TOOLS" and type(d.Paint) == "function"
@@ -2621,7 +2622,7 @@ do
         if r.isSection and r.ctl and r.name and r.name.text == want then found[#found + 1] = key break end
       end
     end
-    ok(#found == 15, "all 15 tools have an on/off tick in the options window", #found)
+    ok(#found == 16, "all 16 tools have an on/off tick in the options window", #found)
     -- the minimap's right-click: the OWN options window, and again closes it (Arn, 7 Nov live); the open button: the Hub
     BiSToolsHub:Hide()
     BiSToolsOptions:Hide()
@@ -2693,8 +2694,8 @@ do
   for _, tool in R:Each() do if tool.__real then tool.OnLogin, tool.__real = tool.__real, nil end end
   ok(logins == 0, "at login no tool wakes: nothing hooks, nothing opens, nothing plays", logins)
   NS.Hub.ToggleHub(true)
-  ok(BiSToolsHub.con.slots.count.text == "0 of 15 on", "the Hub, the main page: 0 of 15 on", BiSToolsHub.con.slots.count.text)
-  ok(NS.Hub.Status() == "0 of 15 tools on", "the BiS> page's status line says it", NS.Hub.Status())
+  ok(BiSToolsHub.con.slots.count.text == "0 of 16 on", "the Hub, the main page: 0 of 16 on", BiSToolsHub.con.slots.count.text)
+  ok(NS.Hub.Status() == "0 of 16 tools on", "the BiS> page's status line says it", NS.Hub.Status())
   -- the user chooses: a switch writes TRUE (not nil) and off writes FALSE
   R:SetEnabled("social", true)
   ok(fresh.enabled.social == true and R:Enabled("social"), "switched on: stored as true")
@@ -9149,7 +9150,89 @@ do
   _G.IsInInstance, W.me.inst, W.target, W.plates, W.shift = keep.inst, keep.map, keep.target, keep.plates, keep.shift
 end
 
-local allowed = { BiSTools = true, BiSToolsDB = true, SLASH_BISTOOLS1 = true, SLASH_BISTOOLS2 = true,
+-- MAIN & ALTS (Arn, 14 Nov 2026: "Select main / Select alt mains don't override / Select what main sends to alts that
+-- allow override"; sketch A). The window only picks; the companion (bisdev forever/main-sync) copies while WoW is closed.
+do
+  local A = NS.Alts
+  local keep = { gun = _G.GetUnitName, cls = _G.UnitClass, lvl = _G.UnitLevel, gst = _G.GetServerTime }
+  local clock = 1794669000
+  _G.GetServerTime = function() return clock end
+  _G.GetUnitName = function(u, full) if u == "player" then return "Chainheal Ryangosling" end end
+  _G.UnitClass = function(u) if u == "player" then return "Shaman", "SHAMAN" end end
+  _G.UnitLevel = function(u) if u == "player" then return 31 end end
+  ok(type(_G.BiSToolsAlts) == "table" and _G.BiSToolsAlts.v == 1, "its own save, BiSToolsAlts, a table (never the window)")
+  ok(R:Get("alts") and not R:Enabled("alts"), "the alts tool, off until asked for (new after 1.0)")
+  A.SignIn()
+  local d = A.Data()
+  local me = d.roster["Chainheal Ryangosling"]
+  ok(me and me.class == "SHAMAN" and me.level == 31 and me.seen == clock,
+     "each character signs itself in with its WHOLE name (Forever's UnitName is the first name only)")
+  clock = clock + 600
+  A.SignIn()
+  ok(me.seen == clock - 600, "a second login the same day: nothing changes (the companion copies only on a real change)")
+  _G.UnitLevel = function() return 32 end
+  A.SignIn()
+  ok(me.level == 32 and me.seen == clock, "a new level: written")
+  d.roster["Mail Ryangosling"] = { class = "ROGUE", level = 18, seen = clock }
+  d.roster["Chain Healz"] = { class = "SHAMAN", level = 24, seen = clock }
+  d.roster["Gnarly Gnar"] = { class = "WARRIOR", level = 9, seen = clock }
+  ok(A.Role("Mail Ryangosling") == "gets" and d.main == nil, "nobody picked: everyone GETS COPIES, no main")
+  ok(A.Status():find("Pick your main", 1, true), "and the foot says to pick one")
+  d.roster["Me"] = nil                                -- (the suite's own login signed in as "Me")
+
+  S("alts")
+  local f = BiSToolsAltsWindow
+  ok(R:Enabled("alts") and f and f:IsShown() and A.IsOpen(), "/bist alts switches the tool on and opens the window")
+  ok(math.abs(f.w / f.h - 1.43) < 0.01, "the family's shape, 1.43:1", f.w .. "x" .. f.h)
+  local inEsc = false
+  for _, n in ipairs(UISpecialFrames) do if n == "BiSToolsAltsWindow" then inEsc = true end end
+  ok(inEsc, "Escape closes it")
+  local function rowOf(name) for _, r in ipairs(f.rows) do if r.entry and r.entry.name == name then return r end end end
+  ok(f.rows[1].entry and f.rows[1].entry.name == "Chainheal Ryangosling" and f.rows[1]:IsShown() and f.rows[5] and not f.rows[5]:IsShown(),
+     "a row per character, highest level first", f.rows[1].entry and f.rows[1].entry.name)
+  local r = rowOf("Chainheal Ryangosling")
+  r.scripts.OnClick(r)
+  ok(d.keep["Chainheal Ryangosling"] == true and rowOf("Chainheal Ryangosling").chip.word.text == "KEEP MINE",
+     "one click: KEEP MINE")
+  r = rowOf("Chainheal Ryangosling")
+  r.scripts.OnClick(r)
+  ok(d.main == "Chainheal Ryangosling" and d.keep["Chainheal Ryangosling"] == nil and d.stamp == clock
+     and rowOf("Chainheal Ryangosling").chip.word.text == "MAIN",
+     "a second: MAIN - stamped, so the companion knows these picks are the newest")
+  r = rowOf("Chain Healz")
+  r.scripts.OnEnter(r)
+  ok(r.lit.alpha > 0 and r.bar.alpha == 1, "rows glow on hover (the family's rule)")
+  r.scripts.OnLeave(r)
+  r.scripts.OnClick(r)
+  ok(d.keep["Chain Healz"] == true and d.main == "Chainheal Ryangosling" and f.rows[2].entry.name == "Chain Healz"
+     and rowOf("Chain Healz").chip.word.text == "KEEP MINE",
+     "an alt main: one click to KEEP MINE, the main untouched (MAIN comes last, never passed through), listed under it")
+  A.SetRole("Mail Ryangosling", "main")
+  ok(d.main == "Mail Ryangosling" and A.Role("Chainheal Ryangosling") == "gets", "a new main: the old one GETS COPIES")
+  A.SetRole("Chainheal Ryangosling", "main")
+  A.SetRole("Chain Healz", "gets")
+  ok(d.keep["Chain Healz"] == nil, "back to GETS COPIES: the name REMOVED from keep, never false (the companion reads content)")
+  A.SetRole("Chain Healz", "keep")
+  A.Paint()
+  local addons = f.sends[5]
+  ok(addons.key == "addons" and addons.on == false and f.sends[1].on == true, "MAIN SENDS: four on, the addon list off")
+  clock = clock + 5
+  addons.scripts.OnClick(addons)
+  ok(d.sends.addons == true and d.stamp == clock and f.sends[5].on == true, "a switch click: on, stamped")
+  addons.scripts.OnClick(addons)
+  ok(d.sends.addons == false, "and off again")
+  ok(A.Status():find("Copies to 2 characters when WoW closes", 1, true), "the foot: who gets copies", A.Status())
+  d.copied = { at = clock, to = 2, names = { "Mail Ryangosling", "Gnarly Gnar" } }
+  ok(A.Status():find("last copy:", 1, true) and A.Status():find("to 2", 1, true), "and the companion's last copy", A.Status())
+  local n = 0
+  for k in pairs(d) do if not ({ v = 1, stamp = 1, main = 1, keep = 1, sends = 1, roster = 1, copied = 1 })[k] then n = n + 1 end end
+  ok(n == 0, "nothing in the save but the contract's keys (an extra one would make every logout a rewrite)")
+  S("alts")
+  ok(not f:IsShown(), "/bist alts again: closed")
+  _G.GetUnitName, _G.UnitClass, _G.UnitLevel, _G.GetServerTime = keep.gun, keep.cls, keep.lvl, keep.gst
+end
+
+local allowed = { BiSTools = true, BiSToolsDB = true, BiSToolsAlts = true, SLASH_BISTOOLS1 = true, SLASH_BISTOOLS2 = true,
   SLASH_BISTOOLS3 = true,
   -- the embedded third-party libs' own globals (Libs/THIRD-PARTY.txt): LibStub, and the world-map
   -- show flags HereBeDragons-Pins defines for every addon that pins

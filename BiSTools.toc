@@ -6,7 +6,7 @@
 ## Author: Arn
 ## Version: 1.2.1
 ## OptionalDeps: BiSTheme, FojjiCore
-## SavedVariables: BiSToolsDB
+## SavedVariables: BiSToolsDB, BiSToolsAlts
 ## X-Curse-Project-ID: 1686340
 
 Libs\BiSTheme\Console.lua
@@ -46,5 +46,6 @@ Tools\CodexWindow.lua
 Tools\CodexDrive.lua
 Tools\BossData.lua
 Tools\Bosses.lua
+Tools\Alts.lua
 API.lua
 Tools\Hub.lua
