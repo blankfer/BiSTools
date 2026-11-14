@@ -9212,20 +9212,34 @@ do
   A.SetRole("Chainheal Ryangosling", "main")
   A.SetRole("Chain Healz", "gets")
   ok(d.keep["Chain Healz"] == nil, "back to GETS COPIES: the name REMOVED from keep, never false (the companion reads content)")
+  -- EACH PICK BY ITS OWN TIME (14 Nov, the first live run: a click on the other account wiped the main): a click stamps
+  -- only what it changed
+  clock = clock + 3
+  local mainAt0 = d.mainAt
+  A.SetRole("Gnarly Gnar", "keep")
+  ok(d.keepAt["Gnarly Gnar"] == clock and d.mainAt == mainAt0, "a KEEP MINE click stamps that name only, never the main")
+  clock = clock + 1
+  A.SetRole("Gnarly Gnar", "gets")
+  ok(d.keepAt["Gnarly Gnar"] == clock and d.keep["Gnarly Gnar"] == nil and d.mainAt == mainAt0,
+     "taken off again: stamped too (the companion carries the OFF across)")
+  clock = clock + 1
+  A.SetRole("Mail Ryangosling", "main")
+  ok(d.mainAt == clock, "a new main stamps the main")
+  A.SetRole("Chainheal Ryangosling", "main")
   A.SetRole("Chain Healz", "keep")
   A.Paint()
   local addons = f.sends[5]
   ok(addons.key == "addons" and addons.on == false and f.sends[1].on == true, "MAIN SENDS: four on, the addon list off")
   clock = clock + 5
   addons.scripts.OnClick(addons)
-  ok(d.sends.addons == true and d.stamp == clock and f.sends[5].on == true, "a switch click: on, stamped")
+  ok(d.sends.addons == true and d.stamp == clock and d.sendsAt == clock and f.sends[5].on == true, "a switch click: on, stamped")
   addons.scripts.OnClick(addons)
   ok(d.sends.addons == false, "and off again")
   ok(A.Status():find("Copies to 2 characters when WoW closes", 1, true), "the foot: who gets copies", A.Status())
   d.copied = { at = clock, to = 2, names = { "Mail Ryangosling", "Gnarly Gnar" } }
   ok(A.Status():find("last copy:", 1, true) and A.Status():find("to 2", 1, true), "and the companion's last copy", A.Status())
   local n = 0
-  for k in pairs(d) do if not ({ v = 1, stamp = 1, main = 1, keep = 1, sends = 1, roster = 1, copied = 1 })[k] then n = n + 1 end end
+  for k in pairs(d) do if not ({ v = 1, stamp = 1, main = 1, keep = 1, sends = 1, roster = 1, copied = 1, mainAt = 1, keepAt = 1, sendsAt = 1 })[k] then n = n + 1 end end
   ok(n == 0, "nothing in the save but the contract's keys (an extra one would make every logout a rewrite)")
   S("alts")
   ok(not f:IsShown(), "/bist alts again: closed")

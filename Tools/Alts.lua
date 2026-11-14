@@ -14,6 +14,9 @@
 --   keep = { [name] = true } (KEEP MINE: never touched), sends = { settings, editmode, chat, spots, addons = bool },
 --   roster = { [name] = { class, level, seen } } (each character signs itself in at login),
 --   copied = { at, to, names } (written by the companion after a copy).
+--   EACH PICK BY ITS OWN TIME (14 Nov, the first live run: a click on an account that had not seen the main yet wiped
+--   him): mainAt (the main set or cleared), keepAt = { [name] = time } (KEEP MINE on or off), sendsAt (a switch).
+--   The companion merges by these, one pick at a time; `stamp` stays as the newest of them.
 -- Everyone in the roster who is not the main and not kept GETS COPIES. The companion merges both accounts' blocks
 -- (newest picks, every character), so after WoW has been closed once each account's window lists every character.
 --
@@ -66,6 +69,7 @@ function A.Data()
   if type(d.keep) ~= "table" then d.keep = {} end
   if type(d.roster) ~= "table" then d.roster = {} end
   if type(d.sends) ~= "table" then d.sends = {} end
+  if type(d.keepAt) ~= "table" then d.keepAt = {} end
   for k, v in pairs(A.DEFAULT_SENDS) do if d.sends[k] == nil then d.sends[k] = v end end
   if type(d.main) ~= "string" then d.main = nil end
   return d
@@ -108,6 +112,8 @@ end
 function A.SetRole(name, role, d)
   d = d or A.Data()
   if not (name and A.ROLE_WORD[role]) then return nil end
+  local t = now()
+  local wasMain, wasKeep = d.main, d.keep[name] and true or false
   if role == "main" then
     d.main = name
     d.keep[name] = nil
@@ -118,7 +124,9 @@ function A.SetRole(name, role, d)
     if d.main == name then d.main = nil end
     d.keep[name] = nil
   end
-  d.stamp = now()
+  if d.main ~= wasMain then d.mainAt = t end
+  if (d.keep[name] and true or false) ~= wasKeep then d.keepAt[name] = t end
+  d.stamp = t
   return role
 end
 
@@ -131,6 +139,7 @@ function A.SetSend(key, on)
   if A.DEFAULT_SENDS[key] == nil then return nil end
   d.sends[key] = on and true or false
   d.stamp = now()
+  d.sendsAt = d.stamp
   return d.sends[key]
 end
 
