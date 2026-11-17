@@ -153,7 +153,9 @@ function F.Speak(text)
   local FC = _G.FojjiCore
   if FC and FC.Speak and FC:Speak(text) then return "fojji" end
   if C_VoiceChat and C_VoiceChat.SpeakText then
-    C_VoiceChat.SpeakText(0, text, Enum and Enum.VoiceTtsDestination and Enum.VoiceTtsDestination.LocalPlayback or 1, 1, 100)
+    -- Forever's order is (voice, text, rate, volume) - no destination. The old (voice, text, LocalPlayback,
+    -- rate, volume) put 1 in the volume slot: a whisper. Heard both new forms aloud 17 Nov 2026.
+    C_VoiceChat.SpeakText(0, text, 0, 100)
     return "tts"
   end
   PlaySound(F.PING, "Master")

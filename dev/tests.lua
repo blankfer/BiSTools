@@ -213,7 +213,14 @@ function W.tick() for _, t in ipairs(W.tickers) do if t.alive then t.fn() end en
 W.binds = {}
 W.sounds = {} W.spoken = {}
 _G.PlaySound = function(id) W.sounds[#W.sounds + 1] = id end
-_G.C_VoiceChat = { SpeakText = function(_, text) W.spoken[#W.spoken + 1] = text end }
+-- Forever's real order (17 Nov 2026, heard): (voice, text, rate, volume); a quiet volume or a wrong-shaped call errors.
+_G.C_VoiceChat = { SpeakText = function(voice, text, rate, volume, extra)
+  assert(type(voice) == "number" and type(text) == "string", "SpeakText(voice, text, ...)")
+  assert(type(rate) == "number" and rate >= -10 and rate <= 10, "SpeakText rate out of range")
+  assert(type(volume) == "number" and volume >= 50 and volume <= 100, "SpeakText volume too low - wrong argument order?")
+  assert(extra == nil or type(extra) == "boolean", "SpeakText takes no fifth number")
+  W.spoken[#W.spoken + 1] = text
+end }
 _G.ClearOverrideBindings = function(owner) W.binds[owner] = nil end
 _G.SetOverrideBindingClick = function(owner, prio, key, btn) W.binds[owner] = { key = key, btn = btn } end
 _G.CombatLogGetCurrentEventInfo = function() return unpack(W.cleu) end
