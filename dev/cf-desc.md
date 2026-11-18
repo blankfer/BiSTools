@@ -1,4 +1,4 @@
-# BiS Tools — CurseForge page text (1.3.0)
+# BiS Tools — CurseForge page text (1.4.0)
 
 Paste everything below the line into the project description
 (CurseForge → BiS Tools, project 1686340 → Edit → Description), in the Markdown editor.
@@ -9,6 +9,9 @@ and lists stay flat.
 
 **Deliberately NOT on the page: summon** (Forever has no summoning stones, the tool does not load
 there). The threat beta and the pup finder were retired on 9 Nov. The page is for Forever.
+
+Changed for 1.4.0 (17 Nov, late): **Imbue + totem combo** rewritten - icons you click to cast, the adj column, the
+number boxes, TRY NEXT, only your own swings, the receipt tape in icons.
 
 Changed for 1.3.0 (17 Nov): two new sections after "Farm" - **Imbue + totem combo** (the card, the ranked list, the
 proc text) and **Griefers** (after Pals) - their commands in the table, and the opener's bold line names them.
@@ -135,11 +138,14 @@ Type a mob's name, kill one, or right-click it and pick **BiS: track in farm**.
 
 Which weapon imbue and which totems actually hit hardest? Turn on `/bist combo` and fight.
 
-- **A card after each fight:** your imbue and totems, your damage per second, and where that combo ranks. Click it for the list.
-- **The list, best first,** in columns: imbue, fire, earth, air, how many fights, damage per second. Click a combo for its last fight spell by spell; the weapon's Windfury and the totem's show apart.
-- **Only the time you're swinging counts.** A mob that runs away, or the walk to the next one, doesn't drag the number down: your swing rhythm tells it.
-- **Proc text while you fight:** "+1 extra hit", "+2 extra hits", "Flametongue", as they happen.
-- **Your numbers come from the game's own damage meter**, read once each fight is over. It starts off; SET on the list has its switches, the window's size and a RESET.
+- **A card after each fight:** your imbue and totems as their icons, your damage per second, and where that combo ranks. Click it for the list.
+- **The list, best first,** every combo you've fought with as spell icons - imbue, fire, earth, air - with how many fights, its damage per second and **adj**: the same number as if every mob had been your level (higher mobs make you miss, get dodged and glance more), which the list ranks by.
+- **Click an icon to cast it.** Out of a fight, a click on any icon puts that imbue on your weapon or drops that totem.
+- **The numbers, in boxes:** Windfury, Flametongue and Frostbrand procs as a share of your own swings, your fights, average and best damage per second, the mobs' level - and you now: crit, attack power, weapon speed and damage.
+- **TRY NEXT** shows the combo you have the fewest fights with, out of the imbues and totems you know - click its icons and go.
+- **Only your own swings count.** Another player hitting your target doesn't show up as your procs, and with no Windfury up nothing counts as Windfury; after each fight the game's damage meter double-checks.
+- **The receipt tape:** while you fight, a small strip of paper prints each proc as icons - Windfury +2, Flametongue +1 - with the fight's clock, a cut when you swap totems, and the total at the end. Scroll back through the fight, drag it bigger, or switch it off.
+- **Your numbers come from the game's own damage meter**, read once each fight is over. It starts off; SET on the list has its switches, and the list resizes by its corner.
 
 ## Zeppelins, boats and the tram
 
