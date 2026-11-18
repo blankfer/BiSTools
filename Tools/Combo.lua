@@ -302,9 +302,16 @@ function C.Close(cur)
   local imbue = cur.imbue or C.ImbueNow()
   local set = {}
   for _, n in ipairs(totems) do set[n] = true end
-  local active = (cur.active or 0) >= C.ACTIVE_MIN and math.min(cur.active, dur) or nil
+  local active, how
+  if (cur.beats or 0) >= C.CADENCE_MIN then                -- the swing cadence decides (Arn's WeakAura way)
+    active = math.min((cur.cadence or 0) + (cur.lastSpeed or C.SPEED_GUESS), dur)
+    how = ("swing cadence - %d swings"):format(cur.beats)
+  else
+    active = (cur.active or 0) >= C.ACTIVE_MIN and math.min(cur.active, dur) or nil
+    how = active and (cur.reachKnown and ("swinging in reach - " .. tostring(cur.reachHow)) or "swinging") or "the whole fight"
+  end
   local rec = { at = (time and time()) or 0, sid = sid, mob = plain(last.name) or plain(s.name), dur = dur, dmg = dmg,
-                active = active, how = active and (cur.reachKnown and ("swinging in reach - " .. tostring(cur.reachHow)) or "swinging") or "the whole fight",
+                active = active, how = how,
                 imbue = imbue, totems = totems, combo = C.Label(imbue, set),
                 wf = dmg > 0 and wf / dmg or 0, ft = dmg > 0 and ft / dmg or 0, spells = C.TopSpells(spells, dmg),
                 procs = cur.procs }
@@ -850,9 +857,30 @@ function C.Hit(action, school)
   end
   if fire then b.fire = b.fire + 1 else b.swings = b.swings + 1 end
 end
+--[[ THE SWING CADENCE (17 Nov 2026, Arn: "a weak aura used to determine range as idle time in the swings ... as long as I'm in
+  combat and my melee is not in cadence it's considered out of range"). Each burst with a swing is a beat; the active time
+  is the sum of the gaps between beats, each gap at most C.CADENCE x your weapon speed (UnitAttackSpeed, plain; else
+  C.SPEED_GUESS) - a longer gap means the mob ran, you ran, or auto-attack was off, and only the swing's own time counts.
+  The last beat adds one swing. With C.CADENCE_MIN beats or more it decides the fight's active time; fewer, the reach
+  ticker (above) does. Two weapons interleave into short gaps that add up to the real time. ]]
+C.CADENCE, C.CADENCE_MIN, C.SPEED_GUESS = 1.25, 3, 2.5
+function C.Speed()
+  if not UnitAttackSpeed then return C.SPEED_GUESS end
+  local ok, mh = pcall(UnitAttackSpeed, "player")
+  if ok then mh = plain(mh) else mh = nil end
+  if type(mh) == "number" and mh > 0.5 and mh < 6 then return mh end
+  return C.SPEED_GUESS
+end
+function C.Beat(cur, at)
+  local sp = C.Speed()
+  cur.beats = (cur.beats or 0) + 1
+  if cur.lastBeat then cur.cadence = (cur.cadence or 0) + math.min(at - cur.lastBeat, sp * C.CADENCE) end
+  cur.lastBeat, cur.lastSpeed = at, sp
+end
 function C.CloseBurst(cur, b)
   if b.done then return end
   b.done = true
+  if b.swings > 0 then C.Beat(cur, b.at) end
   cur.procs = cur.procs or { extra1 = 0, extra2 = 0, more = 0, fire = 0 }
   local extra = b.swings - 1
   local words = {}

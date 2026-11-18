@@ -5480,8 +5480,28 @@ do
     ok(Co.cur.procs.extra1 == 2, "two hidden hits at once: still +1 extra hit")
     _G.issecretvalue = keepSec
     Co.FightOver()
+    W.runAfters(Co.READ_WAIT + 0.1)                    -- (that fight's read done before the next one's meter is set up)
     ok(Co.HitLine(Co.lastHits):find("hidden 2", 1, true) and Co.HitLine(Co.lastHits):find("hits heard", 1, true),
        "/bist combo why: what the game sent (hits, plain/hidden, schools, gaps)", Co.HitLine(Co.lastHits))
+    -- THE SWING CADENCE (Arn: "as long as I'm in combat and my melee is not in cadence it's considered out of range")
+    do
+      local keepAS = _G.UnitAttackSpeed
+      _G.UnitAttackSpeed = function() return 2.0, nil end
+      sid, dur, total = 40, 24, 2480
+      _G.C_DamageMeter.GetAvailableCombatSessions = function() return { { sessionID = sid, name = "Scout", durationSeconds = dur } } end
+      Co.Pull()
+      local f2 = Co.events:GetScript("OnEvent")
+      local function swing() f2(Co.events, "UNIT_COMBAT", "target", "WOUND", "", 100, 1) end
+      swing() W.runAfters(2) swing() W.runAfters(2) swing() W.runAfters(2) swing()   -- 4 swings on a 2 s beat: 6 s
+      W.runAfters(10)                                                              -- it ran away for 10 s
+      swing() W.runAfters(2) swing() W.runAfters(1)                                 -- back: 2 more
+      Co.FightOver() W.runAfters(Co.READ_WAIT + 0.1)
+      local r = cdb.fights[#cdb.fights]
+      ok(r and r.how:find("swing cadence", 1, true) and math.abs(r.active - 12.5) < 0.01,
+         "6 swings, a 10 s flee in the middle: active = the beats (6 s + 2.5 s capped gap + 2 s) + one swing = 12.5 s, not 24", r and r.active)
+      ok(math.floor(r.dmg / Co.Time(r) + 0.5) == 198, "dps over that time", math.floor(r.dmg / Co.Time(r) + 0.5))
+      _G.UnitAttackSpeed = keepAS
+    end
   end
   R:SetEnabled("combo", false)
   cdb.fights = {}
