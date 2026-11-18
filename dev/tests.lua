@@ -5423,7 +5423,7 @@ do
     for _ = 1, 40 do W.tick() end                      -- 10 s: it ran away
     Co.FightOver() W.runAfters(Co.READ_WAIT + 0.1)
     local r = cdb.fights[#cdb.fights]
-    ok(r and math.abs((r.active or 0) - 10) < 0.01 and r.how == "swinging in reach" and math.floor(cdb.fights[#cdb.fights].dmg / Co.Time(r) + 0.5) == 200,
+    ok(r and math.abs((r.active or 0) - 10) < 0.01 and r.how:find("swinging in reach", 1, true) and math.floor(cdb.fights[#cdb.fights].dmg / Co.Time(r) + 0.5) == 200,
        "a 20 s fight, the mob fled for 10: dps over the 10 s you swung - 200, not 100", r and r.active)
     ok(Co.card.dps:GetText() == "200 dps" and Co.card.where:GetText():find("10 of 20 s swinging", 1, true), "the card: 200 dps, 10 of 20 s swinging", Co.card.where:GetText())
     -- auto-attack never on (a caster): the whole fight
@@ -5433,6 +5433,18 @@ do
     Co.FightOver() W.runAfters(Co.READ_WAIT + 0.1)
     r = cdb.fights[#cdb.fights]
     ok(r and r.active == nil and r.how == "the whole fight" and Co.Time(r) == 20, "never swinging: the whole fight counts")
+    -- THE HONEST REACH (Arn: "some of those were not in range and it said I was"): a melee spell you know first,
+    -- the 10 yd duel distance only last
+    local keepGSI = _G.C_Spell.GetSpellInfo
+    _G.C_Spell.GetSpellInfo = function(n) if n == "Stormstrike" then return { spellID = 17364 } end return nil end
+    _G.C_Spell.IsSpellInRange = function(sp) if sp == "Stormstrike" then return false end return true end
+    _G.CheckInteractDistance = function() return true end
+    ok(Co.InReach() == false and Co.reachHow == "Stormstrike", "Stormstrike known: its melee range decides (out), not the 10 yd check (in)")
+    _G.C_Spell.GetSpellInfo = function() return nil end
+    _G.C_Spell.IsSpellInRange = function() return nil end
+    ok(Co.InReach() == true and Co.reachHow:find("10 yd", 1, true), "nothing else answers: the 10 yd check, and it says so")
+    ok(Co.ReachProbe():find("interact3=true", 1, true), "/bist combo reach: every check's answer")
+    _G.C_Spell.GetSpellInfo = keepGSI
     _G.C_Spell.IsSpellInRange, _G.CheckInteractDistance, _G.UnitExists = keepCS2, keepCID, keepUE
   end
   R:SetEnabled("combo", false)

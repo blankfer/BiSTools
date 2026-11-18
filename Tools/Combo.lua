@@ -130,21 +130,69 @@ end
   counted, a plain "no" = not). A fleeing mob, a run back, standing still: none of it. DPS = damage / active time when
   there was at least C.ACTIVE_MIN s of it, else the fight's length; the record says which (rec.active, rec.how). ]]
 C.ACTIVE_EVERY, C.ACTIVE_MIN, C.AUTO_ATTACK = 0.25, 2, 6603
---- Is the target in melee reach: true / false when the game says plainly, nil when it will not.
-function C.InReach()
-  if not (UnitExists and UnitExists("target")) then return false end
-  if C_Spell and C_Spell.IsSpellInRange then
-    local ok, r = pcall(C_Spell.IsSpellInRange, C.AUTO_ATTACK, "target")
-    if ok then r = plain(r) else r = nil end            -- (never `ok and plain(r) or nil`: a plain false would turn nil)
-    if r == true or r == false then return r end
-    if r == 1 or r == 0 then return r == 1 end
-  end
-  if CheckInteractDistance then
-    local ok, r = pcall(CheckInteractDistance, "target", 3)
-    if ok then r = plain(r) else r = nil end
-    if r == true or r == false then return r end
-  end
+--[[ MELEE REACH, THE HONEST WAY (17 Nov 2026, Arn: "some of those were not in range and it said I was" - a fight of 22 s
+  read 19 s "in reach"). CheckInteractDistance 3 is the DUEL distance, about 10 yd - a mob that ran a few steps still
+  "counted". The order now: a MELEE spell you know (C.MELEE_SPELLS: Stormstrike, Lava Lash, Primal Strike - their range
+  is melee), then Auto Attack itself, then the 10 yd check only as the last word (C.reachHow says which decided);
+  /bist combo reach prints every check's answer on your target, to settle which one tells the truth on Forever. ]]
+C.MELEE_SPELLS = { "Stormstrike", "Lava Lash", "Primal Strike" }
+local function spellReach(spell)
+  if not (C_Spell and C_Spell.IsSpellInRange) then return nil end
+  local ok, r = pcall(C_Spell.IsSpellInRange, spell, "target")
+  if ok then r = plain(r) else r = nil end              -- (never `ok and plain(r) or nil`: a plain false would turn nil)
+  if r == true or r == false then return r end
+  if r == 1 or r == 0 then return r == 1 end
   return nil
+end
+local function knows(spell)
+  local FM = NS.FM
+  if C_Spell and C_Spell.GetSpellInfo then
+    local ok, info = pcall(C_Spell.GetSpellInfo, spell)
+    if ok and type(info) == "table" and plain(info.spellID) then return true end
+  end
+  return false
+end
+--- Is the target in melee reach: true / false when the game says plainly, nil when it will not. C.reachHow = which check.
+function C.InReach()
+  if not (UnitExists and UnitExists("target")) then C.reachHow = "no target" return false end
+  for _, sp in ipairs(C.MELEE_SPELLS) do
+    if knows(sp) then
+      local r = spellReach(sp)
+      if r ~= nil then C.reachHow = sp return r end
+    end
+  end
+  local r = spellReach(C.AUTO_ATTACK)
+  if r ~= nil then C.reachHow = "Auto Attack" return r end
+  if CheckInteractDistance then
+    local ok, v = pcall(CheckInteractDistance, "target", 3)
+    if ok then v = plain(v) else v = nil end
+    if v == true or v == false then C.reachHow = "about 10 yd (duel distance)" return v end
+  end
+  C.reachHow = "nothing answers"
+  return nil
+end
+--- /bist combo reach: every check's answer on your target now (stand in melee, then a few steps back, and compare).
+function C.ReachProbe()
+  local function k(v) if v == nil then return "nil" end if issecretvalue and issecretvalue(v) then return "SECRET" end return tostring(v) end
+  local parts = {}
+  for _, sp in ipairs(C.MELEE_SPELLS) do
+    local okI, r = false, nil
+    if C_Spell and C_Spell.IsSpellInRange then okI, r = pcall(C_Spell.IsSpellInRange, sp, "target") end
+    parts[#parts + 1] = ("%s%s=%s"):format(sp, knows(sp) and "" or "(not known)", okI and k(r) or "refused")
+  end
+  local okA, a = false, nil
+  if C_Spell and C_Spell.IsSpellInRange then okA, a = pcall(C_Spell.IsSpellInRange, C.AUTO_ATTACK, "target") end
+  parts[#parts + 1] = "Auto Attack=" .. (okA and k(a) or "refused")
+  for i = 1, 4 do
+    local okD, d = false, nil
+    if CheckInteractDistance then okD, d = pcall(CheckInteractDistance, "target", i) end
+    parts[#parts + 1] = ("interact%d=%s"):format(i, okD and k(d) or "refused")
+  end
+  local line = "combo reach: " .. table.concat(parts, "  ")
+  say("%s", line)
+  local r = C.InReach()
+  say("combo reach: decided by %s -> %s", tostring(C.reachHow), tostring(r))
+  return line
 end
 function C.Swinging()
   if C_Spell and C_Spell.IsCurrentSpell then
@@ -161,7 +209,7 @@ function C.ActiveTick()
   local reach = C.InReach()
   if reach == false then return end
   cur.active = cur.active + C.ACTIVE_EVERY
-  if reach == true then cur.reachKnown = true end
+  if reach == true then cur.reachKnown = true cur.reachHow = C.reachHow end
 end
 function C.Pull()
   C.cur = { imbue = C.ImbueNow(), totems = C.ScanTotems({}), active = 0, swing = C.Swinging() }
@@ -255,7 +303,7 @@ function C.Close(cur)
   for _, n in ipairs(totems) do set[n] = true end
   local active = (cur.active or 0) >= C.ACTIVE_MIN and math.min(cur.active, dur) or nil
   local rec = { at = (time and time()) or 0, sid = sid, mob = plain(last.name) or plain(s.name), dur = dur, dmg = dmg,
-                active = active, how = active and (cur.reachKnown and "swinging in reach" or "swinging") or "the whole fight",
+                active = active, how = active and (cur.reachKnown and ("swinging in reach - " .. tostring(cur.reachHow)) or "swinging") or "the whole fight",
                 imbue = imbue, totems = totems, combo = C.Label(imbue, set),
                 wf = dmg > 0 and wf / dmg or 0, ft = dmg > 0 and ft / dmg or 0, spells = C.TopSpells(spells, dmg) }
   d.fights = d.fights or {}
@@ -901,6 +949,7 @@ R:Register({
     local cmd = tostring(args or ""):match("^(%S*)") or ""
     if cmd == "probe" then C.Probe() return end
     if cmd == "live" then C.LiveArm() return end
+    if cmd == "reach" then C.ReachProbe() return end
     if cmd == "why" then
       say("combo: recording %s - last fight: %s", R:Enabled("combo") and "ON" or "OFF (/bist on combo)", C.lastWhy or "none since the reload")
       return
