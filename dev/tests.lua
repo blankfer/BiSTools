@@ -5527,11 +5527,15 @@ do
     ok(last():find("FLAMETONGUE", 1, true), "a fire hit with the swing: FLAMETONGUE", last())
     fire(Co.events, "UNIT_COMBAT", "nameplate1", "WOUND", "", 100, 1)
     ok(Co.cur.burst and Co.cur.burst.swings == 1, "the same mob as a nameplate: never counted twice (target only)")
+    hit("WOUND") W.runAfters(0.4) hit("WOUND") hit("WOUND", 4) W.runAfters(1)
+    local rows = Co.tape.rows
+    ok(last():find("FLAMETONGUE", 1, true) and rows[#rows - 1]:GetText():find("+1 EXTRA HIT", 1, true),
+       "an extra hit AND Flametongue in one burst: two lines, never one that wraps (Arn's shot)", rows[#rows - 1]:GetText() .. " / " .. last())
     for _ = 1, 8 do hit("WOUND") W.runAfters(0.4) hit("WOUND") W.runAfters(1) end
     ok(#Co.tape.rows <= Co.TAPE.lines + 1, "a long fight: the oldest lines roll off the top", #Co.tape.rows)
     Co.tape:GetScript("OnUpdate")(Co.tape, 5)
     ok(Co.tape:IsShown(), "in the fight it stays (no fading while it prints)")
-    ok(Co.cur.procs.extra1 == 9 and Co.cur.procs.extra2 == 1 and Co.cur.procs.fire == 1, "the fight counts its procs")
+    ok(Co.cur.procs.extra1 == 10 and Co.cur.procs.extra2 == 1 and Co.cur.procs.fire == 2, "the fight counts its procs")
     -- A HIDDEN ACTION WORD (Arn: "still not seeing the live procs"): counted as a swing, never dropped
     local hidden = function() return W.secret and W.secret() or setmetatable({}, { __secret = true }) end
     local keepSec = _G.issecretvalue
@@ -5540,12 +5544,28 @@ do
     fire(Co.events, "UNIT_COMBAT", "target", S, "", 100, S)
     fire(Co.events, "UNIT_COMBAT", "target", S, "", 100, S)
     W.runAfters(1)
-    ok(Co.cur.procs.extra1 == 10, "two hidden hits at once: still +1 extra hit")
+    ok(Co.cur.procs.extra1 == 11, "two hidden hits at once: still +1 extra hit")
     _G.issecretvalue = keepSec
     Co.FightOver()
     ok(last():find("TOTAL", 1, true) and last():find("PROCS", 1, true), "the fight over: a rule and the TOTAL", last())
-    Co.tape:GetScript("OnUpdate")(Co.tape, 30)
-    ok(not Co.tape:IsShown(), "then it lingers and fades")
+    Co.tape:GetScript("OnUpdate")(Co.tape, 29)
+    ok(Co.tape:IsShown() and not Co.tape.toss, "29 s idle: still there (Arn: 30 s idle before it goes)")
+    Co.TossStart(Co.tape, -1, false)
+    Co.tape:GetScript("OnUpdate")(Co.tape, 0.35)
+    ok(Co.tape:IsShown() and (Co.tape.tossX or 0) < -10 and Co.tape.teeth and Co.tape.teeth:IsShown(),
+       "torn off: the teeth show and it flies to the left as it fades", Co.tape.tossX)
+    Co.tape:GetScript("OnUpdate")(Co.tape, 0.5)
+    ok(not Co.tape:IsShown() and Co.tape.tossX == 0 and not Co.tape.toss, "gone - and put back in place for the next fight")
+    Co.TapePrint("x")
+    Co.TossStart(Co.tape, 1, true)
+    ok(Co.tape.rows[#Co.tape.rows]:GetText():find("PAPER JAM", 1, true), "1 in 100: PAPER JAM")
+    Co.tape:GetScript("OnUpdate")(Co.tape, 0.5)
+    ok(Co.tape:IsShown() and math.abs(Co.tape.tossX or 0) <= Co.TOSS.jamPx, "jammed: it rattles where it is")
+    Co.TapePrint("+1 EXTRA HIT")
+    ok(not Co.tape.toss and Co.tape.tossX == 0, "a new line while it goes: back, printing")
+    Co.TossStart(Co.tape, 1, true)
+    for _ = 1, 4 do Co.tape:GetScript("OnUpdate")(Co.tape, 0.5) end
+    ok(not Co.tape:IsShown(), "then the jam fades away")
     W.runAfters(Co.READ_WAIT + 0.1)                    -- (that fight's read done before the next one's meter is set up)
     ok(Co.HitLine(Co.lastHits):find("hidden 2", 1, true) and Co.HitLine(Co.lastHits):find("hits heard", 1, true),
        "/bist combo why: what the game sent (hits, plain/hidden, schools, gaps)", Co.HitLine(Co.lastHits))

@@ -903,7 +903,9 @@ function C.CloseBurst(cur, b)
   elseif extra == 2 then cur.procs.extra2 = cur.procs.extra2 + 1 words[#words + 1] = "+2 extra hits"
   elseif extra > 2 then cur.procs.more = cur.procs.more + 1 words[#words + 1] = ("+%d extra hits"):format(extra) end
   if b.fire > 0 and b.swings > 0 then cur.procs.fire = cur.procs.fire + 1 words[#words + 1] = "Flametongue" end
-  if #words > 0 and db().scroll ~= false then C.Scroll(table.concat(words, "  "), b.fire > 0 and b.swings < 2) end
+  -- (17 Nov, Arn's shot of the tape: "+1 EXTRA HIT  FLAMETONGUE" wrapped onto two lines and the next line printed over
+  -- it - each word is its own line now, and a line never wraps)
+  if db().scroll ~= false then for _, w in ipairs(words) do C.Scroll(w, w == "Flametongue") end end
 end
 --[[ THE RECEIPT TAPE (17 Nov 2026, Arn: "make it like a receipt calculator printer, it scrolling from bottom to top"): a
   small strip of paper beside the card's spot. Each proc prints a line at the bottom - the fight's clock, then the words
@@ -914,16 +916,92 @@ end
 -- the paper a dim warm cream, brown ink, and it waits C.TAPE.linger s after the LAST line it printed, in a fight or not)
 C.TAPE = { w = 170, lines = 7, lh = 15, roll = 0.15, linger = 30, fade = 1.5, pad = 5, alpha = 0.82 }
 C.PAPER, C.INK, C.INK_FIRE = { 0.78, 0.69, 0.53 }, { 0.20, 0.13, 0.07 }, { 0.62, 0.20, 0.06 }
-local function tapePlace(t)
+local function tapePlace(t, dx, dy)
+  dx, dy = dx or 0, dy or 0
+  t.tossX, t.tossY = dx, dy
   t:ClearAllPoints()
   local p = db().tapePos
-  if type(p) == "table" and p[1] then t:SetPoint(p[1], UIParent, p[2] or p[1], p[3] or 0, p[4] or 0) return end
+  if type(p) == "table" and p[1] then t:SetPoint(p[1], UIParent, p[2] or p[1], (p[3] or 0) + dx, (p[4] or 0) + dy) return end
   -- (17 Nov, Arn's first fight with it: above the card's spot it sat under his XP bar and AutoLayer's box at the top of the
   -- screen - it hangs UNDER the card now, following the card wherever it was dragged)
   local card = C.BuildCard()
-  if card then t:SetPoint("TOP", card, "BOTTOM", 0, -6) else t:SetPoint("TOP", UIParent, "TOP", 0, -234) end
+  if card then t:SetPoint("TOP", card, "BOTTOM", dx, -6 + dy) else t:SetPoint("TOP", UIParent, "TOP", dx, -234 + dy) end
 end
 C.TapePlace = tapePlace
+--[[ TORN OFF AND TOSSED (17 Nov 2026, Arn: "jagged look when it fades away, like I ripped it from the calculator and tossed
+  it to the side - random left or right fading out, 1 in 100 it jams and fades away"): when the idle clock runs out the
+  printer's lip goes, a row of paper teeth shows along the bottom (the tear), and the strip flies off to a random side,
+  dropping a little, as it fades (C.TOSS.secs). One time in C.TOSS.jamOdds it jams instead: PAPER JAM prints, the strip
+  rattles where it is, then fades. A new line while it goes: back in place, printing again. ]]
+C.TOSS = { secs = 0.7, far = 180, drop = 40, hop = 12, jamOdds = 100, jamShake = 1.0, jamFade = 0.6, jamPx = 3, teeth = 14, tooth = 9 }
+local function teethFrame(t)
+  if t.teeth then return t.teeth end
+  local Q, T = C.TOSS, C.TAPE
+  local g = CreateFrame("Frame", nil, UIParent)               -- (its own frame: never cut by the paper's clipping)
+  g:SetFrameStrata("HIGH")
+  g:SetSize(T.w, Q.tooth)
+  g:SetPoint("TOP", t, "BOTTOM", 0, Q.tooth / 2)
+  g.bits = {}
+  local step = T.w / Q.teeth
+  for i = 1, Q.teeth do
+    local x = g:CreateTexture(nil, "ARTWORK")
+    x:SetSize(Q.tooth * 0.75, Q.tooth * 0.75)
+    x:SetPoint("CENTER", g, "LEFT", step * (i - 0.5), 0)
+    x:SetColorTexture(C.PAPER[1], C.PAPER[2], C.PAPER[3], T.alpha)
+    if x.SetRotation then x:SetRotation(math.pi / 4) end      -- (a square on its corner: one tooth of the tear)
+    g.bits[i] = x
+  end
+  g:Hide()
+  t.teeth = g
+  return g
+end
+--- Put the strip back where it prints, whole (the lip on, no tear).
+function C.TossReset(t)
+  t.toss = nil
+  tapePlace(t)
+  if t.teeth then t.teeth:Hide() end
+  if t.edge then t.edge:Show() end
+  t:SetAlpha(1)
+end
+--- The idle clock ran out: tear it off and toss it (dir -1 left / 1 right, jam true = the 1 in 100; both random if nil).
+function C.TossStart(t, dir, jam)
+  local Q = C.TOSS
+  if jam == nil then jam = math.random(Q.jamOdds) == 1 end
+  if jam then C.TapePrint("** PAPER JAM **", true) end
+  t.left = nil
+  t.toss = { at = 0, dir = dir or (math.random(2) == 1 and -1 or 1), jam = jam or nil }
+  if not jam then
+    if t.edge then t.edge:Hide() end
+    local g = teethFrame(t)
+    g:SetAlpha(1)
+    g:Show()
+  end
+end
+function C.TossStep(t, e)
+  local Q, s = C.TOSS, t.toss
+  s.at = s.at + e
+  local a
+  if s.jam then
+    if s.at < Q.jamShake then
+      tapePlace(t, (math.random() * 2 - 1) * Q.jamPx, (math.random() * 2 - 1) * Q.jamPx * 0.5)
+      a = 1
+    else
+      tapePlace(t)
+      a = 1 - (s.at - Q.jamShake) / Q.jamFade
+    end
+  else
+    local k = math.min(1, s.at / Q.secs)
+    tapePlace(t, s.dir * Q.far * k * k, -Q.drop * k * k + Q.hop * math.sin(k * math.pi))
+    a = 1 - k
+  end
+  if a <= 0 then
+    t:Hide()
+    C.TossReset(t)
+    return
+  end
+  t:SetAlpha(a)
+  if t.teeth then t.teeth:SetAlpha(a) end
+end
 function C.Tape()
   if C.tape then return C.tape end
   local T = C.TAPE
@@ -947,8 +1025,8 @@ function C.Tape()
     if ok and pt then db().tapePos = { pt, rp, x, y } end
   end
   t:SetScript("OnDragStop", stop)
-  t:SetScript("OnHide", stop)
-  t:SetScript("OnEnter", function(self) self.hold = true self:SetAlpha(1) end)
+  t:SetScript("OnHide", function(self) stop(self) if self.teeth then self.teeth:Hide() end end)
+  t:SetScript("OnEnter", function(self) if not self.toss then self.hold = true self:SetAlpha(1) end end)
   t:SetScript("OnLeave", function(self) self.hold = nil end)
   t.paper = t:CreateTexture(nil, "BACKGROUND")
   t.paper:SetAllPoints(t)
@@ -963,12 +1041,12 @@ function C.Tape()
       self.shift = math.max(0, self.shift - e * (T.lh / T.roll))
       C.TapeLay(self)
     end
+    if self.toss then C.TossStep(self, e) return end
     if self.left then
       if self.hold then self.left = T.linger
       else
         self.left = self.left - e
-        if self.left <= 0 then self:Hide() self.left = nil return end
-        if self.left < T.fade then self:SetAlpha(self.left / T.fade) end
+        if self.left <= 0 then C.TossStart(self) end
       end
     end
   end)
@@ -997,6 +1075,8 @@ function C.TapePrint(text, fire)
     r:SetFont("Fonts\\ARIALN.TTF", 12, "")
     r:SetWidth(T.w - 2 * T.pad - 4)
     r:SetJustifyH("LEFT")
+    if r.SetWordWrap then r:SetWordWrap(false) end
+    if r.SetMaxLines then r:SetMaxLines(1) end
   end
   local col = fire and C.INK_FIRE or C.INK
   r:SetTextColor(col[1], col[2], col[3], 1)
@@ -1009,6 +1089,7 @@ function C.TapePrint(text, fire)
     t.spare[#t.spare + 1] = old
   end
   t.shift = T.lh
+  if t.toss then C.TossReset(t) end                            -- (printing again while it flew off: back in place)
   t.left = T.linger                                            -- (the idle clock starts again at every line)
   t:SetAlpha(1)
   C.TapeLay(t)
@@ -1021,6 +1102,7 @@ function C.TapeClear()
   if not t then return end
   for _, r in ipairs(t.rows) do r:Hide() t.spare[#t.spare + 1] = r end
   t.rows, t.shift, t.left = {}, 0, nil
+  if t.toss then C.TossReset(t) end
   t:Hide()
 end
 --- The fight over: a rule and the total, then it lingers and fades.
