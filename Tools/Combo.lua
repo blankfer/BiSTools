@@ -238,6 +238,7 @@ end
 function C.FightOver()
   local cur = C.cur
   C.cur = nil
+  if cur then C.lastHits = cur.hitStats end
   if C.activeTicker and C.activeTicker.Cancel then C.activeTicker:Cancel() end
   C.activeTicker = nil
   if not cur or not (C_Timer and C_Timer.After) then return end
@@ -803,16 +804,44 @@ end
   when plain; a hidden school counts as a swing. In a group, others hitting your target in the same instant can read as a
   proc (it is a solo tool first). Each fight counts its procs (rec.procs). The words rise beside the card's spot and fade;
   db.scroll turns them off. ]]
-C.BURST, C.SCROLL_FOR, C.SCROLL_RISE, C.SCROLL_MAX = 0.12, 1.6, 46, 8
+-- (C.BURST 0.25, 17 Nov - Arn: "still not seeing the live procs": 0.12 s may be shorter than the gap the extra swings
+-- arrive with; a swing is 1.5 s or more, so a quarter second is still one instant. A HIDDEN action word now counts as a
+-- swing (it was dropped); C.hitStats is what the game sent, for /bist combo why.)
+C.BURST, C.SCROLL_FOR, C.SCROLL_RISE, C.SCROLL_MAX = 0.25, 1.6, 46, 8
 C.SWING_ACTIONS = { WOUND = true, MISS = true, DODGE = true, PARRY = true, BLOCK = true, DEFLECT = true, ABSORB = true, RESIST = true, IMMUNE = true, EVADE = true }
+--- What the game sent this fight: how many hits, the action word plain / hidden, the schools, the gaps between hits.
+local function stat(cur, action, school, now)
+  local st = cur.hitStats
+  if not st then st = { n = 0, actPlain = 0, actHidden = 0, acts = {}, schools = {}, gaps = { 0, 0, 0, 0, 0 } } cur.hitStats = st end
+  st.n = st.n + 1
+  if action == nil then st.actHidden = st.actHidden + 1 else st.actPlain = st.actPlain + 1 st.acts[action] = (st.acts[action] or 0) + 1 end
+  local sk = school == nil and "hidden" or tostring(school)
+  st.schools[sk] = (st.schools[sk] or 0) + 1
+  if st.last then
+    local g = now - st.last
+    local i = (g < 0.05 and 1) or (g < 0.15 and 2) or (g < 0.3 and 3) or (g < 0.6 and 4) or 5
+    st.gaps[i] = st.gaps[i] + 1
+  end
+  st.last = now
+end
+function C.HitLine(st)
+  if not st then return "no hits on your target were heard" end
+  local acts, schools = {}, {}
+  for k, v in pairs(st.acts) do acts[#acts + 1] = k .. " " .. v end
+  for k, v in pairs(st.schools) do schools[#schools + 1] = k .. " " .. v end
+  local g = st.gaps
+  return ("%d hits heard - action plain %d (%s), hidden %d - school %s - gaps <0.05s %d, <0.15 %d, <0.3 %d, <0.6 %d, longer %d"):format(
+    st.n, st.actPlain, table.concat(acts, ", "), st.actHidden, table.concat(schools, ", "), g[1], g[2], g[3], g[4], g[5])
+end
 function C.Hit(action, school)
   local cur = C.cur
   if not cur then return end
-  action = plain(action)
-  if type(action) ~= "string" or not C.SWING_ACTIONS[action] then return end
-  school = plain(school)
-  local fire = type(school) == "number" and school == 4
   local now = GetTime and GetTime() or 0
+  action = plain(action)
+  school = plain(school)
+  stat(cur, action, school, now)
+  if action ~= nil and (type(action) ~= "string" or not C.SWING_ACTIONS[action]) then return end   -- (a heal, a plain non-swing)
+  local fire = type(school) == "number" and school == 4
   local b = cur.burst
   if not b or now - b.at > C.BURST then
     b = { at = now, swings = 0, fire = 0 }
@@ -1059,6 +1088,7 @@ R:Register({
     if cmd == "reach" then C.ReachProbe() return end
     if cmd == "why" then
       say("combo: recording %s - last fight: %s", R:Enabled("combo") and "ON" or "OFF (/bist on combo)", C.lastWhy or "none since the reload")
+      say("combo: hits - %s", C.HitLine(C.lastHits))
       return
     end
     if cmd == "forget" then d.fights, d.lastSid = {}, nil if C.IsOpen() then C.Paint() end say("combo: every fight forgotten") return end

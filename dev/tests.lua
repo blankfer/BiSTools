@@ -5469,7 +5469,19 @@ do
     Co.scrollHost:GetScript("OnUpdate")(Co.scrollHost, 5)
     ok(not Co.scrollHost:IsShown(), "the words rise, fade and go")
     ok(Co.cur.procs.extra1 == 1 and Co.cur.procs.extra2 == 1 and Co.cur.procs.fire == 1, "the fight counts its procs")
+    -- A HIDDEN ACTION WORD (Arn: "still not seeing the live procs"): counted as a swing, never dropped
+    local hidden = function() return W.secret and W.secret() or setmetatable({}, { __secret = true }) end
+    local keepSec = _G.issecretvalue
+    local S = {}
+    _G.issecretvalue = function(v) return v == S or (keepSec and keepSec(v)) or false end
+    fire(Co.events, "UNIT_COMBAT", "target", S, "", 100, S)
+    fire(Co.events, "UNIT_COMBAT", "target", S, "", 100, S)
+    W.runAfters(0.5)
+    ok(Co.cur.procs.extra1 == 2, "two hidden hits at once: still +1 extra hit")
+    _G.issecretvalue = keepSec
     Co.FightOver()
+    ok(Co.HitLine(Co.lastHits):find("hidden 2", 1, true) and Co.HitLine(Co.lastHits):find("hits heard", 1, true),
+       "/bist combo why: what the game sent (hits, plain/hidden, schools, gaps)", Co.HitLine(Co.lastHits))
   end
   R:SetEnabled("combo", false)
   cdb.fights = {}
