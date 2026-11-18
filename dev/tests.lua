@@ -5388,6 +5388,16 @@ do
      "the list in columns: imbue FT, earth SoE, fire and air empty", r1.imbue:GetText() .. "|" .. r1.fire:GetText() .. "|" .. r1.earth:GetText() .. "|" .. r1.air:GetText())
   ok(r2.imbue:GetText() == "WF" and r2.air:GetText() == "WF" and r2.earth:GetText() == "SoE", "Windfury on the weapon and the Windfury Totem each in their own column")
   ok(Co.Cells("Windfury Weapon", { "Grace of Air Totem", "Windfury Totem" }).air == "GoA+WF", "two of one element (they stack now): joined with +")
+  -- OPEN STAYS OPEN (Arn: "combo window closes every time I reload")
+  ok(cdb.open == true, "the list open: written down")
+  Co.frame:Hide()
+  R:Get("combo"):OnLogin(cdb)
+  ok(Co.IsOpen(), "a reload with it open: it comes back")
+  Co.Toggle(false)
+  ok(cdb.open == false, "closed: written down")
+  R:Get("combo"):OnLogin(cdb)
+  ok(not Co.IsOpen(), "a reload with it closed: it stays closed")
+  Co.Toggle(true)
   local onEsc = false
   for _, n in ipairs(_G.UISpecialFrames or {}) do if n == "BiSToolsCombo" then onEsc = true end end
   ok(not onEsc, "the list is never on the Escape list (Arn: Esc closed it while he was not in it)")
@@ -5499,15 +5509,15 @@ do
     Co.Pull()
     local fire = Co.events:GetScript("OnEvent")
     local function hit(action, school) fire(Co.events, "UNIT_COMBAT", "target", action, "", 100, school or 1) end
-    hit("WOUND") W.runAfters(0.5)                                        -- a plain swing: nothing
+    hit("WOUND") W.runAfters(1)                                          -- a plain swing: nothing
     ok(not (Co.scrollHost and Co.scrollHost:IsShown()), "one swing: no word")
-    hit("WOUND") hit("WOUND") W.runAfters(0.5)
-    ok(Co.scrollHost and Co.scrollHost:IsShown() and Co.scrollHost.pool[1]:GetText() == "+1 extra hit", "two hits at once: +1 extra hit (the totem's)")
-    hit("WOUND") hit("WOUND") hit("MISS") W.runAfters(0.5)
+    hit("WOUND") W.runAfters(0.4) hit("WOUND") W.runAfters(1)                  -- the extra hit a batch later (Arn's gaps: 0.3-0.6 s)
+    ok(Co.scrollHost and Co.scrollHost:IsShown() and Co.scrollHost.pool[1]:GetText() == "+1 extra hit", "two hits a batch apart: +1 extra hit (the totem's)")
+    hit("WOUND") hit("WOUND") hit("MISS") W.runAfters(1)
     local said = {}
     for _, w in ipairs(Co.scrollHost.pool) do if w.left and w.left > 0 then said[#said + 1] = w:GetText() end end
     ok(table.concat(said, "|"):find("+2 extra hits", 1, true), "three at once (a miss counts as a swing): +2 extra hits (the weapon's)", table.concat(said, "|"))
-    hit("WOUND") hit("WOUND", 4) W.runAfters(0.5)
+    hit("WOUND") W.runAfters(0.45) hit("WOUND", 4) W.runAfters(1)            -- (the fire hit a batch later: 0.45 s, Arn's log)
     said = {}
     for _, w in ipairs(Co.scrollHost.pool) do if w.left and w.left > 0 then said[#said + 1] = w:GetText() end end
     ok(table.concat(said, "|"):find("Flametongue", 1, true), "a fire hit with the swing: Flametongue")
@@ -5523,7 +5533,7 @@ do
     _G.issecretvalue = function(v) return v == S or (keepSec and keepSec(v)) or false end
     fire(Co.events, "UNIT_COMBAT", "target", S, "", 100, S)
     fire(Co.events, "UNIT_COMBAT", "target", S, "", 100, S)
-    W.runAfters(0.5)
+    W.runAfters(1)
     ok(Co.cur.procs.extra1 == 2, "two hidden hits at once: still +1 extra hit")
     _G.issecretvalue = keepSec
     Co.FightOver()

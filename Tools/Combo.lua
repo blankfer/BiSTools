@@ -702,10 +702,13 @@ function C.Paint()
     or ("%d fights kept  ·  dps over the time you swing"):format(#(db().fights or {})))
 end
 function C.IsOpen() return C.frame ~= nil and C.frame:IsShown() end
+-- OPEN STAYS OPEN (17 Nov 2026, Arn: "combo window closes every time I reload and it says on in the options"): the
+-- list remembers it was up (db.open) and comes back at login; the x / /bist combo closing it writes that down too.
 function C.Toggle(want)
   local f = C.Build()
   if want == nil then want = not f:IsShown() end
   if want then C.Layout() f:Show() C.Paint() else f:Hide() end
+  db().open = f:IsShown() and true or false
   return f:IsShown()
 end
 
@@ -815,6 +818,15 @@ end
 -- arrive with; a swing is 1.5 s or more, so a quarter second is still one instant. A HIDDEN action word now counts as a
 -- swing (it was dropped); C.hitStats is what the game sent, for /bist combo why.)
 C.BURST, C.SCROLL_FOR, C.SCROLL_RISE, C.SCROLL_MAX = 0.25, 1.6, 46, 8
+-- THE BATCH (17 Nov 2026, Arn's /bist combo why after two fights: 57 hits heard, all plain - but the gaps sat at 0.3-0.6 s
+-- (19), only one under 0.05 s, and fire hits (his Flametongue Totem) about one per swing): Forever hands combat results
+-- out in batches, so the extra hits land a batch after the swing, not in its instant. A burst is now C.BURST_MAX s, or
+-- C.BURST_K of your swing time when that is shorter - never reaching into the next real swing.
+C.BURST_MAX, C.BURST_K = 0.7, 0.45
+function C.BurstWindow()
+  local sp = (C.Speed and C.Speed()) or 2.5
+  return math.min(C.BURST_MAX, sp * C.BURST_K)
+end
 C.SWING_ACTIONS = { WOUND = true, MISS = true, DODGE = true, PARRY = true, BLOCK = true, DEFLECT = true, ABSORB = true, RESIST = true, IMMUNE = true, EVADE = true }
 --- What the game sent this fight: how many hits, the action word plain / hidden, the schools, the gaps between hits.
 local function stat(cur, action, school, now)
@@ -850,10 +862,11 @@ function C.Hit(action, school)
   if action ~= nil and (type(action) ~= "string" or not C.SWING_ACTIONS[action]) then return end   -- (a heal, a plain non-swing)
   local fire = type(school) == "number" and school == 4
   local b = cur.burst
-  if not b or now - b.at > C.BURST then
+  local win = C.BurstWindow()
+  if not b or now - b.at > win then
     b = { at = now, swings = 0, fire = 0 }
     cur.burst = b
-    if C_Timer and C_Timer.After then C_Timer.After(C.BURST + 0.02, function() C.CloseBurst(cur, b) end) end
+    if C_Timer and C_Timer.After then C_Timer.After(win + 0.02, function() C.CloseBurst(cur, b) end) end
   end
   if fire then b.fire = b.fire + 1 else b.swings = b.swings + 1 end
 end
@@ -1096,6 +1109,10 @@ R:Register({
       action = function(d) C.db = d C.Toggle(true) end },
   },
   OnInit = function(_, d) C.db = d end,
+  OnLogin = function(_, d)
+    C.db = d
+    if d.open and R:Enabled("combo") then C.Toggle(true) end       -- (it was up when you left: up again)
+  end,
   OnOpen = function(_, d, recenter)
     C.db = d
     if recenter then
@@ -1107,7 +1124,7 @@ R:Register({
   end,
   IsOpen = function() return C.IsOpen() end,
   OnClose = function() C.Toggle(false) end,
-  OnDisable = function() C.cur = nil if C.frame then C.frame:Hide() end if C.card then C.card:Hide() end end,
+  OnDisable = function() C.cur = nil if C.frame then C.frame:Hide() db().open = false end if C.card then C.card:Hide() end end,
   OnSlash = function(_, d, args)
     C.db = d
     local cmd = tostring(args or ""):match("^(%S*)") or ""
