@@ -5335,6 +5335,9 @@ do
   Co.card:GetScript("OnMouseUp")(Co.card)
   ok(Co.IsOpen() and Co.frame.rows[1].name:GetText() == "FT · SoE" and Co.frame.rows[1].n:GetText() == "2",
      "a click on the card opens the list, best first")
+  local onEsc = false
+  for _, n in ipairs(_G.UISpecialFrames or {}) do if n == "BiSToolsCombo" then onEsc = true end end
+  ok(not onEsc, "the list is never on the Escape list (Arn: Esc closed it while he was not in it)")
   Co.frame.rows[2]:GetScript("OnClick")(Co.frame.rows[2])
   ok(Co.frame.detail:GetText():find("Bloodsnout", 1, true) and Co.frame.detail:GetText():find("Windfury 30%", 1, true),
      "a row clicked: its fights, with Windfury's share", Co.frame.detail:GetText())
@@ -5375,6 +5378,28 @@ do
   _G.C_DamageMeter.GetAvailableCombatSessions = function() return { { sessionID = 20, name = "New" }, { sessionID = 14, name = "Old" } } end
   Co.Pull() Co.FightOver() W.runAfters(Co.READ_WAIT + 0.1)
   ok(cdb.lastSid == 20, "the newest fight is the highest id, whatever the list's order")
+  -- THE LIVE PROBE (Arn: "a scrolling proc text ... during combat"): armed for one fight, the meter read while you fight
+  do
+    local amt = 100
+    _G.C_DamageMeter.GetCombatSessionSourceFromType = function() return { combatSpells = { { spellID = 25584, totalAmount = amt } } } end
+    local hadEnum = _G.Enum
+    _G.Enum = _G.Enum or {}
+    local keepEnum = { _G.Enum.DamageMeterSessionType, _G.Enum.DamageMeterType }
+    _G.Enum.DamageMeterSessionType = { Current = 1 }
+    _G.Enum.DamageMeterType = { DamageDone = 0 }
+    R:Get("combo"):OnSlash(cdb, "live")
+    Co.events:GetScript("OnEvent")(Co.events, "PLAYER_REGEN_DISABLED")
+    amt = 250
+    for _ = 1, 3 do W.tick() end
+    amt = 400
+    W.tick()
+    Co.events:GetScript("OnEvent")(Co.events, "PLAYER_REGEN_ENABLED")
+    local all = table.concat(Co.liveLines or {}, " | ")
+    ok(all:find("Windfury Attack (25584): total plain", 1, true) and all:find("moved 2 times", 1, true) and Co.live == nil,
+       "the live probe: reads the meter through one fight, says whether Windfury's total moved, then disarms", all)
+    _G.Enum.DamageMeterSessionType, _G.Enum.DamageMeterType = keepEnum[1], keepEnum[2]
+    _G.Enum = hadEnum
+  end
   R:SetEnabled("combo", false)
   cdb.fights = {}
   Co.Toggle(false)

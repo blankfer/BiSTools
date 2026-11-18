@@ -347,7 +347,8 @@ function C.Build()
   f.detail:SetJustifyH("LEFT")
   f.foot = K.fs(f, "", 9, "dim")
   f.foot:SetPoint("BOTTOMLEFT", 8, 7)
-  if type(UISpecialFrames) == "table" then table.insert(UISpecialFrames, "BiSToolsCombo") end   -- Escape closes it
+  -- NEVER ON THE ESCAPE LIST (17 Nov, Arn: "I pressed esc when not in the window and it closed it" - the boss list's
+  -- lesson again): the x or /bist combo closes it, nothing else
   f:Hide()
   C.frame = f
   return f
@@ -637,6 +638,107 @@ function C.Probe()
   return lines
 end
 
+-- ---------------------------------------------------------------- the LIVE probe (/bist combo live)
+--[[ (17 Nov 2026, Arn: "a scrolling proc text so we can see when we get procs ... 1 extra hit, 1 extra flametongue,
+  during combat"). Forever's combat log never reaches an addon (solved.md: COMBAT_LOG_EVENT_UNFILTERED fires zero
+  times, the log window's lines are tickets) - so the one road left is the game's damage meter DURING the fight: if your
+  breakdown's per-spell totals are plain and move while you fight, a jump in Windfury's total is a proc. Armed for ONE
+  fight: every C.LIVE_EVERY s it reads the current fight's breakdown (kinds only - plain / SECRET - and, when plain,
+  whether a spell's total moved); after the fight it prints what it saw, and the shape of a spell's details (hit counts?). ]]
+C.LIVE_EVERY = 0.5
+function C.LiveArm()
+  C.live = { armed = true }
+  say("combo live probe: armed for your next fight - fight something with your imbue up, then read the lines after it")
+end
+local function liveRead(L)
+  local D = C_DamageMeter
+  local ST = Enum and Enum.DamageMeterSessionType
+  local dmg = (Enum and Enum.DamageMeterType and Enum.DamageMeterType.DamageDone) or 0
+  if not (D and D.GetCombatSessionSourceFromType and ST and ST.Current) then L.noApi = true return end
+  L.polls = L.polls + 1
+  local guid = UnitGUID and UnitGUID("player")
+  local ok, br = pcall(D.GetCombatSessionSourceFromType, ST.Current, dmg, guid)
+  if not ok then L.refused = L.refused + 1 return end
+  if type(br) ~= "table" then L.empty = L.empty + 1 return end
+  if issecretvalue and issecretvalue(br) then L.secretTable = L.secretTable + 1 return end
+  L.tables = L.tables + 1
+  pcall(function()
+    for _, sp in ipairs(br.combatSpells or {}) do
+      local id, amt = sp.spellID, sp.totalAmount
+      local idPlain = id ~= nil and not (issecretvalue and issecretvalue(id))
+      local key = idPlain and id or "secret-id"
+      local e = L.spells[key]
+      if not e then
+        local name = "?"
+        if idPlain and C_Spell and C_Spell.GetSpellName then
+          local okN, n = pcall(C_Spell.GetSpellName, id)
+          if okN and n and not (issecretvalue and issecretvalue(n)) then name = n end
+        end
+        e = { name = name, plain = 0, secret = 0, moves = 0 }
+        L.spells[key] = e
+        L.order[#L.order + 1] = key
+      end
+      if amt ~= nil and issecretvalue and issecretvalue(amt) then e.secret = e.secret + 1
+      elseif type(amt) == "number" then
+        e.plain = e.plain + 1
+        if e.last and amt ~= e.last then e.moves = e.moves + 1 end
+        e.last = amt
+      end
+    end
+  end)
+end
+function C.LiveStart()
+  local L = C.live
+  if not (L and L.armed) then return end
+  L.armed = nil
+  L.polls, L.refused, L.empty, L.secretTable, L.tables, L.spells, L.order = 0, 0, 0, 0, 0, {}, {}
+  if C_Timer and C_Timer.NewTicker then
+    L.ticker = C_Timer.NewTicker(C.LIVE_EVERY, function() liveRead(L) end)
+  end
+  liveRead(L)
+end
+function C.LiveEnd()
+  local L = C.live
+  if not (L and L.polls) or L.done then return end
+  L.done = true
+  if L.ticker and L.ticker.Cancel then L.ticker:Cancel() end
+  local lines = {}
+  local function out(fmt, ...) local l = string.format(fmt, ...) lines[#lines + 1] = l say("%s", l) end
+  out("combo live probe: %d reads in the fight - %d readable, %d hidden tables, %d empty, %d refused%s", L.polls, L.tables,
+    L.secretTable, L.empty, L.refused, L.noApi and " (no meter API)" or "")
+  for i, key in ipairs(L.order) do
+    if i > 8 then break end
+    local e = L.spells[key]
+    out("  %s (%s): total plain %d / SECRET %d, moved %d times", e.name, tostring(key), e.plain, e.secret, e.moves)
+  end
+  if #L.order == 0 then out("  no spells listed while you fought") end
+  -- after the fight: the details of the first spell (counts of hits?)
+  local D = C_DamageMeter
+  local ST = Enum and Enum.DamageMeterSessionType
+  if D and ST and ST.Current then
+    local ok, br = pcall(D.GetCombatSessionSourceFromType, ST.Current, (Enum.DamageMeterType and Enum.DamageMeterType.DamageDone) or 0, UnitGUID and UnitGUID("player"))
+    if ok and type(br) == "table" then
+      pcall(function()
+        for i, sp in ipairs(br.combatSpells or {}) do
+          if i > 3 then break end
+          local det = sp.combatSpellDetails
+          local parts = {}
+          if type(det) == "table" then
+            for k, v in pairs(det) do
+              parts[#parts + 1] = tostring(k) .. "=" .. (type(v) == "table" and "{table}" or tostring(v))
+              if #parts >= 10 then break end
+            end
+          end
+          out("  after: spell %s details {%s}", tostring(sp.spellID), table.concat(parts, ", "))
+        end
+      end)
+    end
+  end
+  C.liveLines = lines
+  C.live = nil
+  return lines
+end
+
 -- ---------------------------------------------------------------- events (heard always, acted on only while the tool is on)
 local ev = CreateFrame("Frame")
 for _, e in ipairs({ "PLAYER_REGEN_DISABLED", "PLAYER_REGEN_ENABLED", "PLAYER_TOTEM_UPDATE", "UNIT_SPELLCAST_SUCCEEDED" }) do
@@ -645,6 +747,9 @@ end
 ev:SetScript("OnEvent", function(_, event, a1, _, a3)
   if event == "PLAYER_REGEN_DISABLED" then             -- a drag still on ends before the fight takes the mouse
     endDrag(C.frame) endDrag(C.card)
+    if C.live then C.LiveStart() end                  -- (the live probe, armed by hand: on or off with the tool)
+  elseif event == "PLAYER_REGEN_ENABLED" and C.live and C.live.polls then
+    C.LiveEnd()
   end
   if not R:Enabled("combo") then
     if event == "PLAYER_REGEN_ENABLED" then C.lastWhy = "the tool was off (/bist on combo)" end
@@ -694,6 +799,7 @@ R:Register({
     C.db = d
     local cmd = tostring(args or ""):match("^(%S*)") or ""
     if cmd == "probe" then C.Probe() return end
+    if cmd == "live" then C.LiveArm() return end
     if cmd == "why" then
       say("combo: recording %s - last fight: %s", R:Enabled("combo") and "ON" or "OFF (/bist on combo)", C.lastWhy or "none since the reload")
       return
