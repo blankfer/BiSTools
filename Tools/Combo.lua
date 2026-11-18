@@ -119,11 +119,22 @@ function C.CastButton()
   c:SetScript("OnEnter", function(self) C.CastTip(self) end)
   c:SetScript("OnLeave", function(self)
     if GameTooltip then GameTooltip:Hide() end
-    if not fighting() then self:Hide() end
+    C.CastAway()
   end)
   c:Hide()
   C.cast = c
   return c
+end
+--- The cast button put away AND let go of the icon it sat on (17 Nov 2026, Arn's BugSack: "BiSTools tried to call the
+--- protected function BiSToolsCombo:StartSizing()" - a secure button anchored to an icon, even hidden, makes the list a
+--- protected frame in a fight). Out of a fight only - at PLAYER_REGEN_DISABLED the lockdown has not started yet.
+function C.CastAway()
+  local c = C.cast
+  if not c or fighting() then return end
+  c:Hide()
+  c:ClearAllPoints()
+  c:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", -200, -200)
+  c.spell = nil
 end
 function C.CastTip(c)
   if not (GameTooltip and c.spell) then return end
@@ -698,6 +709,7 @@ function C.BuildCard()
   f:RegisterForDrag("LeftButton")
   f:SetScript("OnDragStart", function(self)
     if InCombatLockdown and InCombatLockdown() then return end
+    C.CastAway()
     self:StartMoving() self.moving, self.dragged = true, true
   end)
   f:SetScript("OnDragStop", function(self)
@@ -836,10 +848,11 @@ function C.Build()
   f:RegisterForDrag("LeftButton")
   f:SetScript("OnDragStart", function(self)
     if InCombatLockdown and InCombatLockdown() then return end
+    C.CastAway()
     self:StartMoving() self.moving = true
   end)
   local function keep(self)
-    if C.cast and not fighting() and not self:IsShown() then C.cast:Hide() end
+    if not self:IsShown() then C.CastAway() end
     if self.sizing then C.EndSizing(self) end                  -- (hidden mid-size: let go, as a drag does)
     if not self.moving then return end
     endDrag(self)
@@ -917,6 +930,8 @@ function C.Build()
   grip:SetScript("OnEnter", function(self) self.tex:SetAlpha(1) end)
   grip:SetScript("OnLeave", function(self) self.tex:SetAlpha(0.7) end)
   grip:SetScript("OnMouseDown", function()
+    if fighting() then return end                       -- (never in a fight)
+    C.CastAway()
     if f.StartSizing then f.sizing = true f:StartSizing("BOTTOMRIGHT") end
   end)
   grip:SetScript("OnMouseUp", function() C.EndSizing(f) end)
@@ -2042,7 +2057,7 @@ ev:SetScript("OnEvent", function(_, event, a1, a2, a3, a4, a5)
   end
   if event == "PLAYER_REGEN_DISABLED" then             -- a drag still on ends before the fight takes the mouse
     endDrag(C.frame) endDrag(C.card)
-    if C.cast then C.cast:Hide() end                   -- (the secure cast button: away before the lockdown)
+    C.CastAway()                                       -- (the secure cast button: away, and off the icon, before the lockdown)
     if C.live then C.LiveStart() end                  -- (the live probe, armed by hand: on or off with the tool)
   elseif event == "PLAYER_REGEN_ENABLED" and C.live and C.live.polls then
     C.LiveEnd()

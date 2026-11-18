@@ -5430,7 +5430,13 @@ do
     ok(cb and cb.template == "SecureActionButtonTemplate" and cb:IsShown() and cb.attrs.type == "spell" and cb.attrs.spell == ib.name,
        "pointing at an icon out of a fight: one secure button over it, casting that spell", cb and cb.attrs.spell)
     cb:GetScript("OnLeave")(cb)
-    ok(not cb:IsShown(), "the mouse leaves: it goes away")
+    local _, rel = cb:GetPoint(1)
+    ok(not cb:IsShown() and rel ~= ib, "the mouse leaves: it goes away AND lets go of the icon (Arn's BugSack: a protected list in a fight)")
+    ib:GetScript("OnEnter")(ib)
+    Co.events:GetScript("OnEvent")(Co.events, "PLAYER_REGEN_DISABLED")
+    local _, rel2 = cb:GetPoint(1)
+    ok(not cb:IsShown() and rel2 ~= ib, "a pull: put away and let go before the lockdown")
+    Co.FightOver() W.runAfters(Co.READ_WAIT + 0.1)
     _G.C_Spell.GetSpellInfo, _G.IsPlayerSpell = keepGSI, keepIPS
   end
   -- THE LEVEL PENALTY (Arn: "higher level mobs come with a lot of penalties, like misses and dodges ... an adjusted dps column")
