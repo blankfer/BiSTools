@@ -1112,7 +1112,20 @@ function C.TapeClear()
   if t.toss then C.TossReset(t) end
   t:Hide()
 end
---- The fight over: a rule and the total, then it lingers and fades.
+--- THE BREAKDOWN under the total (17 Nov 2026, Arn: "total 5 procs - break it down: 4 flame, 1 wf imbue"): one line a
+--- kind that happened, most first: { count, text, fire }. Windfury's +2 is the imbue's, +1 the totem's while one was down.
+function C.TapeBreakdown(cur)
+  local pr, out = cur.procs or {}, {}
+  local totem = cur.totems and cur.totems["Windfury Totem"]
+  local function add(n, word, fire) if (n or 0) > 0 then out[#out + 1] = { n, ("%d  %s"):format(n, word), fire } end end
+  add(pr.fire, "FLAMETONGUE", true)
+  add(pr.extra2, "WF IMBUE")
+  add(pr.extra1, totem and "WF TOTEM" or "+1 EXTRA HIT")
+  add(pr.more, "BIG WINDFURY (+3 OR MORE)")
+  table.sort(out, function(a, b) return a[1] > b[1] end)
+  return out
+end
+--- The fight over: a rule, the total and what it was made of, then it lingers and fades.
 function C.TapeEnd(cur)
   local t = C.tape
   if not (t and t:IsShown() and cur and cur.procs) then return end
@@ -1120,6 +1133,7 @@ function C.TapeEnd(cur)
   local n = (pr.extra1 or 0) + (pr.extra2 or 0) + (pr.more or 0) + (pr.fire or 0)
   C.TapePrint("- - - - - - - - - - - - -")
   C.TapePrint(("TOTAL  %d PROC%s"):format(n, n == 1 and "" or "S"))
+  for _, row in ipairs(C.TapeBreakdown(cur)) do C.TapePrint(row[2], row[3]) end
   t.left = C.TAPE.linger
 end
 --- One proc line, with the fight's clock.

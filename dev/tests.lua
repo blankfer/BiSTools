@@ -5507,6 +5507,14 @@ do
     _G.C_Spell.GetSpellInfo = keepGSI
     _G.C_Spell.IsSpellInRange, _G.CheckInteractDistance, _G.UnitExists = keepCS2, keepCID, keepUE
   end
+  -- THE BREAKDOWN (Arn: "total 5 procs - break it down: 4 flame, 1 wf imbue")
+  do
+    local rows = Co.TapeBreakdown({ procs = { extra1 = 0, extra2 = 1, more = 0, fire = 4 }, totems = {} })
+    ok(#rows == 2 and rows[1][2] == "4  FLAMETONGUE" and rows[2][2] == "1  WF IMBUE", "under the total: 4 FLAMETONGUE, 1 WF IMBUE (most first, none of the empty kinds)",
+       (rows[1] and rows[1][2] or "") .. " / " .. (rows[2] and rows[2][2] or ""))
+    rows = Co.TapeBreakdown({ procs = { extra1 = 2, extra2 = 0, more = 0, fire = 0 }, totems = { ["Windfury Totem"] = true } })
+    ok(rows[1] and rows[1][2] == "2  WF TOTEM", "with the totem down, +1s are the totem's")
+  end
   -- WHOSE WINDFURY (Arn: "if I have imbue WF we can safely assume it's +2 hits")
   do
     local cur = { imbue = "Windfury Weapon", totems = {} }
@@ -5559,7 +5567,11 @@ do
     ok(Co.cur.procs.extra1 == 11, "two hidden hits at once: still +1 extra hit")
     _G.issecretvalue = keepSec
     Co.FightOver()
-    ok(last():find("TOTAL", 1, true) and last():find("PROCS", 1, true), "the fight over: a rule and the TOTAL", last())
+    local printed = {}
+    for _, row in ipairs(Co.tape.rows) do printed[#printed + 1] = row:GetText() end
+    local all = table.concat(printed, " | ")
+    ok(all:find("TOTAL  14 PROCS | 11  +1 EXTRA HIT | 2  FLAMETONGUE | 1  WF IMBUE", 1, true),
+       "the fight over: a rule, the TOTAL, then what it was made of", all)
     Co.tape:GetScript("OnUpdate")(Co.tape, 29)
     ok(Co.tape:IsShown() and not Co.tape.toss, "29 s idle: still there (Arn: 30 s idle before it goes)")
     Co.TossStart(Co.tape, -1, false)
