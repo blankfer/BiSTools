@@ -2303,7 +2303,8 @@ do
   -- (+ alts (1), 14 Nov: the main & alts window's open button - and its section header)
   -- (+ combo (4), 17 Nov: the card switch, the proc text, the shortest fight counted, the list's open button - and its header)
   -- (+3 in rivals, 17 Nov: griefer alerts, griefer card, griefer sound)
-  ok(#opt.rows == 11 + 3 + 5 + 7 + 1 + 8 + 2 + 4 + 7 + 4 + 4 + 5 + 1 + 1 + 1 + 1 + 3 + 2 + 4 + 2 + 5 + 3, "one row per section header and per option", #opt.rows)
+  -- (+1 in combo, 17 Nov: the clean proc text)
+  ok(#opt.rows == 11 + 3 + 5 + 7 + 1 + 8 + 2 + 4 + 7 + 4 + 4 + 5 + 1 + 1 + 1 + 1 + 3 + 2 + 4 + 2 + 6 + 3, "one row per section header and per option", #opt.rows)
   -- THE BiSTheme STANDARD, 1.43:1 (Arn, 14 Oct): its sections poured into columns, the window that shape
   ok(math.abs(opt.w / opt.h - 1.43) < 0.01 and (opt.columns or 1) >= 2, "options: 1.43:1, in columns", opt.w .. "x" .. opt.h)
   local function find(label) for _, r in ipairs(opt.rows) do if r.name and r.name.text == label then return r end end end
@@ -5784,6 +5785,36 @@ do
       Co.FightOver() W.runAfters(Co.READ_WAIT + 0.1)
       ok(Co.MeterCheck({ wf = 0, procs = { extra1 = 0, extra2 = 3, more = 0, fire = 0 } }) and not Co.MeterCheck({ wf = 0.2, procs = { extra2 = 3 } }),
          "after the fight: Windfury procs on the tape but none in your damage = the meter says they were someone else's")
+      _G.UnitAttackSpeed = keepAS
+    end
+    -- THE CLEAN TAPE (Arn: "my cousin does not want any extra information on the tape ... like scrolling combat text")
+    do
+      local keepAS = _G.UnitAttackSpeed
+      _G.UnitAttackSpeed = function() return 2.0, nil end
+      cdb.tapeStyle = "clean"
+      Co.StyleChanged()
+      Co.Pull()
+      Co.cur.nowImbue = "Windfury Weapon"
+      Co.cur.nowTot["Flametongue Totem"] = true
+      local fc = Co.events:GetScript("OnEvent")
+      local function h(sch) fc(Co.events, "UNIT_COMBAT", "target", "WOUND", "", 100, sch or 1) end
+      h() h() h() h(4) W.runAfters(1)                              -- Windfury (two extra swings) and Flametongue at once
+      local fl = Co.float and Co.float.lines
+      local txt = fl and fl[#fl] and fl[#fl]:GetText() or ""
+      ok(Co.float:IsShown() and txt:find("WINDFURY +2", 1, true) and txt:find("FT +1", 1, true) and not (Co.tape and Co.tape:IsShown()),
+         "clean: one floating line, WINDFURY +2 and FT +1 together - no paper, no setup lines", txt)
+      local due = Co.float.due
+      ok(due:IsShown() and due.label:GetText() == "WINDFURY!" and (due.k or 1) == 0, "the due gauge: a proc empties it")
+      for _ = 1, 6 do W.runAfters(1.5) h() W.runAfters(1) end        -- six plain swings
+      ok(due.k > 0 and Co.cur.dry == 6, "each of your own swings with no proc fills it a little", due.k)
+      Co.float:GetScript("OnUpdate")(Co.float, 5)
+      ok(#Co.float.lines == 0, "the words float away and go")
+      Co.FightOver() W.runAfters(Co.READ_WAIT + 0.1)
+      Co.float:GetScript("OnUpdate")(Co.float, Co.FLOAT.dueHold + 1)
+      ok(not due:IsShown() and not Co.float:IsShown(), "the fight over: the gauge waits, then everything is gone (nothing ticks)")
+      ok(not (Co.tape and Co.tape:IsShown()), "no TOTAL tape in the clean mode")
+      cdb.tapeStyle = nil
+      Co.StyleChanged()
       _G.UnitAttackSpeed = keepAS
     end
     -- THE SWING CADENCE (Arn: "as long as I'm in combat and my melee is not in cadence it's considered out of range")

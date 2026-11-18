@@ -473,7 +473,7 @@ end
 function C.FightOver()
   local cur = C.cur
   C.cur = nil
-  if cur then cur.endAt = now() C.lastHits, C.lastForeign = cur.hitStats, cur.foreign C.TapeEnd(cur) end
+  if cur then cur.endAt = now() C.lastHits, C.lastForeign = cur.hitStats, cur.foreign C.TapeEnd(cur) C.FloatEnd() end
   if C.activeTicker and C.activeTicker.Cancel then C.activeTicker:Cancel() end
   C.activeTicker = nil
   if not cur or not (C_Timer and C_Timer.After) then return end
@@ -1114,7 +1114,7 @@ function C.BuildSet()
   local p = CreateFrame("Frame", nil, f)
   p:SetFrameLevel((f:GetFrameLevel() or 0) + 5)
   p:SetPoint("BOTTOMLEFT", 8, 22)
-  p:SetSize(C.Size() - 16, 128)
+  p:SetSize(C.Size() - 16, 146)
   K.tex(p, "BACKGROUND", "header", 0.98)
   K.border(p, "edge", 1)
   local d = function() return db() end
@@ -1124,11 +1124,14 @@ function C.BuildSet()
   p.scroll = swRow(p, -22, "proc text in a fight")
   p.scroll:SetScript("OnClick", function() d().scroll = d().scroll == false and true or false C.PaintSet() end)
   p.scroll.paint = function() p.scroll.value:SetText(d().scroll ~= false and "ON" or "OFF") end
-  p.min = stepRow(p, -40, "shortest fight counted", C.Min, function(v) d().min = v end, 0, 60, 5, " s")
-  p.wid = stepRow(p, -58, "width", function() return (C.Size()) end, function(v) d().w = v C.Layout() end, C.W_MIN, C.W_MAX, C.STEP, " px")
-  p.hei = stepRow(p, -76, "height", function() return select(2, C.Size()) end, function(v) d().h = v C.Layout() end, C.H_MIN, C.H_MAX, C.STEP, " px")
-  p.reset = swRow(p, -100, "RESET  (the look - never your fights)")
-  p.reset:SetScript("OnClick", function() local x = d() x.w, x.h, x.card, x.min, x.scroll = nil, nil, nil, nil, nil C.Layout() C.PaintSet() end)
+  p.style = swRow(p, -40, "proc text style")
+  p.style:SetScript("OnClick", function() d().tapeStyle = (d().tapeStyle == "clean") and "receipt" or "clean" C.StyleChanged() C.PaintSet() end)
+  p.style.paint = function() p.style.value:SetText(d().tapeStyle == "clean" and "CLEAN" or "RECEIPT") end
+  p.min = stepRow(p, -58, "shortest fight counted", C.Min, function(v) d().min = v end, 0, 60, 5, " s")
+  p.wid = stepRow(p, -76, "width", function() return (C.Size()) end, function(v) d().w = v C.Layout() end, C.W_MIN, C.W_MAX, C.STEP, " px")
+  p.hei = stepRow(p, -94, "height", function() return select(2, C.Size()) end, function(v) d().h = v C.Layout() end, C.H_MIN, C.H_MAX, C.STEP, " px")
+  p.reset = swRow(p, -118, "RESET  (the look - never your fights)")
+  p.reset:SetScript("OnClick", function() local x = d() x.w, x.h, x.card, x.min, x.scroll, x.tapeStyle = nil, nil, nil, nil, nil, nil C.Layout() C.StyleChanged() C.PaintSet() end)
   p:Hide()
   f.sw = p
   return p
@@ -1136,8 +1139,18 @@ end
 function C.PaintSet()
   local p = C.frame and C.frame.sw
   if not p then return end
-  for _, k in ipairs({ "card", "scroll", "min", "wid", "hei" }) do if p[k] and p[k].paint then p[k].paint() end end
+  for _, k in ipairs({ "card", "scroll", "style", "min", "wid", "hei" }) do if p[k] and p[k].paint then p[k].paint() end end
   C.Paint()
+end
+--- The style switched: the other one's paper or floating text put away.
+function C.StyleChanged()
+  if C.Clean() then if C.tape then C.TapeClear() end
+  elseif C.float then
+    for _, l in ipairs(C.float.lines) do l:Hide() C.float.spare[#C.float.spare + 1] = l end
+    C.float.lines = {}
+    C.float.due:Hide()
+    C.float:Hide()
+  end
 end
 function C.ToggleSet(want)
   local p = C.BuildSet()
@@ -1667,7 +1680,188 @@ function C.CloseBurst(cur, b)
     words[#words + 1] = C.Ico("Frostbrand Weapon", "FB") .. " +1"
     fireOnly = false
   end
+  if db().scroll ~= false and C.Clean() then
+    local parts = {}
+    if extra >= 1 then parts[#parts + 1] = { C.Ico(extra == 1 and wfIcon or "Windfury Weapon", "WF") .. " WINDFURY +" .. extra, "wf" } end
+    if fireN > 0 and b.swings > 0 then
+      local ft = tot["Flametongue Totem"] and "Flametongue Totem" or "Flametongue Weapon"
+      parts[#parts + 1] = { C.Ico(ft, "FT") .. " FT +" .. fireN, "ft" }
+    end
+    if frostN > 0 and b.swings > 0 then parts[#parts + 1] = { C.Ico("Frostbrand Weapon", "FB") .. " FB +1", "fb" } end
+    if #parts > 0 then C.FloatLine(parts) end
+    if b.swings > 0 and (weapon or totem) then C.DueTick(cur, extra >= 1) end
+    return
+  end
   if #words > 0 and db().scroll ~= false then C.Scroll(table.concat(words, "    "), fireOnly) end
+end
+--[[ THE CLEAN TAPE (17 Nov 2026, Arn: "my cousin does not want any extra information on the tape - make the background
+  transparent, like scrolling combat text ... it'll just say WINDFURY +2 FT +1 in the same line ... and maybe a % proc chance
+  rolling, like so far you have 18% lifetime getting a Windfury proc, a fake one due any second" - then "build the clean
+  tape mode for my cousin"). db.tapeStyle = "clean": no paper, no setup / CUT / TOTAL lines - each swing's procs float up
+  on one line in big outlined letters (Windfury gold, Flametongue orange, Frostbrand blue) and fade; under them the
+  WINDFURY DUE gauge: your lifetime Windfury rate (C.WFRate, from your own swings in fights with Windfury up) times the
+  swings since your last proc - full = "any second". Just for fun: every swing is its own roll; its tooltip says so. The
+  gauge is the handle: drag it out of a fight (db.tapePos, the tape's spot). Nothing ticks once the last line has faded. ]]
+C.FLOAT = { w = 320, h = 130, rise = 70, life = 1.8, fade = 0.6, size = 17, push = 20, dueW = 150, dueH = 8, dueHold = 6 }
+C.FLOAT_COL = { wf = "ffd33a", ft = "ff7a2a", fb = "7ec4ff" }
+function C.Clean() return db().tapeStyle == "clean" end
+--- Your Windfury rate: procs / your own swings, over fights with Windfury up (nil under C.WF_MIN_SWINGS swings).
+C.WF_MIN_SWINGS, C.WF_GUESS = 20, 0.2
+function C.WFRate()
+  local sw, wf = 0, 0
+  for _, fi in ipairs(db().fights or {}) do
+    local hasWF = type(fi.imbue) == "string" and fi.imbue:find("Windfury", 1, true)
+    for _, t in ipairs(fi.totems or {}) do if t == "Windfury Totem" then hasWF = true end end
+    if hasWF and fi.swings and fi.swings > 0 and fi.procs then
+      sw = sw + fi.swings
+      wf = wf + (fi.procs.extra1 or 0) + (fi.procs.extra2 or 0) + (fi.procs.more or 0)
+    end
+  end
+  if sw < C.WF_MIN_SWINGS then return nil, sw end
+  return wf / sw, sw
+end
+local function floatPlace(g)
+  g:ClearAllPoints()
+  local p = db().tapePos
+  if type(p) == "table" and p[1] then g:SetPoint(p[1], UIParent, p[2] or p[1], p[3] or 0, p[4] or 0) return end
+  local card = C.BuildCard()
+  if card then g:SetPoint("TOP", card, "BOTTOM", 0, -6) else g:SetPoint("TOP", UIParent, "TOP", 0, -234) end
+end
+function C.Float()
+  if C.float then return C.float end
+  local Q = C.FLOAT
+  local g = CreateFrame("Frame", "BiSToolsComboFloat", UIParent)
+  g:SetSize(Q.w, Q.h)
+  g:SetFrameStrata("HIGH")
+  if g.EnableMouse then g:EnableMouse(false) end            -- (never in the way of a click in a fight)
+  g.lines, g.spare = {}, {}
+  -- the due gauge, the handle
+  local d = CreateFrame("Frame", nil, g)
+  d:SetSize(Q.dueW, Q.dueH + 14)
+  d:SetPoint("TOP", g, "BOTTOM", 0, -2)
+  d:EnableMouse(true)
+  d:SetMovable(false)
+  d.label = d:CreateFontString(nil, "OVERLAY")
+  d.label:SetFont("Fonts\\ARIALN.TTF", 11, "OUTLINE")
+  d.label:SetPoint("TOPLEFT", 0, 0)
+  d.label:SetTextColor(1, 0.82, 0.23, 1)
+  d.track = d:CreateTexture(nil, "BACKGROUND")
+  d.track:SetPoint("BOTTOMLEFT") d.track:SetPoint("BOTTOMRIGHT") d.track:SetHeight(Q.dueH)
+  d.track:SetColorTexture(0, 0, 0, 0.55)
+  d.fill = d:CreateTexture(nil, "ARTWORK")
+  d.fill:SetPoint("BOTTOMLEFT", d.track, "BOTTOMLEFT", 1, 1)
+  d.fill:SetHeight(Q.dueH - 2)
+  d.fill:SetColorTexture(1, 0.82, 0.23, 0.9)
+  d.fill:SetWidth(0.01)
+  d:RegisterForDrag("LeftButton")
+  d:SetScript("OnDragStart", function()
+    if InCombatLockdown and InCombatLockdown() then return end
+    g:SetMovable(true) g:StartMoving() g.moving = true
+  end)
+  local function stop()
+    if not g.moving then return end
+    g.moving = nil
+    g:StopMovingOrSizing()
+    local ok, pt, _, rp, x, y = pcall(g.GetPoint, g)
+    if ok and pt then db().tapePos = { pt, rp, x, y } end
+  end
+  d:SetScript("OnDragStop", stop)
+  g:SetScript("OnHide", stop)
+  d:SetScript("OnEnter", function(self)
+    if not GameTooltip then return end
+    local r, sw = C.WFRate()
+    GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
+    GameTooltip:AddLine("Windfury due", 1, 0.82, 0.23)
+    GameTooltip:AddLine(r and ("Windfury has come on %d%% of your swings (%d swings so far)."):format(math.floor(r * 100 + 0.5), sw)
+      or ("Learning your rate - %d of %d swings so far (it guesses 20%% until then)."):format(sw or 0, C.WF_MIN_SWINGS), 0.9, 0.9, 0.9, true)
+    GameTooltip:AddLine("Just for fun: every swing is its own roll - a long dry spell doesn't make the next one more likely.", 0.6, 0.6, 0.6, true)
+    GameTooltip:AddLine("Drag me to move the floating text (out of a fight).", 0.6, 0.6, 0.6, true)
+    GameTooltip:Show()
+  end)
+  d:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+  g.due = d
+  d:Hide()
+  g:SetScript("OnUpdate", function(self, e) C.FloatStep(self, tonumber(e) or 0) end)
+  g:Hide()
+  floatPlace(g)
+  C.float = g
+  return g
+end
+--- One swing's procs, floating up: parts = { { text, "wf" | "ft" | "fb" }, ... }.
+function C.FloatLine(parts)
+  local g, Q = C.Float(), C.FLOAT
+  local bits = {}
+  for _, pt in ipairs(parts) do bits[#bits + 1] = "|cff" .. (C.FLOAT_COL[pt[2]] or "ffffff") .. pt[1] .. "|r" end
+  local fs = table.remove(g.spare)
+  if not fs then
+    fs = g:CreateFontString(nil, "OVERLAY")
+    fs:SetFont("Fonts\\ARIALN.TTF", Q.size, "THICKOUTLINE")
+    if fs.SetWordWrap then fs:SetWordWrap(false) end
+  end
+  fs:SetText(table.concat(bits, "     "))
+  for _, l in ipairs(g.lines) do l.push = (l.push or 0) + Q.push end   -- (the older ones make room)
+  fs.age, fs.push = 0, 0
+  fs:SetAlpha(1)
+  fs:Show()
+  g.lines[#g.lines + 1] = fs
+  g.hideAt = nil
+  C.FloatLay(g)
+  g:Show()
+  return fs
+end
+function C.FloatLay(g)
+  local Q = C.FLOAT
+  for _, l in ipairs(g.lines) do
+    l:ClearAllPoints()
+    l.y = (l.push or 0) + Q.rise * math.min(1, (l.age or 0) / Q.life)
+    l:SetPoint("BOTTOM", g, "BOTTOM", 0, l.y)
+  end
+end
+function C.FloatStep(g, e)
+  local Q = C.FLOAT
+  for i = #g.lines, 1, -1 do
+    local l = g.lines[i]
+    l.age = (l.age or 0) + e
+    if l.age >= Q.life then
+      l:Hide()
+      table.remove(g.lines, i)
+      g.spare[#g.spare + 1] = l
+    elseif l.age > Q.life - Q.fade then
+      l:SetAlpha((Q.life - l.age) / Q.fade)
+    end
+  end
+  C.FloatLay(g)
+  local d = g.due
+  if d and d:IsShown() then
+    if d.flash and d.flash > 0 then d.flash = math.max(0, d.flash - e) end
+    if d.full then d:SetAlpha(0.6 + 0.4 * math.abs(math.sin(GetTime and GetTime() * 4 or 0))) else d:SetAlpha(1) end
+    if d.hideIn then
+      d.hideIn = d.hideIn - e
+      if d.hideIn <= 0 then d.hideIn = nil d:Hide() end
+    end
+  end
+  if #g.lines == 0 and not (d and d:IsShown()) then g:Hide() end   -- (nothing left: no ticking)
+end
+--- Your own swing with Windfury up: the gauge moves on (a proc empties it).
+function C.DueTick(cur, procced)
+  local g, Q = C.Float(), C.FLOAT
+  local d = g.due
+  local r = C.WFRate() or C.WF_GUESS
+  if procced then cur.dry = 0 else cur.dry = (cur.dry or 0) + 1 end
+  local k = math.min(1, (cur.dry or 0) * r)
+  d.fill:SetWidth(math.max(0.01, (Q.dueW - 2) * k))
+  d.full = k >= 1 or nil
+  d.label:SetText(procced and "WINDFURY!" or (d.full and "WINDFURY DUE - ANY SECOND..." or "WINDFURY DUE"))
+  d.flash = procced and 0.4 or nil
+  d.hideIn = nil
+  d.k = k
+  d:Show()
+  g:Show()
+end
+--- The fight over: the gauge waits a moment, then goes.
+function C.FloatEnd()
+  local g = C.float
+  if g and g.due and g.due:IsShown() then g.due.hideIn = C.FLOAT.dueHold end
 end
 --- A spell's icon inside a line of text (|T...|t, the tape's line height), else its short word.
 C.ICO = 13
@@ -2201,6 +2395,9 @@ R:Register({
     { kind = "toggle", label = "proc text in a fight",
       help = "A receipt tape beside the card prints each proc as you fight, newest at the bottom: +1 extra hit (Windfury Totem), +2 extra hits (Windfury Weapon), Flametongue, then the fight's total.",
       get = function(d) return d.scroll ~= false end, set = function(d, v) d.scroll = v and true or false end },
+    { kind = "toggle", label = "clean proc text",
+      help = "No paper: each swing's procs float up in big letters (WINDFURY +2  FT +1) and fade, with a small Windfury-due gauge under them. Off = the receipt tape.",
+      get = function(d) return d.tapeStyle == "clean" end, set = function(d, v) d.tapeStyle = v and "clean" or "receipt" C.StyleChanged() end },
     { kind = "step", label = "shortest fight counted", help = "0 = every fight counts (a long fight weighs more than a short one). Above 0, shorter fights are kept but not ranked.",
       min = 0, max = 60, step = 5, get = function(d) return tonumber(d.min) or C.MIN end,
       set = function(d, v) d.min = v if C.IsOpen() then C.Paint() end end, show = function(d) return (tonumber(d.min) or C.MIN) .. " s" end },
@@ -2240,6 +2437,13 @@ R:Register({
       say("combo: last fight - %d bursts too soon after your own swing (someone else's) were left out", C.lastForeign or 0)
       say("combo: list %s, comes back after a reload: %s%s", C.IsOpen() and "open" or "closed", db().open and "yes" or "no",
         C.closedBy and (" - last closed by " .. C.closedBy) or "")
+      return
+    end
+    if cmd == "clean" or cmd == "receipt" then
+      d.tapeStyle = cmd
+      C.StyleChanged()
+      if C.frame and C.frame.sw and C.frame.sw:IsShown() then C.PaintSet() end
+      say("combo: proc text style - %s", cmd == "clean" and "CLEAN (floating text, no paper)" or "RECEIPT (the paper tape)")
       return
     end
     if cmd == "forget" then d.fights, d.lastSid = {}, nil if C.IsOpen() then C.Paint() end say("combo: every fight forgotten") return end
