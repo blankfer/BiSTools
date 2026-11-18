@@ -5585,11 +5585,13 @@ do
     Co.SwitchCheck(cur, "Windfury Weapon", { ["Flametongue Totem"] = true, ["Grace of Air Totem"] = true })   -- a second one, 1 s on
     local before = #Co.Tape().log
     W.runAfters(Co.CUT_SETTLE + 0.1)
-    ok(#Co.tape.log == before + 3, "two totems a second apart: ONE cut once they settle (Arn's tape had three)", #Co.tape.log - before)
+    ok(#Co.tape.log == before + 2, "two totems a second apart: ONE cut once they settle (Arn's tape had three)", #Co.tape.log - before)
     local rows = Co.tape.rows
     local n = #rows
-    ok(rows[n - 2]:GetText() == "- - - - CUT 0:21 - - - -" and rows[n - 1]:GetText() == "IMBUE  WF" and rows[n]:GetText() == "TOTEMS  FT · GOA",
-       "the cut, when, and the new set under it", rows[n - 2]:GetText() .. " | " .. rows[n - 1]:GetText() .. " | " .. rows[n]:GetText())
+    local set = rows[n]:GetText()
+    ok(rows[n - 1]:GetText() == "- - - - CUT 0:21 - - - -" and set:find("Spell_Nature_Cyclone", 1, true) and set:find("Spell_Nature_GuardianWard", 1, true)
+       and set:find("Spell_Nature_InvisibilityTotem", 1, true) and set:find("|T", 1, true),
+       "the cut, when, and the new set under it as ONE line of icons (Arn: icons save space)", rows[n - 1]:GetText() .. " | " .. set)
     ok(not Co.SwitchCheck(cur, "Windfury Weapon", {}) and #cur.segs == 4, "a totem gone: a new stretch kept, no cut")
     -- THE FOOTER AND THE SIZE (Arn: "a BiS> Procs footer", "draggable bigger, drag icon smaller, only words")
     local tp0 = Co.tape
@@ -5622,10 +5624,11 @@ do
   -- THE BREAKDOWN (Arn: "total 5 procs - break it down: 4 flame, 1 wf imbue")
   do
     local rows = Co.TapeBreakdown({ procs = { extra1 = 0, extra2 = 1, more = 0, fire = 4 }, totems = {} })
-    ok(#rows == 2 and rows[1][2] == "4  FLAMETONGUE" and rows[2][2] == "1  WF IMBUE", "under the total: 4 FLAMETONGUE, 1 WF IMBUE (most first, none of the empty kinds)",
+    local function bare(x) return (x:gsub("|T[^|]*|t", "[icon]")) end
+    ok(#rows == 2 and bare(rows[1][2]) == "4  [icon]  Flametongue" and bare(rows[2][2]) == "1  [icon]  +2" and rows[2][2]:find("Spell_Nature_Cyclone", 1, true), "under the total: 4 FLAMETONGUE, 1 WF IMBUE (most first, none of the empty kinds)",
        (rows[1] and rows[1][2] or "") .. " / " .. (rows[2] and rows[2][2] or ""))
     rows = Co.TapeBreakdown({ procs = { extra1 = 2, extra2 = 0, more = 0, fire = 0 }, totems = { ["Windfury Totem"] = true } })
-    ok(rows[1] and rows[1][2] == "2  WF TOTEM", "with the totem down, +1s are the totem's")
+    ok(rows[1] and bare(rows[1][2]) == "2  [icon]  +1" and rows[1][2]:find("Spell_Nature_Windfury", 1, true), "with the totem down, +1s are the totem's (its icon)")
   end
   -- WHOSE WINDFURY (Arn: "if I have imbue WF we can safely assume it's +2 hits")
   do
@@ -5650,22 +5653,23 @@ do
     ok(not (Co.tape and Co.tape:IsShown()), "one swing: nothing printed")
     hit("WOUND") W.runAfters(0.4) hit("WOUND") W.runAfters(1)                  -- the extra hit a batch later (Arn's gaps: 0.3-0.6 s)
     local function last() local rows = Co.tape and Co.tape.rows or {} return rows[#rows] and rows[#rows]:GetText() or "" end
-    ok(Co.tape and Co.tape:IsShown() and last():find("+1 EXTRA HIT", 1, true) and last():find("^%d+:%d%d"),
-       "two hits a batch apart: the receipt prints +1 EXTRA HIT at the bottom, with the fight's clock (Arn: a receipt printer)", last())
+    local WFI, FTI = "Spell_Nature_Cyclone", "Spell_Fire_FlameTounge"
+    ok(Co.tape and Co.tape:IsShown() and last():find(WFI, 1, true) and last():find(" +1", 1, true) and last():find("^%d+:%d%d"),
+       "two hits a batch apart: the receipt prints Windfury's icon +1 at the bottom, with the fight's clock (Arn: a receipt printer, icons)", last())
     hit("WOUND") hit("WOUND") hit("MISS") W.runAfters(1)
-    ok(last():find("+2 EXTRA HITS", 1, true) and #Co.tape.rows == 4 and Co.tape.rows[1]:GetText():find("^IMBUE")
-       and Co.tape.rows[3]:GetText():find("+1 EXTRA HIT", 1, true), "three at once (a miss counts as a swing): +2 EXTRA HITS under the first, the set at the receipt's head", last())
+    ok(last():find(" +2", 1, true) and #Co.tape.rows == 3 and Co.tape.rows[1]:GetText():find("|T", 1, true)
+       and Co.tape.rows[2]:GetText():find(" +1", 1, true), "three at once (a miss counts as a swing): +2 under the first, the set's icons at the receipt's head", last())
     Co.tape:GetScript("OnUpdate")(Co.tape, 1)
     local y1b, y2 = Co.tape.rows[1].y, Co.tape.rows[2].y
     ok(type(y1b) == "number" and type(y2) == "number" and y1b > y2, "the older line a line higher: the paper rolls bottom to top")
     hit("WOUND") W.runAfters(0.45) hit("WOUND", 4) W.runAfters(1)            -- (the fire hit a batch later: 0.45 s, Arn's log)
-    ok(last():find("FLAMETONGUE", 1, true), "a fire hit with the swing: FLAMETONGUE", last())
+    ok(last():find(FTI, 1, true), "a fire hit with the swing: Flametongue's icon", last())
     fire(Co.events, "UNIT_COMBAT", "nameplate1", "WOUND", "", 100, 1)
     ok(Co.cur.burst and Co.cur.burst.swings == 1, "the same mob as a nameplate: never counted twice (target only)")
     hit("WOUND") W.runAfters(0.4) hit("WOUND") hit("WOUND", 4) W.runAfters(1)
     local rows = Co.tape.rows
-    ok(last():find("FLAMETONGUE", 1, true) and rows[#rows - 1]:GetText():find("+1 EXTRA HIT", 1, true),
-       "an extra hit AND Flametongue in one burst: two lines, never one that wraps (Arn's shot)", rows[#rows - 1]:GetText() .. " / " .. last())
+    ok(last():find(FTI, 1, true) and last():find(WFI, 1, true) and last():find(" +1", 1, true),
+       "an extra hit AND Flametongue in one burst: ONE short line of icons (Arn: \"WINDFURY +2 FT +1 in the same line\")", last())
     for _ = 1, 8 do hit("WOUND") W.runAfters(0.4) hit("WOUND") W.runAfters(1) end
     ok(#Co.tape.rows <= Co.TAPE.lines + 1, "a long fight: the oldest lines roll off the top", #Co.tape.rows)
     Co.tape:GetScript("OnUpdate")(Co.tape, 5)
@@ -5685,7 +5689,7 @@ do
     local printed = {}
     for _, row in ipairs(Co.tape.rows) do printed[#printed + 1] = row:GetText() end
     local all = table.concat(printed, " | ")
-    ok(all:find("TOTAL  14 PROCS | 11  +1 EXTRA HIT | 2  FLAMETONGUE | 1  WF IMBUE", 1, true),
+    ok((all:gsub("|T[^|]*|t", "[icon]")):find("TOTAL  14 PROCS | 11  [icon]  +1 | 2  [icon]  Flametongue | 1  [icon]  +2", 1, true),
        "the fight over: a rule, the TOTAL, then what it was made of", all)
     Co.tape:GetScript("OnUpdate")(Co.tape, 29)
     ok(Co.tape:IsShown() and not Co.tape.toss, "29 s idle: still there (Arn: 30 s idle before it goes)")

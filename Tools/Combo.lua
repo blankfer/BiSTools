@@ -1428,13 +1428,28 @@ function C.CloseBurst(cur, b)
   local weapon = type(im) == "string" and im:find("Windfury", 1, true) and true or false
   local totem = (cur.nowTot or cur.totems or {})["Windfury Totem"] and true or false
   if extra == 1 and weapon and not totem then extra = 2 end
-  if extra == 1 then cur.procs.extra1 = cur.procs.extra1 + 1 words[#words + 1] = "+1 extra hit"
-  elseif extra == 2 then cur.procs.extra2 = cur.procs.extra2 + 1 words[#words + 1] = "+2 extra hits"
-  elseif extra > 2 then cur.procs.more = cur.procs.more + 1 words[#words + 1] = ("+%d extra hits"):format(extra) end
-  if b.fire > 0 and b.swings > 0 then cur.procs.fire = cur.procs.fire + 1 words[#words + 1] = "Flametongue" end
-  -- (17 Nov, Arn's shot of the tape: "+1 EXTRA HIT  FLAMETONGUE" wrapped onto two lines and the next line printed over
-  -- it - each word is its own line now, and a line never wraps)
-  if db().scroll ~= false then for _, w in ipairs(words) do C.Scroll(w, w == "Flametongue") end end
+  -- ICONS ON THE TAPE (17 Nov 2026, Arn: "on the receipt we can actually save so much space by just using icons"): one line
+  -- a swing - the Windfury that procced as its icon and +N, Flametongue's icon and +N beside it (the totem's when one
+  -- stands, else the weapon's), drawn inside the text (C.Ico), so a line stays short and never wraps
+  local wfIcon = (extra == 1 and totem) and "Windfury Totem" or "Windfury Weapon"
+  if extra == 1 then cur.procs.extra1 = cur.procs.extra1 + 1 words[#words + 1] = C.Ico(wfIcon, "WF") .. " +1"
+  elseif extra == 2 then cur.procs.extra2 = cur.procs.extra2 + 1 words[#words + 1] = C.Ico("Windfury Weapon", "WF") .. " +2"
+  elseif extra > 2 then cur.procs.more = cur.procs.more + 1 words[#words + 1] = C.Ico("Windfury Weapon", "WF") .. " +" .. extra end
+  local fireOnly = false
+  if b.fire > 0 and b.swings > 0 then
+    cur.procs.fire = cur.procs.fire + 1
+    local ft = (cur.nowTot or cur.totems or {})["Flametongue Totem"] and "Flametongue Totem" or "Flametongue Weapon"
+    words[#words + 1] = C.Ico(ft, "FT") .. " +" .. b.fire
+    fireOnly = #words == 1
+  end
+  if #words > 0 and db().scroll ~= false then C.Scroll(table.concat(words, "    "), fireOnly) end
+end
+--- A spell's icon inside a line of text (|T...|t, the tape's line height), else its short word.
+C.ICO = 13
+function C.Ico(name, word)
+  local tex = C.IconFor(name)
+  if not tex then return word or name end
+  return ("|T%s:%d:%d:0:0:64:64:5:59:5:59|t"):format(tostring(tex), C.ICO, C.ICO)
 end
 --[[ THE RECEIPT TAPE (17 Nov 2026, Arn: "make it like a receipt calculator printer, it scrolling from bottom to top"): a
   small strip of paper beside the card's spot. Each proc prints a line at the bottom - the fight's clock, then the words
@@ -1747,11 +1762,14 @@ function C.TapeHint(t)
 end
 --- The set on the tape: the imbue, then the totems (short words), each its own line.
 function C.TapeSet(imbue, tot)
-  local words = {}
-  for n in pairs(tot or {}) do words[#words + 1] = ((C.TOTEMS[n] or n):gsub(" totem$", "")) end
-  table.sort(words)
-  C.TapePrint("IMBUE  " .. string.upper(imbue and (C.IMBUE_SHORT[imbue] or imbue) or "none"))
-  C.TapePrint("TOTEMS  " .. (#words > 0 and string.upper(table.concat(words, " · ")) or "NONE"))
+  local names = {}
+  for n in pairs(tot or {}) do names[#names + 1] = n end
+  table.sort(names)
+  local parts = { imbue and C.Ico(imbue, C.IMBUE_SHORT[imbue] or imbue) or "NO IMBUE" }
+  parts[#parts + 1] = " "
+  for _, n in ipairs(names) do parts[#parts + 1] = C.Ico(n, C.TOTEMS[n] or n) end
+  if #names == 0 then parts[#parts + 1] = "NO TOTEMS" end
+  C.TapePrint(table.concat(parts, " "))                         -- (one line of icons: the imbue, a gap, the totems)
 end
 --- A new fight: a fresh stretch of paper.
 function C.TapeClear()
@@ -1769,10 +1787,11 @@ function C.TapeBreakdown(cur)
   local pr, out = cur.procs or {}, {}
   local totem = cur.totems and cur.totems["Windfury Totem"]
   local function add(n, word, fire) if (n or 0) > 0 then out[#out + 1] = { n, ("%d  %s"):format(n, word), fire } end end
-  add(pr.fire, "FLAMETONGUE", true)
-  add(pr.extra2, "WF IMBUE")
-  add(pr.extra1, totem and "WF TOTEM" or "+1 EXTRA HIT")
-  add(pr.more, "BIG WINDFURY (+3 OR MORE)")
+  local ft = (cur.totems or {})["Flametongue Totem"] and "Flametongue Totem" or "Flametongue Weapon"
+  add(pr.fire, C.Ico(ft, "FT") .. "  Flametongue", true)
+  add(pr.extra2, C.Ico("Windfury Weapon", "WF") .. "  +2")
+  add(pr.extra1, totem and (C.Ico("Windfury Totem", "WF totem") .. "  +1") or (C.Ico("Windfury Weapon", "WF") .. "  +1"))
+  add(pr.more, C.Ico("Windfury Weapon", "WF") .. "  +3 or more")
   table.sort(out, function(a, b) return a[1] > b[1] end)
   return out
 end
@@ -1794,11 +1813,11 @@ function C.Scroll(text, fireOnly)
     cur.headed = true
     C.TapeSet(cur.nowImbue or cur.imbue, cur.nowTot or cur.totems)
     local okG, grouped = pcall(function() return IsInGroup and IsInGroup() end)
-    if okG and plain(grouped) == true then C.TapePrint("IN A GROUP: OTHERS MAY SLIP IN") end
+    if okG and plain(grouped) == true then C.TapePrint("GROUP: OTHERS MAY SLIP IN") end
   end
   local now = GetTime and GetTime() or 0
   local secs = (cur and cur.start) and math.max(0, now - cur.start) or 0
-  return C.TapePrint(("%d:%02d  %s"):format(math.floor(secs / 60), math.floor(secs % 60), string.upper(text)), fireOnly)
+  return C.TapePrint(("%d:%02d  %s"):format(math.floor(secs / 60), math.floor(secs % 60), text), fireOnly)   -- (never upper: icon codes)
 end
 
 -- ---------------------------------------------------------------- the LIVE probe (/bist combo live)
