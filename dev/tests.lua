@@ -5418,7 +5418,8 @@ do
     _G.C_Spell.GetSpellInfo = function(n) return ids[n] and { spellID = ids[n] } or nil end
     _G.IsPlayerSpell = function(id) return id ~= nil end
     local pick, total, untried = Co.TryNext()
-    ok(total == 8 and pick and pick.n == 0 and untried == 8, "every combo you know (2 imbues x 2 fire x 1 earth x 2 air = 8), the next one never fought with",
+    ok(total == 4 and pick and pick.n == 0 and untried == 4,
+       "every combo you know (2 imbues x Flametongue Totem only - Arn: no Magma, no Searing - x 1 earth x 2 air = 4), the next one never fought with",
        total, pick and pick.combo, untried)
     Co.Paint()
     local tr = Co.frame.try
