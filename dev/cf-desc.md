@@ -1,4 +1,4 @@
-# BiS Tools — CurseForge page text (1.4.0)
+# BiS Tools — CurseForge page text (1.6.0)
 
 Paste everything below the line into the project description
 (CurseForge → BiS Tools, project 1686340 → Edit → Description), in the Markdown editor.
@@ -9,6 +9,9 @@ and lists stay flat.
 
 **Deliberately NOT on the page: summon** (Forever has no summoning stones, the tool does not load
 there). The threat beta and the pup finder were retired on 9 Nov. The page is for Forever.
+
+Changed for 1.6.0 (19 Nov): **SET DECK** on TRY NEXT (and a right-click on a combo), and the 1.5.0 **clean proc text**
++ Windfury gauge that never reached the page - both in **Imbue + totem combo**; `clean` / `receipt` in the table.
 
 Changed for 1.4.0 (17 Nov, late): **Imbue + totem combo** rewritten - icons you click to cast, the adj column, the
 number boxes, TRY NEXT, only your own swings, the receipt tape in icons.
@@ -142,9 +145,9 @@ Which weapon imbue and which totems actually hit hardest? Turn on `/bist combo` 
 - **The list, best first,** every combo you've fought with as spell icons - imbue, fire, earth, air - with how many fights, its damage per second and **adj**: the same number as if every mob had been your level (higher mobs make you miss, get dodged and glance more), which the list ranks by.
 - **Click an icon to cast it.** Out of a fight, a click on any icon puts that imbue on your weapon or drops that totem.
 - **The numbers, in boxes:** Windfury, Flametongue and Frostbrand procs as a share of your own swings, your fights, average and best damage per second, the mobs' level - and you now: crit, attack power, weapon speed and damage.
-- **TRY NEXT** shows the combo you have the fewest fights with, out of the imbues and totems you know - click its icons and go.
+- **TRY NEXT** shows the combo you have the fewest fights with, out of the imbues and totems you know - click its icons and go. With BiS Healing, **SET DECK** puts its imbue on your weapon and its totems in your deck's totem boxes in one click; right-click any combo in the list to send that one.
 - **Only your own swings count.** Another player hitting your target doesn't show up as your procs, and with no Windfury up nothing counts as Windfury; after each fight the game's damage meter double-checks.
-- **The receipt tape:** while you fight, a small strip of paper prints each proc as icons - Windfury +2, Flametongue +1 - with the fight's clock, a cut when you swap totems, and the total at the end. Scroll back through the fight, drag it bigger, or switch it off.
+- **The receipt tape:** while you fight, a small strip of paper prints each proc as icons - Windfury +2, Flametongue +1 - with the fight's clock, a cut when you swap totems, and the total at the end. Scroll back through the fight, drag it bigger, or switch it off. Prefer a calm screen? **Clean proc text** floats each swing's procs up in big letters instead (WINDFURY +2, FT +1), with a small gauge that fills while a Windfury is due.
 - **Your numbers come from the game's own damage meter**, read once each fight is over. It starts off; SET on the list has its switches, and the list resizes by its corner.
 
 ## Zeppelins, boats and the tram
@@ -192,6 +195,7 @@ The farm's skull, the rival target button, the XP buff buttons, and in battlegro
 | `/bist bosses` · `/bist bosses key F7` | the boss finder · FIND on a key |
 | `/bist codex` · `/bist codex full` · `/bist codex <name>` | the Codex · after dark · look one up |
 | `/bist combo` · `/bist combo why` | the combo list (turns it on) · why a fight wasn't kept |
+| `/bist combo clean` · `/bist combo receipt` | proc text in big floating letters · the paper tape |
 | `/bist farm` | the farm window |
 | `/bist farm key F5` | the skull key |
 | `/bist sounds` · `/bist sounds favs` | the sound explorer · your starred sounds |
