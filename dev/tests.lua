@@ -2301,8 +2301,8 @@ do
   -- (+ bosses (3), 8 Nov: open in a dungeon, the box button, the list's open button - and its section header)
   -- (threat (2) and pups (2), each with its section header, retired 9 Nov)
   -- (+ alts (1), 14 Nov: the main & alts window's open button - and its section header)
-  -- (+ combo (3), 17 Nov: the card switch, the shortest fight counted, the list's open button - and its section header)
-  ok(#opt.rows == 11 + 3 + 5 + 7 + 1 + 8 + 2 + 4 + 7 + 4 + 4 + 5 + 1 + 1 + 1 + 1 + 3 + 2 + 4 + 2 + 4, "one row per section header and per option", #opt.rows)
+  -- (+ combo (4), 17 Nov: the card switch, the proc text, the shortest fight counted, the list's open button - and its header)
+  ok(#opt.rows == 11 + 3 + 5 + 7 + 1 + 8 + 2 + 4 + 7 + 4 + 4 + 5 + 1 + 1 + 1 + 1 + 3 + 2 + 4 + 2 + 5, "one row per section header and per option", #opt.rows)
   -- THE BiSTheme STANDARD, 1.43:1 (Arn, 14 Oct): its sections poured into columns, the window that shape
   ok(math.abs(opt.w / opt.h - 1.43) < 0.01 and (opt.columns or 1) >= 2, "options: 1.43:1, in columns", opt.w .. "x" .. opt.h)
   local function find(label) for _, r in ipairs(opt.rows) do if r.name and r.name.text == label then return r end end end
@@ -5446,6 +5446,30 @@ do
     ok(Co.ReachProbe():find("interact3=true", 1, true), "/bist combo reach: every check's answer")
     _G.C_Spell.GetSpellInfo = keepGSI
     _G.C_Spell.IsSpellInRange, _G.CheckInteractDistance, _G.UnitExists = keepCS2, keepCID, keepUE
+  end
+  -- THE PROC TEXT (Arn: "can we just see when we got 2 melee hits back to back and 3"): hits on your target in one instant
+  do
+    Co.Pull()
+    local fire = Co.events:GetScript("OnEvent")
+    local function hit(action, school) fire(Co.events, "UNIT_COMBAT", "target", action, "", 100, school or 1) end
+    hit("WOUND") W.runAfters(0.5)                                        -- a plain swing: nothing
+    ok(not (Co.scrollHost and Co.scrollHost:IsShown()), "one swing: no word")
+    hit("WOUND") hit("WOUND") W.runAfters(0.5)
+    ok(Co.scrollHost and Co.scrollHost:IsShown() and Co.scrollHost.pool[1]:GetText() == "+1 extra hit", "two hits at once: +1 extra hit (the totem's)")
+    hit("WOUND") hit("WOUND") hit("MISS") W.runAfters(0.5)
+    local said = {}
+    for _, w in ipairs(Co.scrollHost.pool) do if w.left and w.left > 0 then said[#said + 1] = w:GetText() end end
+    ok(table.concat(said, "|"):find("+2 extra hits", 1, true), "three at once (a miss counts as a swing): +2 extra hits (the weapon's)", table.concat(said, "|"))
+    hit("WOUND") hit("WOUND", 4) W.runAfters(0.5)
+    said = {}
+    for _, w in ipairs(Co.scrollHost.pool) do if w.left and w.left > 0 then said[#said + 1] = w:GetText() end end
+    ok(table.concat(said, "|"):find("Flametongue", 1, true), "a fire hit with the swing: Flametongue")
+    fire(Co.events, "UNIT_COMBAT", "nameplate1", "WOUND", "", 100, 1)
+    ok(Co.cur.burst and Co.cur.burst.swings == 1, "the same mob as a nameplate: never counted twice (target only)")
+    Co.scrollHost:GetScript("OnUpdate")(Co.scrollHost, 5)
+    ok(not Co.scrollHost:IsShown(), "the words rise, fade and go")
+    ok(Co.cur.procs.extra1 == 1 and Co.cur.procs.extra2 == 1 and Co.cur.procs.fire == 1, "the fight counts its procs")
+    Co.FightOver()
   end
   R:SetEnabled("combo", false)
   cdb.fights = {}

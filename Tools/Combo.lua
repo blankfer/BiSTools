@@ -305,7 +305,8 @@ function C.Close(cur)
   local rec = { at = (time and time()) or 0, sid = sid, mob = plain(last.name) or plain(s.name), dur = dur, dmg = dmg,
                 active = active, how = active and (cur.reachKnown and ("swinging in reach - " .. tostring(cur.reachHow)) or "swinging") or "the whole fight",
                 imbue = imbue, totems = totems, combo = C.Label(imbue, set),
-                wf = dmg > 0 and wf / dmg or 0, ft = dmg > 0 and ft / dmg or 0, spells = C.TopSpells(spells, dmg) }
+                wf = dmg > 0 and wf / dmg or 0, ft = dmg > 0 and ft / dmg or 0, spells = C.TopSpells(spells, dmg),
+                procs = cur.procs }
   d.fights = d.fights or {}
   d.fights[#d.fights + 1] = rec
   while #d.fights > C.KEEP do table.remove(d.fights, 1) end
@@ -415,6 +416,10 @@ function C.ShowCard(rec)
   else
     local k, n = C.Place(rec.combo)
     local wf = rec.wf and rec.wf > 0 and ("  ·  Windfury %d%%"):format(math.floor(rec.wf * 100 + 0.5)) or ""
+    local pr = rec.procs
+    if pr and (pr.extra1 + pr.extra2 + pr.more) > 0 then
+      wf = wf .. ("  ·  %d procs"):format(pr.extra1 + pr.extra2 + pr.more)
+    end
     f.place:SetText(("#%d of %d combos · click for the list%s"):format(k or 1, n, wf))
   end
   f.left, f.hold = C.CARD_FOR, nil
@@ -594,18 +599,21 @@ function C.BuildSet()
   local p = CreateFrame("Frame", nil, f)
   p:SetFrameLevel((f:GetFrameLevel() or 0) + 5)
   p:SetPoint("BOTTOMLEFT", 8, 22)
-  p:SetSize(C.Size() - 16, 110)
+  p:SetSize(C.Size() - 16, 128)
   K.tex(p, "BACKGROUND", "header", 0.98)
   K.border(p, "edge", 1)
   local d = function() return db() end
   p.card = swRow(p, -4, "card after each fight")
   p.card:SetScript("OnClick", function() d().card = d().card == false and true or false C.PaintSet() end)
   p.card.paint = function() p.card.value:SetText(d().card ~= false and "ON" or "OFF") end
-  p.min = stepRow(p, -22, "shortest fight counted", C.Min, function(v) d().min = v end, 0, 60, 5, " s")
-  p.wid = stepRow(p, -40, "width", function() return (C.Size()) end, function(v) d().w = v C.Layout() end, C.W_MIN, C.W_MAX, C.STEP, " px")
-  p.hei = stepRow(p, -58, "height", function() return select(2, C.Size()) end, function(v) d().h = v C.Layout() end, C.H_MIN, C.H_MAX, C.STEP, " px")
-  p.reset = swRow(p, -82, "RESET  (the look - never your fights)")
-  p.reset:SetScript("OnClick", function() local x = d() x.w, x.h, x.card, x.min = nil, nil, nil, nil C.Layout() C.PaintSet() end)
+  p.scroll = swRow(p, -22, "proc text in a fight")
+  p.scroll:SetScript("OnClick", function() d().scroll = d().scroll == false and true or false C.PaintSet() end)
+  p.scroll.paint = function() p.scroll.value:SetText(d().scroll ~= false and "ON" or "OFF") end
+  p.min = stepRow(p, -40, "shortest fight counted", C.Min, function(v) d().min = v end, 0, 60, 5, " s")
+  p.wid = stepRow(p, -58, "width", function() return (C.Size()) end, function(v) d().w = v C.Layout() end, C.W_MIN, C.W_MAX, C.STEP, " px")
+  p.hei = stepRow(p, -76, "height", function() return select(2, C.Size()) end, function(v) d().h = v C.Layout() end, C.H_MIN, C.H_MAX, C.STEP, " px")
+  p.reset = swRow(p, -100, "RESET  (the look - never your fights)")
+  p.reset:SetScript("OnClick", function() local x = d() x.w, x.h, x.card, x.min, x.scroll = nil, nil, nil, nil, nil C.Layout() C.PaintSet() end)
   p:Hide()
   f.sw = p
   return p
@@ -613,7 +621,7 @@ end
 function C.PaintSet()
   local p = C.frame and C.frame.sw
   if not p then return end
-  for _, k in ipairs({ "card", "min", "wid", "hei" }) do if p[k] and p[k].paint then p[k].paint() end end
+  for _, k in ipairs({ "card", "scroll", "min", "wid", "hei" }) do if p[k] and p[k].paint then p[k].paint() end end
   C.Paint()
 end
 function C.ToggleSet(want)
@@ -784,6 +792,98 @@ function C.Probe()
   return lines
 end
 
+-- ---------------------------------------------------------------- the proc text (scrolling, in a fight)
+--[[ THE PROC TEXT (17 Nov 2026, Arn: "a scrolling proc text so we can see when we get procs, dont need numbers, just you
+  got 1 extra hit, 1 extra flametongue" - then, the meter hidden in a fight: "can we just see when we got 2 melee hits back
+  to back and 3"). UNIT_COMBAT still fires on Forever (solved.md, 1 Oct), one call per hit your TARGET takes - "target"
+  only (the same mob also arrives as nameplateN, softenemy... - asked once). Windfury's extra swings land in the same
+  instant as the swing that procced it: hits within C.BURST s are one burst. Physical hits in a burst: 2 = "+1 extra hit"
+  (the totem's), 3 = "+2 extra hits" (the weapon's; Arn: "totem is 1 extra hit, imbue is 2"), more = "+N extra hits";
+  a fire hit inside a burst with a swing = "Flametongue". Nothing compared but the action word and the school, and only
+  when plain; a hidden school counts as a swing. In a group, others hitting your target in the same instant can read as a
+  proc (it is a solo tool first). Each fight counts its procs (rec.procs). The words rise beside the card's spot and fade;
+  db.scroll turns them off. ]]
+C.BURST, C.SCROLL_FOR, C.SCROLL_RISE, C.SCROLL_MAX = 0.12, 1.6, 46, 8
+C.SWING_ACTIONS = { WOUND = true, MISS = true, DODGE = true, PARRY = true, BLOCK = true, DEFLECT = true, ABSORB = true, RESIST = true, IMMUNE = true, EVADE = true }
+function C.Hit(action, school)
+  local cur = C.cur
+  if not cur then return end
+  action = plain(action)
+  if type(action) ~= "string" or not C.SWING_ACTIONS[action] then return end
+  school = plain(school)
+  local fire = type(school) == "number" and school == 4
+  local now = GetTime and GetTime() or 0
+  local b = cur.burst
+  if not b or now - b.at > C.BURST then
+    b = { at = now, swings = 0, fire = 0 }
+    cur.burst = b
+    if C_Timer and C_Timer.After then C_Timer.After(C.BURST + 0.02, function() C.CloseBurst(cur, b) end) end
+  end
+  if fire then b.fire = b.fire + 1 else b.swings = b.swings + 1 end
+end
+function C.CloseBurst(cur, b)
+  if b.done then return end
+  b.done = true
+  cur.procs = cur.procs or { extra1 = 0, extra2 = 0, more = 0, fire = 0 }
+  local extra = b.swings - 1
+  local words = {}
+  if extra == 1 then cur.procs.extra1 = cur.procs.extra1 + 1 words[#words + 1] = "+1 extra hit"
+  elseif extra == 2 then cur.procs.extra2 = cur.procs.extra2 + 1 words[#words + 1] = "+2 extra hits"
+  elseif extra > 2 then cur.procs.more = cur.procs.more + 1 words[#words + 1] = ("+%d extra hits"):format(extra) end
+  if b.fire > 0 and b.swings > 0 then cur.procs.fire = cur.procs.fire + 1 words[#words + 1] = "Flametongue" end
+  if #words > 0 and db().scroll ~= false then C.Scroll(table.concat(words, "  "), b.fire > 0 and b.swings < 2) end
+end
+--- One word rising beside the card's spot.
+function C.Scroll(text, fireOnly)
+  local K = F()
+  local host = C.scrollHost
+  if not host then
+    host = CreateFrame("Frame", "BiSToolsComboScroll", UIParent)
+    host:SetSize(200, 120)
+    host:SetFrameStrata("MEDIUM")
+    host.pool = {}
+    host:SetScript("OnUpdate", function(self, e)
+      local live = 0
+      for _, w in ipairs(self.pool) do
+        if w.left and w.left > 0 then
+          w.left = w.left - (tonumber(e) or 0)
+          local k = 1 - math.max(0, w.left) / C.SCROLL_FOR
+          w:ClearAllPoints()
+          w:SetPoint("BOTTOM", self, "BOTTOM", 0, k * C.SCROLL_RISE + (w.lane or 0) * 14)
+          w:SetAlpha(math.min(1, math.max(0, w.left) / (C.SCROLL_FOR * 0.4)))
+          if w.left <= 0 then w:Hide() else live = live + 1 end
+        end
+      end
+      if live == 0 then self:Hide() end
+    end)
+    C.scrollHost = host
+  end
+  host:ClearAllPoints()
+  if C.card and C.card:GetPoint() then host:SetPoint("BOTTOM", C.card, "TOP", 0, 4)
+  else
+    local p = db().cardPos
+    if type(p) == "table" and p[1] then host:SetPoint("BOTTOM", UIParent, p[2] or p[1], p[3] or 0, (p[4] or 0) + 4)
+    else host:SetPoint("BOTTOM", UIParent, "TOP", 0, -170 + 4) end
+  end
+  local w
+  for _, x in ipairs(host.pool) do if not (x.left and x.left > 0) then w = x break end end
+  if not w then
+    if #host.pool >= C.SCROLL_MAX then w = host.pool[1] else w = K.fs(host, "", 14, "gold") host.pool[#host.pool + 1] = w end
+  end
+  local lanes = {}
+  for _, x in ipairs(host.pool) do if x ~= w and x.left and x.left > C.SCROLL_FOR * 0.6 then lanes[x.lane or 0] = true end end
+  local lane = 0
+  while lanes[lane] do lane = lane + 1 end
+  w.lane = lane
+  w:SetText(text)
+  w:SetTextColor(F().color(fireOnly and "warn" or "gold"))
+  w.left = C.SCROLL_FOR
+  w:SetAlpha(1)
+  w:Show()
+  host:Show()
+  return w
+end
+
 -- ---------------------------------------------------------------- the LIVE probe (/bist combo live)
 --[[ (17 Nov 2026, Arn: "a scrolling proc text so we can see when we get procs ... 1 extra hit, 1 extra flametongue,
   during combat"). Forever's combat log never reaches an addon (solved.md: COMBAT_LOG_EVENT_UNFILTERED fires zero
@@ -888,10 +988,14 @@ end
 -- ---------------------------------------------------------------- events (heard always, acted on only while the tool is on)
 local ev = CreateFrame("Frame")
 for _, e in ipairs({ "PLAYER_REGEN_DISABLED", "PLAYER_REGEN_ENABLED", "PLAYER_TOTEM_UPDATE", "UNIT_SPELLCAST_SUCCEEDED",
-                    "PLAYER_ENTER_COMBAT", "PLAYER_LEAVE_COMBAT" }) do
+                    "PLAYER_ENTER_COMBAT", "PLAYER_LEAVE_COMBAT", "UNIT_COMBAT" }) do
   pcall(ev.RegisterEvent, ev, e)
 end
-ev:SetScript("OnEvent", function(_, event, a1, _, a3)
+ev:SetScript("OnEvent", function(_, event, a1, a2, a3, a4, a5)
+  if event == "UNIT_COMBAT" then                       -- (first and quick: it fires for every unit hit, all the time)
+    if a1 == "target" and C.cur then C.Hit(a2, a5) end
+    return
+  end
   if event == "PLAYER_REGEN_DISABLED" then             -- a drag still on ends before the fight takes the mouse
     endDrag(C.frame) endDrag(C.card)
     if C.live then C.LiveStart() end                  -- (the live probe, armed by hand: on or off with the tool)
@@ -924,6 +1028,9 @@ R:Register({
     { kind = "toggle", label = "card after each fight",
       help = "A small card after a fight: your imbue + totems, your DPS, and where that combo ranks. Click it for the list.",
       get = function(d) return d.card ~= false end, set = function(d, v) d.card = v and true or false end },
+    { kind = "toggle", label = "proc text in a fight",
+      help = "Words rising beside the card while you fight: +1 extra hit (Windfury Totem), +2 extra hits (Windfury Weapon), Flametongue. Read from hits landing in the same instant.",
+      get = function(d) return d.scroll ~= false end, set = function(d, v) d.scroll = v and true or false end },
     { kind = "step", label = "shortest fight counted", help = "0 = every fight counts (a long fight weighs more than a short one). Above 0, shorter fights are kept but not ranked.",
       min = 0, max = 60, step = 5, get = function(d) return tonumber(d.min) or C.MIN end,
       set = function(d, v) d.min = v if C.IsOpen() then C.Paint() end end, show = function(d) return (tonumber(d.min) or C.MIN) .. " s" end },
