@@ -5313,10 +5313,17 @@ do
   local rank = Co.Rank()
   ok(#rank == 2 and rank[1].combo == "FT · SoE" and math.floor(rank[1].dps) == 150 and rank[2].combo == "WF · SoE · WF totem",
      "two combos ranked by damage over time: Flametongue + SoE (150) above", rank[1] and rank[1].combo)
-  -- a short fight: kept, not ranked
+  -- A SHORT FIGHT COUNTS (Arn: "fight under 10 sec should count because lucky procs means it can kill things fast"),
+  -- weighed by its few seconds; with a minimum set, it is kept but not ranked
   sid, dur, total = 12, 6, 900
   Co.Pull() Co.FightOver() W.runAfters(Co.READ_WAIT + 0.1)
-  ok(#cdb.fights == 3 and #Co.Rank() == 2 and Co.card.place:GetText():find("short fight", 1, true), "a 6 s fight: kept, not ranked, the card says so")
+  ok(#cdb.fights == 3 and Co.Rank()[1].n == 2 and Co.card.place:GetText():find("#1 of 2", 1, true),
+     "a 6 s fight: counted (weighed by its 6 s) - FT · SoE now on two fights", Co.card.place:GetText())
+  cdb.min = 10
+  ok(Co.Rank()[1].n == 1, "with a 10 s minimum set: the 6 s fight kept but not ranked")
+  Co.ShowCard(cdb.fights[3])
+  ok(Co.card.place:GetText():find("short fight", 1, true), "and the card says so")
+  cdb.min = nil
   -- the card fades on its own; the mouse on it holds it
   Co.card:GetScript("OnEnter")(Co.card)
   Co.card:GetScript("OnUpdate")(Co.card, 20)
@@ -5326,7 +5333,7 @@ do
   ok(not Co.card:IsShown(), "mouse gone: it fades away")
   -- the list
   Co.card:GetScript("OnMouseUp")(Co.card)
-  ok(Co.IsOpen() and Co.frame.rows[1].name:GetText() == "FT · SoE" and Co.frame.rows[1].n:GetText() == "1",
+  ok(Co.IsOpen() and Co.frame.rows[1].name:GetText() == "FT · SoE" and Co.frame.rows[1].n:GetText() == "2",
      "a click on the card opens the list, best first")
   Co.frame.rows[2]:GetScript("OnClick")(Co.frame.rows[2])
   ok(Co.frame.detail:GetText():find("Bloodsnout", 1, true) and Co.frame.detail:GetText():find("Windfury 30%", 1, true),

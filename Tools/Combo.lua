@@ -25,7 +25,9 @@ local R = NS.Registry
 local C = {}
 NS.Combo = C
 
-C.MIN, C.KEEP, C.READ_WAIT, C.CARD_FOR, C.CARD_FADE = 10, 300, 1.5, 8, 1
+-- (C.MIN 0, 17 Nov - Arn: "fight under 10 sec should count because lucky procs means it can kill things fast": every
+-- fight counts by default; damage over TIME already weighs a short one by its few seconds. The setting stays.)
+C.MIN, C.KEEP, C.READ_WAIT, C.CARD_FOR, C.CARD_FADE = 0, 300, 1.5, 8, 1
 C.W, C.H, C.ROWS, C.ROW = 330, 236, 7, 16
 -- THE SIZE AND THE SWITCHES (17 Nov 2026, Arn: "we forgot the rule of letting us resize the window that we did with bis
 -- healing deck" - the family rule: every window a switches panel with its toggles, width and height, RESET): the list's
@@ -447,7 +449,7 @@ function C.BuildSet()
   p.card = swRow(p, -4, "card after each fight")
   p.card:SetScript("OnClick", function() d().card = d().card == false and true or false C.PaintSet() end)
   p.card.paint = function() p.card.value:SetText(d().card ~= false and "ON" or "OFF") end
-  p.min = stepRow(p, -22, "shortest fight counted", C.Min, function(v) d().min = v end, 5, 60, 5, " s")
+  p.min = stepRow(p, -22, "shortest fight counted", C.Min, function(v) d().min = v end, 0, 60, 5, " s")
   p.wid = stepRow(p, -40, "width", function() return (C.Size()) end, function(v) d().w = v C.Layout() end, C.W_MIN, C.W_MAX, C.STEP, " px")
   p.hei = stepRow(p, -58, "height", function() return select(2, C.Size()) end, function(v) d().h = v C.Layout() end, C.H_MIN, C.H_MAX, C.STEP, " px")
   p.reset = swRow(p, -82, "RESET  (the look - never your fights)")
@@ -520,7 +522,8 @@ function C.Paint()
   end
   f.detail:SetText(#lines > 0 and table.concat(lines, "\n") or (#list > 0 and "click a combo: its last fights" or
     "no fights yet - fight something with an imbue and totems up"))
-  f.foot:SetText(("%d fights kept  ·  fights under %d s are not counted"):format(#(db().fights or {}), C.Min()))
+  f.foot:SetText(C.Min() > 0 and ("%d fights kept  ·  fights under %d s are not counted"):format(#(db().fights or {}), C.Min())
+    or ("%d fights kept  ·  every fight counts, weighed by its length"):format(#(db().fights or {})))
 end
 function C.IsOpen() return C.frame ~= nil and C.frame:IsShown() end
 function C.Toggle(want)
@@ -651,8 +654,8 @@ R:Register({
     { kind = "toggle", label = "card after each fight",
       help = "A small card after a fight: your imbue + totems, your DPS, and where that combo ranks. Click it for the list.",
       get = function(d) return d.card ~= false end, set = function(d, v) d.card = v and true or false end },
-    { kind = "step", label = "shortest fight counted", help = "Fights shorter than this are kept but not ranked - too short to compare.",
-      min = 5, max = 60, step = 5, get = function(d) return tonumber(d.min) or C.MIN end,
+    { kind = "step", label = "shortest fight counted", help = "0 = every fight counts (a long fight weighs more than a short one). Above 0, shorter fights are kept but not ranked.",
+      min = 0, max = 60, step = 5, get = function(d) return tonumber(d.min) or C.MIN end,
       set = function(d, v) d.min = v if C.IsOpen() then C.Paint() end end, show = function(d) return (tonumber(d.min) or C.MIN) .. " s" end },
     { kind = "button", label = "the combo list", button = "open",
       help = "Every imbue + totem combo you fought with, ranked by damage per second, with how many fights each is based on.",
