@@ -102,8 +102,51 @@ function C.Label(imbue, totems)
 end
 
 -- ---------------------------------------------------------------- the recorder
+--[[ ONLY THE TIME YOU SWING (17 Nov 2026, Arn: "the dps takes all the fight into account, sometimes these mobs run away
+  and it hurts a dps number ... only consider the active time of melee attacks"). Every C.ACTIVE_EVERY s of the fight
+  (one ticker, only in a fight with the tool on) counts toward the ACTIVE time while your auto-attack is on
+  (PLAYER_ENTER_COMBAT / _LEAVE_COMBAT, C_Spell.IsCurrentSpell 6603 at the pull) AND the target is in melee reach as far
+  as the game says (C_Spell.IsSpellInRange of Auto Attack, else CheckInteractDistance 3; an answer it will not give =
+  counted, a plain "no" = not). A fleeing mob, a run back, standing still: none of it. DPS = damage / active time when
+  there was at least C.ACTIVE_MIN s of it, else the fight's length; the record says which (rec.active, rec.how). ]]
+C.ACTIVE_EVERY, C.ACTIVE_MIN, C.AUTO_ATTACK = 0.25, 2, 6603
+--- Is the target in melee reach: true / false when the game says plainly, nil when it will not.
+function C.InReach()
+  if not (UnitExists and UnitExists("target")) then return false end
+  if C_Spell and C_Spell.IsSpellInRange then
+    local ok, r = pcall(C_Spell.IsSpellInRange, C.AUTO_ATTACK, "target")
+    if ok then r = plain(r) else r = nil end            -- (never `ok and plain(r) or nil`: a plain false would turn nil)
+    if r == true or r == false then return r end
+    if r == 1 or r == 0 then return r == 1 end
+  end
+  if CheckInteractDistance then
+    local ok, r = pcall(CheckInteractDistance, "target", 3)
+    if ok then r = plain(r) else r = nil end
+    if r == true or r == false then return r end
+  end
+  return nil
+end
+function C.Swinging()
+  if C_Spell and C_Spell.IsCurrentSpell then
+    local ok, v = pcall(C_Spell.IsCurrentSpell, C.AUTO_ATTACK)
+    if ok then v = plain(v) else v = nil end
+    if v ~= nil then return v and true or false end
+  end
+  return false
+end
+function C.ActiveTick()
+  local cur = C.cur
+  if not cur then return end
+  if not cur.swing then return end
+  local reach = C.InReach()
+  if reach == false then return end
+  cur.active = cur.active + C.ACTIVE_EVERY
+  if reach == true then cur.reachKnown = true end
+end
 function C.Pull()
-  C.cur = { imbue = C.ImbueNow(), totems = C.ScanTotems({}) }
+  C.cur = { imbue = C.ImbueNow(), totems = C.ScanTotems({}), active = 0, swing = C.Swinging() }
+  if C.activeTicker and C.activeTicker.Cancel then C.activeTicker:Cancel() end
+  if C_Timer and C_Timer.NewTicker then C.activeTicker = C_Timer.NewTicker(C.ACTIVE_EVERY, C.ActiveTick) end
 end
 function C.Cast(spellID)
   if not (C_Spell and C_Spell.GetSpellName) then return end
@@ -127,6 +170,8 @@ end
 function C.FightOver()
   local cur = C.cur
   C.cur = nil
+  if C.activeTicker and C.activeTicker.Cancel then C.activeTicker:Cancel() end
+  C.activeTicker = nil
   if not cur or not (C_Timer and C_Timer.After) then return end
   C.token = (C.token or 0) + 1
   local tok = C.token
@@ -188,13 +233,16 @@ function C.Close(cur)
   local imbue = cur.imbue or C.ImbueNow()
   local set = {}
   for _, n in ipairs(totems) do set[n] = true end
+  local active = (cur.active or 0) >= C.ACTIVE_MIN and math.min(cur.active, dur) or nil
   local rec = { at = (time and time()) or 0, sid = sid, mob = plain(last.name) or plain(s.name), dur = dur, dmg = dmg,
+                active = active, how = active and (cur.reachKnown and "swinging in reach" or "swinging") or "the whole fight",
                 imbue = imbue, totems = totems, combo = C.Label(imbue, set),
                 wf = dmg > 0 and wf / dmg or 0, ft = dmg > 0 and ft / dmg or 0, spells = C.TopSpells(spells, dmg) }
   d.fights = d.fights or {}
   d.fights[#d.fights + 1] = rec
   while #d.fights > C.KEEP do table.remove(d.fights, 1) end
-  C.lastWhy = ("kept fight %d: %s, %d s, %d dps"):format(sid, rec.combo, math.floor(dur + 0.5), math.floor(dmg / dur + 0.5))
+  C.lastWhy = ("kept fight %d: %s, %d s (%s %s), %d dps"):format(sid, rec.combo, math.floor(dur + 0.5),
+    active and math.floor(active + 0.5) .. " s" or "-", rec.how, math.floor(dmg / C.Time(rec) + 0.5))
   if d.card ~= false then C.ShowCard(rec) end
   if C.IsOpen() then C.Paint() end
   return rec
@@ -213,6 +261,8 @@ end
 
 -- ---------------------------------------------------------------- the ranking
 function C.Min() return tonumber(db().min) or C.MIN end
+--- The time a fight's DPS is counted over: the time you were swinging, else (none measured) the fight's length.
+function C.Time(f) return (f.active and f.active > 0) and f.active or f.dur end
 --- Every combo with enough fight in it, best first: { combo, n, dmg, dur, dps }.
 function C.Rank()
   local by, list = {}, {}
@@ -220,7 +270,7 @@ function C.Rank()
     if (f.dur or 0) >= C.Min() then
       local g = by[f.combo]
       if not g then g = { combo = f.combo, n = 0, dmg = 0, dur = 0 } by[f.combo] = g list[#list + 1] = g end
-      g.n, g.dmg, g.dur = g.n + 1, g.dmg + f.dmg, g.dur + f.dur
+      g.n, g.dmg, g.dur = g.n + 1, g.dmg + f.dmg, g.dur + C.Time(f)
     end
   end
   for _, g in ipairs(list) do g.dps = g.dur > 0 and g.dmg / g.dur or 0 end
@@ -288,9 +338,10 @@ function C.BuildCard()
 end
 function C.ShowCard(rec)
   local f = C.BuildCard()
-  f.where:SetText(("%d s%s"):format(math.floor(rec.dur + 0.5), rec.mob and (" · " .. rec.mob) or ""))
+  f.where:SetText(("%s%s"):format(rec.active and ("%d of %d s swinging"):format(math.floor(rec.active + 0.5), math.floor(rec.dur + 0.5))
+    or ("%d s"):format(math.floor(rec.dur + 0.5)), rec.mob and (" · " .. rec.mob) or ""))
   f.combo:SetText(rec.combo)
-  f.dps:SetText(("%d dps"):format(math.floor(rec.dmg / rec.dur + 0.5)))
+  f.dps:SetText(("%d dps"):format(math.floor(rec.dmg / C.Time(rec) + 0.5)))
   if rec.dur < C.Min() then
     f.place:SetText(("short fight - not ranked (under %d s)"):format(C.Min()))
   else
@@ -514,7 +565,8 @@ function C.Paint()
       if fi.combo == C.sel and (fi.dur or 0) >= C.Min() then
         n = n + 1
         if n > 4 then break end
-        lines[#lines + 1] = ("%s  %d s  %d dps%s"):format(fi.mob or "?", math.floor(fi.dur + 0.5), math.floor(fi.dmg / fi.dur + 0.5),
+        lines[#lines + 1] = ("%s  %s  %d dps%s"):format(fi.mob or "?", fi.active and ("%d/%d s"):format(math.floor(fi.active + 0.5), math.floor(fi.dur + 0.5))
+          or ("%d s"):format(math.floor(fi.dur + 0.5)), math.floor(fi.dmg / C.Time(fi) + 0.5),
           (fi.wf or 0) > 0 and ("  Windfury %d%%"):format(math.floor(fi.wf * 100 + 0.5)) or
           ((fi.ft or 0) > 0 and ("  Flametongue %d%%"):format(math.floor(fi.ft * 100 + 0.5)) or ""))
       end
@@ -537,7 +589,7 @@ function C.Paint()
   f.detail:SetText(#lines > 0 and table.concat(lines, "\n") or (#list > 0 and "click a combo: its last fights" or
     "no fights yet - fight something with an imbue and totems up"))
   f.foot:SetText(C.Min() > 0 and ("%d fights kept  ·  fights under %d s are not counted"):format(#(db().fights or {}), C.Min())
-    or ("%d fights kept  ·  every fight counts, weighed by its length"):format(#(db().fights or {})))
+    or ("%d fights kept  ·  dps over the time you swing"):format(#(db().fights or {})))
 end
 function C.IsOpen() return C.frame ~= nil and C.frame:IsShown() end
 function C.Toggle(want)
@@ -741,7 +793,8 @@ end
 
 -- ---------------------------------------------------------------- events (heard always, acted on only while the tool is on)
 local ev = CreateFrame("Frame")
-for _, e in ipairs({ "PLAYER_REGEN_DISABLED", "PLAYER_REGEN_ENABLED", "PLAYER_TOTEM_UPDATE", "UNIT_SPELLCAST_SUCCEEDED" }) do
+for _, e in ipairs({ "PLAYER_REGEN_DISABLED", "PLAYER_REGEN_ENABLED", "PLAYER_TOTEM_UPDATE", "UNIT_SPELLCAST_SUCCEEDED",
+                    "PLAYER_ENTER_COMBAT", "PLAYER_LEAVE_COMBAT" }) do
   pcall(ev.RegisterEvent, ev, e)
 end
 ev:SetScript("OnEvent", function(_, event, a1, _, a3)
@@ -758,6 +811,8 @@ ev:SetScript("OnEvent", function(_, event, a1, _, a3)
   if event == "PLAYER_REGEN_DISABLED" then C.Pull()
   elseif event == "PLAYER_REGEN_ENABLED" then C.FightOver()
   elseif event == "PLAYER_TOTEM_UPDATE" then if C.cur then C.ScanTotems(C.cur.totems) end
+  elseif event == "PLAYER_ENTER_COMBAT" then if C.cur then C.cur.swing = true end    -- auto-attack on
+  elseif event == "PLAYER_LEAVE_COMBAT" then if C.cur then C.cur.swing = false end   -- and off
   elseif event == "UNIT_SPELLCAST_SUCCEEDED" then if a1 == "player" then C.Cast(a3) end
   end
 end)

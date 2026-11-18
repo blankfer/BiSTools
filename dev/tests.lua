@@ -5400,6 +5400,35 @@ do
     _G.Enum.DamageMeterSessionType, _G.Enum.DamageMeterType = keepEnum[1], keepEnum[2]
     _G.Enum = hadEnum
   end
+  -- ONLY THE TIME YOU SWING (Arn: "sometimes these mobs run away and it hurts a dps number")
+  do
+    local keepCS2, keepCID = _G.C_Spell.IsSpellInRange, _G.CheckInteractDistance
+    local reach = true
+    _G.C_Spell.IsSpellInRange = function() return reach end
+    W.units = W.units or {}
+    local keepUE = _G.UnitExists
+    _G.UnitExists = function(u) if u == "target" then return true end return keepUE and keepUE(u) end
+    sid, dur, total = 30, 20, 2000
+    _G.C_DamageMeter.GetAvailableCombatSessions = function() return { { sessionID = sid, name = "Runner", durationSeconds = dur } } end
+    Co.Pull()
+    Co.events:GetScript("OnEvent")(Co.events, "PLAYER_ENTER_COMBAT")
+    for _ = 1, 40 do W.tick() end                      -- 10 s swinging in reach
+    reach = false
+    for _ = 1, 40 do W.tick() end                      -- 10 s: it ran away
+    Co.FightOver() W.runAfters(Co.READ_WAIT + 0.1)
+    local r = cdb.fights[#cdb.fights]
+    ok(r and math.abs((r.active or 0) - 10) < 0.01 and r.how == "swinging in reach" and math.floor(cdb.fights[#cdb.fights].dmg / Co.Time(r) + 0.5) == 200,
+       "a 20 s fight, the mob fled for 10: dps over the 10 s you swung - 200, not 100", r and r.active)
+    ok(Co.card.dps:GetText() == "200 dps" and Co.card.where:GetText():find("10 of 20 s swinging", 1, true), "the card: 200 dps, 10 of 20 s swinging", Co.card.where:GetText())
+    -- auto-attack never on (a caster): the whole fight
+    sid = 31
+    Co.Pull()
+    for _ = 1, 40 do W.tick() end
+    Co.FightOver() W.runAfters(Co.READ_WAIT + 0.1)
+    r = cdb.fights[#cdb.fights]
+    ok(r and r.active == nil and r.how == "the whole fight" and Co.Time(r) == 20, "never swinging: the whole fight counts")
+    _G.C_Spell.IsSpellInRange, _G.CheckInteractDistance, _G.UnitExists = keepCS2, keepCID, keepUE
+  end
   R:SetEnabled("combo", false)
   cdb.fights = {}
   Co.Toggle(false)
