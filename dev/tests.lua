@@ -5410,6 +5410,29 @@ do
     cdb.w, cdb.h = nil, nil
     Co.Layout()
   end
+  -- TRY NEXT (Arn: "is there a combination I am not trying - maybe the combo box can smartly suggest combos to get more data")
+  do
+    local keepGSI, keepIPS = _G.C_Spell.GetSpellInfo, _G.IsPlayerSpell
+    local ids = { ["Windfury Weapon"] = 1, ["Flametongue Weapon"] = 2, ["Flametongue Totem"] = 3, ["Searing Totem"] = 4,
+                  ["Strength of Earth Totem"] = 5, ["Grace of Air Totem"] = 6, ["Windfury Totem"] = 7 }
+    _G.C_Spell.GetSpellInfo = function(n) return ids[n] and { spellID = ids[n] } or nil end
+    _G.IsPlayerSpell = function(id) return id ~= nil end
+    local pick, total, untried = Co.TryNext()
+    ok(total == 8 and pick and pick.n == 0 and untried == 8, "every combo you know (2 imbues x 2 fire x 1 earth x 2 air = 8), the next one never fought with",
+       total, pick and pick.combo, untried)
+    Co.Paint()
+    local tr = Co.frame.try
+    ok(tr.icons[1].name and tr.note:GetText():find("never tried", 1, true), "TRY NEXT shows it as icons, and says it's untried", tr.note:GetText())
+    -- CLICK AN ICON TO CAST IT (Arn: "maybe we can make these buttons clickable?")
+    local ib = tr.icons[1]
+    ib:GetScript("OnEnter")(ib)
+    local cb = _G.BiSToolsComboCast
+    ok(cb and cb.template == "SecureActionButtonTemplate" and cb:IsShown() and cb.attrs.type == "spell" and cb.attrs.spell == ib.name,
+       "pointing at an icon out of a fight: one secure button over it, casting that spell", cb and cb.attrs.spell)
+    cb:GetScript("OnLeave")(cb)
+    ok(not cb:IsShown(), "the mouse leaves: it goes away")
+    _G.C_Spell.GetSpellInfo, _G.IsPlayerSpell = keepGSI, keepIPS
+  end
   ok(Co.Cells("Windfury Weapon", { "Grace of Air Totem", "Windfury Totem" }).air == "GoA+WF", "two of one element (they stack now): joined with +")
   -- OPEN STAYS OPEN (Arn: "combo window closes every time I reload")
   ok(cdb.open == true, "the list open: written down")

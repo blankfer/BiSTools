@@ -89,6 +89,69 @@ function C.IconFor(name)
   if tex then C.iconCache[name] = tex end
   return tex
 end
+--[[ CLICK AN ICON TO CAST IT (17 Nov 2026, Arn, of the icons: "maybe we can make these buttons clickable?"): every icon
+  (list, TRY NEXT, card) is a plain button; pointing at one out of a fight moves ONE secure button (BiSToolsComboCast,
+  type "spell") over it with that spell - a click puts the imbue on your weapon or drops the totem. Nothing secure is
+  written in a fight: there the icons only tell their names. The secure button goes away at the pull and when the
+  mouse leaves it. ]]
+local function fighting() return InCombatLockdown and InCombatLockdown() and true or false end
+function C.IconButton(parent, size)
+  local b = CreateFrame("Button", nil, parent)
+  b:SetSize(size, size)
+  b.tex = b:CreateTexture(nil, "ARTWORK")
+  b.tex:SetAllPoints(b)
+  if b.tex.SetTexCoord then b.tex:SetTexCoord(0.08, 0.92, 0.08, 0.92) end
+  b.SetTexture = function(self, t) self.tex:SetTexture(t) end
+  b:SetScript("OnEnter", function(self) C.IconEnter(self) end)
+  b:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+  b:Hide()
+  return b
+end
+function C.CastButton()
+  if C.cast then return C.cast end
+  local c = CreateFrame("Button", "BiSToolsComboCast", UIParent, "SecureActionButtonTemplate")
+  c:RegisterForClicks("AnyUp", "AnyDown")
+  c:SetFrameStrata("FULLSCREEN_DIALOG")
+  c:SetAttribute("type", "spell")
+  c.hl = c:CreateTexture(nil, "OVERLAY")
+  c.hl:SetAllPoints(c)
+  c.hl:SetColorTexture(1, 1, 1, 0.25)
+  c:SetScript("OnEnter", function(self) C.CastTip(self) end)
+  c:SetScript("OnLeave", function(self)
+    if GameTooltip then GameTooltip:Hide() end
+    if not fighting() then self:Hide() end
+  end)
+  c:Hide()
+  C.cast = c
+  return c
+end
+function C.CastTip(c)
+  if not (GameTooltip and c.spell) then return end
+  GameTooltip:SetOwner(c, "ANCHOR_RIGHT")
+  GameTooltip:AddLine(c.spell, 1, 1, 1)
+  GameTooltip:AddLine(c.spell:find("Weapon", 1, true) and "click: put it on your weapon" or "click: drop it", 0.4, 1, 0.4)
+  GameTooltip:Show()
+end
+--- The mouse on an icon: out of a fight, the secure cast button over it with its spell; in one, its name.
+function C.IconEnter(b)
+  if not b.name then return end
+  if fighting() or not C.Knows(b.name) then
+    if GameTooltip then
+      GameTooltip:SetOwner(b, "ANCHOR_RIGHT")
+      GameTooltip:AddLine(b.name, 1, 1, 1)
+      GameTooltip:AddLine(fighting() and "out of a fight: click to cast" or "not known yet", 0.6, 0.6, 0.6)
+      GameTooltip:Show()
+    end
+    return
+  end
+  local c = C.CastButton()
+  c:ClearAllPoints()
+  c:SetAllPoints(b)
+  c:SetAttribute("spell", b.name)
+  c.spell = b.name
+  c:Show()
+  C.CastTip(c)
+end
 --- The names in each column: { imbue = { name }, fire = { ... }, earth = { ... }, air = { ... } }.
 function C.CellNames(imbue, totems)
   local out = { imbue = {}, fire = {}, earth = {}, air = {} }
@@ -461,6 +524,81 @@ function C.Rank()
   table.sort(list, function(a, b) return a.dps > b.dps end)
   return list
 end
+--[[ TRY NEXT (17 Nov 2026, Arn: "it seems Flametongue Totem is best with WF imbue ... or is there a combination I am not
+  trying - maybe the combo box can smartly suggest combos to get more data"): every combo you COULD run - each imbue you
+  know, times one totem per element you know (the damage ones only: C.TRY), each slot filled - and how many fights each
+  has. The one with the fewest fights is next; a tie goes to the one most like your best (fewest changes to try). When
+  every combo has C.TRY_ENOUGH fights the ranking stands on its own. ]]
+C.TRY = {
+  imbue = { "Windfury Weapon", "Flametongue Weapon", "Rockbiter Weapon", "Frostbrand Weapon" },
+  fire = { "Flametongue Totem", "Searing Totem", "Magma Totem" },
+  earth = { "Strength of Earth Totem" },
+  air = { "Grace of Air Totem", "Windfury Totem" },
+}
+C.TRY_ENOUGH = 5
+--- Do you know this spell? (by name: the client's spell info, then whether it is yours)
+function C.Knows(name)
+  if not (C_Spell and C_Spell.GetSpellInfo) then return false end
+  local ok, info = pcall(C_Spell.GetSpellInfo, name)
+  if not ok or type(info) ~= "table" then return false end
+  local id = plain(info.spellID)
+  if type(id) ~= "number" then return false end
+  local known = IsPlayerSpell or IsSpellKnown
+  if not known then return true end
+  local ok2, yes = pcall(known, id)
+  return ok2 and plain(yes) == true
+end
+--- Every combo you could run: { imbue, totems = { names }, combo = label, n = fights } for each.
+function C.Possible()
+  local have = {}
+  for slot, names in pairs(C.TRY) do
+    have[slot] = {}
+    for _, n in ipairs(names) do if C.Knows(n) then have[slot][#have[slot] + 1] = n end end
+    if #have[slot] == 0 then have[slot] = { false } end   -- (none known for that element: the slot stays empty)
+  end
+  local counts = {}
+  for _, g in ipairs(C.Rank()) do counts[g.combo] = g.n end
+  local out = {}
+  for _, im in ipairs(have.imbue) do
+    for _, fi in ipairs(have.fire) do
+      for _, ea in ipairs(have.earth) do
+        for _, ai in ipairs(have.air) do
+          local set, list = {}, {}
+          for _, t in ipairs({ fi, ea, ai }) do if t then set[t] = true list[#list + 1] = t end end
+          local imbue = im or nil
+          local label = C.Label(imbue, set)
+          out[#out + 1] = { imbue = imbue, totems = list, combo = label, n = counts[label] or 0 }
+        end
+      end
+    end
+  end
+  return out
+end
+--- The combo to try next, or nil when every one has enough fights (or nothing is known).
+function C.TryNext()
+  local all = C.Possible()
+  if #all == 0 or (#all == 1 and not all[1].imbue and #all[1].totems == 0) then return nil end
+  local best = C.Rank()[1]
+  local function like(c)
+    if not best then return 0 end
+    local k = (c.imbue == best.imbue) and 1 or 0
+    local bt = {}
+    for _, t in ipairs(best.totems or {}) do bt[t] = true end
+    for _, t in ipairs(c.totems) do if bt[t] then k = k + 1 end end
+    return k
+  end
+  table.sort(all, function(a, b)
+    if a.n ~= b.n then return a.n < b.n end
+    local la, lb = like(a), like(b)
+    if la ~= lb then return la > lb end
+    return a.combo < b.combo
+  end)
+  local pick = all[1]
+  if pick.n >= C.TRY_ENOUGH then return nil, #all end
+  local untried = 0
+  for _, c in ipairs(all) do if c.n == 0 then untried = untried + 1 end end
+  return pick, #all, untried
+end
 function C.Place(combo)
   local list = C.Rank()
   for i, g in ipairs(list) do if g.combo == combo then return i, #list end end
@@ -542,9 +680,7 @@ function C.CardIcons(f, rec)
     local tex = C.IconFor(n)
     local t = f.icons[i]
     if tex and not t then
-      t = f:CreateTexture(nil, "ARTWORK")
-      t:SetSize(C.CARD_ICON, C.CARD_ICON)
-      if t.SetTexCoord then t:SetTexCoord(0.08, 0.92, 0.08, 0.92) end
+      t = C.IconButton(f, C.CARD_ICON)
       f.icons[i] = t
     end
     if tex then
@@ -627,6 +763,7 @@ function C.Build()
     self:StartMoving() self.moving = true
   end)
   local function keep(self)
+    if C.cast and not fighting() and not self:IsShown() then C.cast:Hide() end
     if self.sizing then C.EndSizing(self) end                  -- (hidden mid-size: let go, as a drag does)
     if not self.moving then return end
     endDrag(self)
@@ -661,6 +798,34 @@ function C.Build()
   f.detail:SetJustifyH("LEFT")
   f.foot = K.fs(f, "", 9, "dim")
   f.foot:SetPoint("BOTTOMLEFT", 8, 7)
+  -- TRY NEXT: the combo with the fewest fights, as icons, over the foot (C.TryNext)
+  local tr = CreateFrame("Button", nil, f)
+  tr:SetHeight(C.TRY_H - 2)
+  tr:SetPoint("BOTTOMLEFT", 8, 22) tr:SetPoint("BOTTOMRIGHT", -8, 22)
+  tr.lit = K.tex(tr, "BACKGROUND", "accent", 0.08)
+  tr.word = K.fs(tr, "TRY NEXT", 9, "gold")
+  tr.word:SetPoint("LEFT", 4, 0)
+  tr.icons = {}
+  for k = 1, 4 do
+    local t = C.IconButton(tr, C.TRY_H - 4)
+    t:SetPoint("LEFT", tr, "LEFT", 62 + (k - 1) * (C.TRY_H - 2), 0)
+    tr.icons[k] = t
+  end
+  tr.note = K.fs(tr, "", 9, "muted")
+  tr.note:SetPoint("LEFT", tr, "LEFT", 62 + 4 * (C.TRY_H - 2) + 4, 0)
+  tr:SetScript("OnEnter", function(self)
+    self.lit:SetAlpha(0.2)
+    local c = self.c
+    if not (c and GameTooltip) then return end
+    GameTooltip:SetOwner(self, "ANCHOR_TOP")
+    GameTooltip:AddLine("Try next: " .. (c.n == 0 and "never fought with" or ("only %d fights"):format(c.n)), 1, 0.82, 0)
+    GameTooltip:AddLine(c.imbue or "no imbue", 1, 1, 1)
+    for _, n in ipairs(c.totems) do GameTooltip:AddLine(n, 0.8, 0.8, 0.8) end
+    GameTooltip:AddLine("A few fights with it and the ranking knows where it stands.", 0.6, 0.6, 0.6, true)
+    GameTooltip:Show()
+  end)
+  tr:SetScript("OnLeave", function(self) self.lit:SetAlpha(0.08) if GameTooltip then GameTooltip:Hide() end end)
+  f.try = tr
   -- DRAG THE CORNER (17 Nov 2026, Arn: "let me resize the window by dragging the corner"): the grip at the bottom right
   -- sizes the list inside the same bounds as SET's steps, the rows following live; db.w / db.h on letting go
   if f.SetResizable then f:SetResizable(true) end
@@ -714,10 +879,11 @@ function C.Size()
   local h = math.max(C.H_MIN, math.min(C.H_MAX, tonumber(d.h) or C.H))
   return w, h
 end
---- How many rows the height holds.
+--- How many rows the height holds (the TRY NEXT strip takes C.TRY_H above the foot).
+C.TRY_H = 20
 function C.RowCount()
   local _, h = C.Size()
-  return math.max(3, math.floor((h - 38 - 62 - 22) / C.ROW))
+  return math.max(3, math.floor((h - 38 - 62 - 22 - C.TRY_H) / C.ROW))
 end
 --- Lay the list out on its size: the columns on the width, as many rows as the height holds.
 function C.Layout()
@@ -756,11 +922,7 @@ function C.Layout()
       for _, c in ipairs(C.COLS) do
         r.icons[c] = {}
         for k = 1, 2 do                                       -- (two totems of one element stack on Forever: two icons)
-          local t = r:CreateTexture(nil, "ARTWORK")
-          t:SetSize(C.ROW - 2, C.ROW - 2)
-          if t.SetTexCoord then t:SetTexCoord(0.08, 0.92, 0.08, 0.92) end
-          t:Hide()
-          r.icons[c][k] = t
+          r.icons[c][k] = C.IconButton(r, C.ROW - 2)
         end
       end
       r.n = K.fs(r, "", 9, "muted") r.n:SetJustifyH("RIGHT")
@@ -949,6 +1111,31 @@ function C.Paint()
     "no fights yet - fight something with an imbue and totems up"))
   f.foot:SetText(C.Min() > 0 and ("%d fights kept  ·  fights under %d s are not counted"):format(#(db().fights or {}), C.Min())
     or ("%d fights kept  ·  dps over the time you swing"):format(#(db().fights or {})))
+  C.PaintTry()
+end
+function C.PaintTry()
+  local tr = C.frame and C.frame.try
+  if not tr then return end
+  local c, total, untried = C.TryNext()
+  tr.c = c
+  local names = {}
+  if c then
+    if c.imbue then names[#names + 1] = c.imbue end
+    for _, n in ipairs(c.totems) do names[#names + 1] = n end
+  end
+  for k, t in ipairs(tr.icons) do
+    local tex = names[k] and C.IconFor(names[k])
+    if tex then t:SetTexture(tex) t.name = names[k] t:Show() else t.name = nil t:Hide() end
+  end
+  if c then
+    tr.note:SetText(c.n == 0 and ("never tried  -  %d of %d combos untried"):format(untried or 0, total or 0)
+      or ("only %d fights  -  %d combos to compare"):format(c.n, total or 0))
+  elseif total then
+    tr.note:SetText(("every combo you know has %d+ fights: the ranking holds"):format(C.TRY_ENOUGH))
+  else
+    tr.note:SetText("learn an imbue or a totem first")
+  end
+  tr.note:SetPoint("LEFT", tr, "LEFT", 62 + #names * (C.TRY_H - 2) + 4, 0)
 end
 function C.IsOpen() return C.frame ~= nil and C.frame:IsShown() end
 -- OPEN STAYS OPEN (17 Nov 2026, Arn: "combo window closes every time I reload and it says on in the options"): the
@@ -1606,6 +1793,7 @@ ev:SetScript("OnEvent", function(_, event, a1, a2, a3, a4, a5)
   end
   if event == "PLAYER_REGEN_DISABLED" then             -- a drag still on ends before the fight takes the mouse
     endDrag(C.frame) endDrag(C.card)
+    if C.cast then C.cast:Hide() end                   -- (the secure cast button: away before the lockdown)
     if C.live then C.LiveStart() end                  -- (the live probe, armed by hand: on or off with the tool)
   elseif event == "PLAYER_REGEN_ENABLED" and C.live and C.live.polls then
     C.LiveEnd()
