@@ -5439,6 +5439,25 @@ do
     local _, rel2 = cb:GetPoint(1)
     ok(not cb:IsShown() and rel2 ~= ib, "a pull: put away and let go before the lockdown")
     Co.FightOver() W.runAfters(Co.READ_WAIT + 0.1)
+    -- ONTO THE DECK (Arn: "I click something and it changes the totems on my BiS Healing deck - out of combat of course")
+    local sent
+    _G.BiSHealingAPI = { version = 3, SetTotems = function(set) sent = set return true end }
+    Co.Paint()
+    ok(tr.deck:IsShown(), "BiS Healing's deck can take totems: SET DECK on the TRY NEXT strip")
+    tr.deck:GetScript("OnClick")(tr.deck)
+    ok(sent and sent.fire == "Flametongue Totem" and sent.earth == "Strength of Earth Totem" and (sent.air == "Grace of Air Totem" or sent.air == "Windfury Totem") and not sent.water,
+       "SET DECK sends the suggestion's totems, each under its element (water left alone)")
+    sent = nil
+    Co.frame.rows[2]:GetScript("OnClick")(Co.frame.rows[2], "RightButton")
+    ok(sent and sent.air == "Windfury Totem" and sent.earth == "Strength of Earth Totem", "right-click a combo in the list: its totems go to the deck")
+    local keepICL = _G.InCombatLockdown
+    _G.InCombatLockdown = function() return true end
+    sent = nil
+    ok(Co.SendDeck({ "Grace of Air Totem" }) == false and sent == nil, "in a fight: nothing sent")
+    _G.InCombatLockdown = keepICL
+    _G.BiSHealingAPI = nil
+    Co.Paint()
+    ok(not tr.deck:IsShown(), "no BiS Healing (or an older one): no SET DECK button")
     _G.C_Spell.GetSpellInfo, _G.IsPlayerSpell = keepGSI, keepIPS
   end
   -- THE LEVEL PENALTY (Arn: "higher level mobs come with a lot of penalties, like misses and dodges ... an adjusted dps column")

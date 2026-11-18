@@ -902,6 +902,23 @@ function C.Build()
   end
   tr.note = K.fs(tr, "", 9, "muted")
   tr.note:SetPoint("LEFT", tr, "LEFT", 62 + 4 * (C.TRY_H - 2) + 4, 0)
+  -- SET DECK: the suggestion's totems onto BiS Healing's deck boxes (C.SendDeck), shown only when the deck can take them
+  tr.deck = CreateFrame("Button", nil, tr)
+  tr.deck:SetSize(62, C.TRY_H - 6)
+  tr.deck:SetPoint("RIGHT", tr, "RIGHT", -4, 0)
+  K.tex(tr.deck, "BACKGROUND", "field", 0.9)
+  tr.deck.label = K.fs(tr.deck, "SET DECK", 8, "gold")
+  tr.deck.label:SetPoint("CENTER")
+  tr.deck:SetScript("OnClick", function() if tr.c then C.SendDeck(tr.c.totems) end end)
+  tr.deck:SetScript("OnEnter", function(self)
+    if not GameTooltip then return end
+    GameTooltip:SetOwner(self, "ANCHOR_TOP")
+    GameTooltip:AddLine("Set these totems on your BiS Healing deck", 1, 0.82, 0)
+    GameTooltip:AddLine("Its totem boxes drop them from your next click. Out of a fight only. Right-click a combo in the list to send that one.", 0.9, 0.9, 0.9, true)
+    GameTooltip:Show()
+  end)
+  tr.deck:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+  tr.deck:Hide()
   tr:SetScript("OnEnter", function(self)
     self.lit:SetAlpha(0.2)
     local c = self.c
@@ -1026,7 +1043,12 @@ function C.Layout()
       r.n = K.fs(r, "", 9, "muted") r.n:SetJustifyH("RIGHT")
       r.dps = K.fs(r, "", 9, "muted") r.dps:SetJustifyH("RIGHT")
       r.adj = K.fs(r, "", 9, "good") r.adj:SetJustifyH("RIGHT")
-      r:SetScript("OnClick", function(self) if self.g then C.sel = self.g.combo C.Paint() end end)
+      if r.RegisterForClicks then r:RegisterForClicks("LeftButtonUp", "RightButtonUp") end
+      r:SetScript("OnClick", function(self, button)
+        if not self.g then return end
+        if button == "RightButton" then C.SendDeck(self.g.totems) return end   -- (right-click: onto the deck)
+        C.sel = self.g.combo C.Paint()
+      end)
       r:SetScript("OnEnter", function(self) self.hover = true C.PaintRow(self) C.RowTip(self) end)
       r:SetScript("OnLeave", function(self) self.hover = nil C.PaintRow(self) if GameTooltip then GameTooltip:Hide() end end)
       f.rows[i] = r
@@ -1388,6 +1410,31 @@ function C.GearLine()
   if g.lo then parts[#parts + 1] = ("%d-%d damage"):format(math.floor(g.lo + 0.5), math.floor(g.hi + 0.5)) end
   return #parts > 0 and ("YOU NOW  " .. table.concat(parts, "  -  ")) or ""
 end
+--[[ ONTO THE DECK (18 Nov 2026, Arn: "can we API-send the totems to BiS Healing's totem click areas - it's having me test a new
+  totem setup, I click something and it changes the totems on my BiS Healing deck - out of combat of course"): a combo's
+  totems, each under its element, go to BiSHealingAPI.SetTotems (version 3+); its totem boxes drop them from the next click.
+  Water is never touched (no combo has one). Out of a fight only. ]]
+function C.DeckCan()
+  local A = rawget(_G, "BiSHealingAPI")
+  return type(A) == "table" and type(A.SetTotems) == "function" and (tonumber(A.version) or 0) >= 3
+end
+function C.SendDeck(totems)
+  if not C.DeckCan() then say("combo: BiS Healing's deck isn't there (it needs BiS Healing 1.7.2 or later)") return false end
+  if InCombatLockdown and InCombatLockdown() then say("combo: out of a fight only") return false end
+  local set, words = {}, {}
+  for _, name in ipairs(totems or {}) do
+    local el = C.ELEMENT[name]
+    if el and not set[el] then set[el] = name words[#words + 1] = C.COL_WORD[name] or name end
+  end
+  if not next(set) then say("combo: that combo has no totems to send") return false end
+  local ok, a, why = pcall(BiSHealingAPI.SetTotems, set)
+  if ok and a then
+    say("combo: your deck's totem boxes now drop %s", table.concat(words, " · "))
+    return true
+  end
+  say("combo: the deck said no (%s)", tostring(ok and why or a))
+  return false
+end
 function C.PaintTry()
   local tr = C.frame and C.frame.try
   if not tr then return end
@@ -1411,6 +1458,7 @@ function C.PaintTry()
     tr.note:SetText("learn an imbue or a totem first")
   end
   tr.note:SetPoint("LEFT", tr, "LEFT", 62 + #names * (C.TRY_H - 2) + 4, 0)
+  if tr.deck then if c and C.DeckCan() then tr.deck:Show() else tr.deck:Hide() end end
 end
 function C.IsOpen() return C.frame ~= nil and C.frame:IsShown() end
 -- OPEN STAYS OPEN (17 Nov 2026, Arn: "combo window closes every time I reload and it says on in the options"): the
