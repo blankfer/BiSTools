@@ -19,7 +19,7 @@ NS.Registry:Register({
   name = "rivals",
   title = "rivals & pals",
   desc = "rivals (enemies you hunt), pals (friends you find), surname crowns, guildmates",
-  usage = "/bist rivals [rival | pal [name surname] | pals | surname <word> | forget <name> | key <key> | style <name> | why]",
+  usage = "/bist rivals [rival | pal [name surname] | pals | grief [name surname - why] | griefers | grief forget <name> | surname <word> | forget <name> | key <key> | style <name> | why]",
   -- 1.0 (Arn: a new user must not wonder "what's making that noise"): a new install's guildmate crest, recruit
   -- crest and rival ping start off - each has its tick below. They live in recap's table, read as `~= false`;
   -- an existing save's untouched ones are frozen ON by Registry R:Forever10.
@@ -49,6 +49,12 @@ NS.Registry:Register({
     { kind = "toggle", label = "pal nearby note", rivalPreview = true, help = "A small green line in chat when one of your pals comes into view, out of combat - once every ten minutes each, no sound.",
       get = function() return D().palNote ~= false end,
       set = function(_, on) D().palNote = on and true or false end },
+    { kind = "toggle", label = "griefer alerts", help = "Same-faction griefers you listed (right-click: Add griefer...): a warning when they come near, join your group, invite you or talk near you.",
+      get = function() return D().griefNote ~= false end,
+      set = function(_, on) D().griefNote = on and true or false end },
+    { kind = "toggle", label = "griefer sound", help = "The raid-warning sound with a griefer alert.",
+      get = function() return D().griefSound ~= false end,
+      set = function(_, on) D().griefSound = on and true or false end },
     { kind = "toggle", label = "guild rivals (amber)", rivalPreview = true, help = "Rivals your guild shares wear an amber crosshair, and the guild hears when you see one.",
       get = function() return D().guildShow ~= false end,
       set = function(_, on)
