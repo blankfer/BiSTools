@@ -58,7 +58,11 @@ local function plain(v)
 end
 local function say(fmt, ...) NS.Print(fmt, ...) end
 local function F() return NS.Farm end
-local function db() return C.db or {} end
+-- (the tool's own saved table, always - never a throwaway one when the tool had not been handed it yet)
+local function db()
+  if not C.db and R.DBFor and R.Get and R:Get("combo") then C.db = R:DBFor(R:Get("combo")) end
+  return C.db or {}
+end
 
 --- A spell's name without its rank ("Strength of Earth Totem III", "... (Rank 3)" -> "Strength of Earth Totem").
 function C.Base(name)
@@ -129,17 +133,24 @@ function C.FightOver()
   C_Timer.After(C.READ_WAIT, function() if C.token == tok then C.Close(cur) end end)
 end
 --- The game's newest fight, read once: answers the record it kept, or nil.
+--- WHY THE LAST FIGHT WAS (NOT) KEPT (17 Nov, Arn: "had a fight nothing"): every road out of C.Close says it - /bist combo why.
+local function why(text) C.lastWhy = text return nil end
 function C.Close(cur)
   local D = C_DamageMeter
-  if not (D and D.GetAvailableCombatSessions) then return nil end
+  if not (D and D.GetAvailableCombatSessions) then return why("the game's damage meter is not there") end
   local okS, sessions = pcall(D.GetAvailableCombatSessions)
-  if not (okS and type(sessions) == "table" and #sessions > 0) then return nil end
-  local last = sessions[#sessions]
-  local sid = type(last) == "table" and plain(last.sessionID) or nil
-  if not sid or sid == db().lastSid then return nil end
+  if not (okS and type(sessions) == "table" and #sessions > 0) then return why("the damage meter kept no fights") end
+  -- the NEWEST fight is the highest session id (never trust the list's order)
+  local last, sid
+  for _, e in ipairs(sessions) do
+    local id = type(e) == "table" and plain(e.sessionID) or nil
+    if type(id) == "number" and (not sid or id > sid) then last, sid = e, id end
+  end
+  if not sid then return why("the fights had no readable id") end
+  if sid == db().lastSid then return why("no new fight in the meter yet (newest " .. sid .. ")") end
   local dmgType = (Enum and Enum.DamageMeterType and Enum.DamageMeterType.DamageDone) or 0
   local ok, s = pcall(D.GetCombatSessionFromID, sid, dmgType)
-  if not (ok and type(s) == "table") then return nil end
+  if not (ok and type(s) == "table") then return why("fight " .. sid .. " would not open") end
   local mine
   pcall(function()
     for _, src in ipairs(s.combatSources or {}) do
@@ -148,7 +159,8 @@ function C.Close(cur)
   end)
   local dmg = mine and plain(mine.totalAmount)
   local dur = plain(s.durationSeconds) or plain(last.durationSeconds)
-  if type(dmg) ~= "number" or type(dur) ~= "number" or dur <= 0 then return nil end
+  if not mine then return why("you were not in fight " .. sid) end
+  if type(dmg) ~= "number" or type(dur) ~= "number" or dur <= 0 then return why("fight " .. sid .. ": damage or length hidden") end
   -- what Windfury and Flametongue added (your breakdown, by the spells' names)
   local wf, ft = 0, 0
   local spells = {}                                  -- every spell's share (the weapon's Windfury and the totem's apart, if named apart)
@@ -182,6 +194,7 @@ function C.Close(cur)
   d.fights = d.fights or {}
   d.fights[#d.fights + 1] = rec
   while #d.fights > C.KEEP do table.remove(d.fights, 1) end
+  C.lastWhy = ("kept fight %d: %s, %d s, %d dps"):format(sid, rec.combo, math.floor(dur + 0.5), math.floor(dmg / dur + 0.5))
   if d.card ~= false then C.ShowCard(rec) end
   if C.IsOpen() then C.Paint() end
   return rec
@@ -633,7 +646,10 @@ ev:SetScript("OnEvent", function(_, event, a1, _, a3)
   if event == "PLAYER_REGEN_DISABLED" then             -- a drag still on ends before the fight takes the mouse
     endDrag(C.frame) endDrag(C.card)
   end
-  if not R:Enabled("combo") then return end
+  if not R:Enabled("combo") then
+    if event == "PLAYER_REGEN_ENABLED" then C.lastWhy = "the tool was off (/bist on combo)" end
+    return
+  end
   if event == "PLAYER_REGEN_DISABLED" then C.Pull()
   elseif event == "PLAYER_REGEN_ENABLED" then C.FightOver()
   elseif event == "PLAYER_TOTEM_UPDATE" then if C.cur then C.ScanTotems(C.cur.totems) end
@@ -678,7 +694,16 @@ R:Register({
     C.db = d
     local cmd = tostring(args or ""):match("^(%S*)") or ""
     if cmd == "probe" then C.Probe() return end
+    if cmd == "why" then
+      say("combo: recording %s - last fight: %s", R:Enabled("combo") and "ON" or "OFF (/bist on combo)", C.lastWhy or "none since the reload")
+      return
+    end
     if cmd == "forget" then d.fights, d.lastSid = {}, nil if C.IsOpen() then C.Paint() end say("combo: every fight forgotten") return end
+    -- OPENING THE LIST MEANS "RECORD" (17 Nov, Arn's first try: the list opened with the tool still off, the fight went by)
+    if not R:Enabled("combo") then
+      R:SetEnabled("combo", true)
+      say("combo: recording your fights from now on - /bist off combo stops it")
+    end
     C.Toggle()
   end,
 })

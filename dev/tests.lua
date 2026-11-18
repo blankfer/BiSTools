@@ -5362,6 +5362,21 @@ do
   ok(Co.cur == nil, "the tool off: nothing recorded")
   R:Get("combo"):OnSlash(cdb, "forget")
   ok(#cdb.fights == 0, "/bist combo forget: every fight gone")
+  -- ARN'S FIRST TRY ("had a fight nothing"): the list opened with the tool off - opening it now turns recording on
+  ok(not R:Enabled("combo"), "(the tool off)")
+  Co.Toggle(false)
+  R:Get("combo"):OnSlash(cdb, "")
+  ok(R:Enabled("combo") and Co.IsOpen(), "/bist combo with the tool off: recording on, the list open")
+  sid = 13
+  Co.Pull() Co.FightOver() W.runAfters(Co.READ_WAIT + 0.1)
+  ok(Co.lastWhy and Co.lastWhy:find("kept fight 13", 1, true), "/bist combo why: says the last fight was kept", Co.lastWhy)
+  Co.Pull() Co.FightOver() W.runAfters(Co.READ_WAIT + 0.1)
+  ok(Co.lastWhy:find("no new fight", 1, true), "and why one was not (no new fight in the meter)", Co.lastWhy)
+  _G.C_DamageMeter.GetAvailableCombatSessions = function() return { { sessionID = 20, name = "New" }, { sessionID = 14, name = "Old" } } end
+  Co.Pull() Co.FightOver() W.runAfters(Co.READ_WAIT + 0.1)
+  ok(cdb.lastSid == 20, "the newest fight is the highest id, whatever the list's order")
+  R:SetEnabled("combo", false)
+  cdb.fights = {}
   Co.Toggle(false)
   _G.GetTotemInfo = keepTI
   if keepCS then keepCS.GetSpellName = keepSN end
