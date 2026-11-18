@@ -710,6 +710,7 @@ function C.Toggle(want)
   if want == nil then want = not f:IsShown() end
   if want then C.Layout() f:Show() C.Paint() else f:Hide() end
   db().open = f:IsShown() and true or false
+  if not want and debugstack then C.closedBy = (debugstack(2, 1, 0) or ""):gsub("%s+$", "") end
   return f:IsShown()
 end
 
@@ -909,22 +910,26 @@ end
   ("0:12  +1 EXTRA HIT") - and the paper rolls up a line, the oldest going off the top. When the fight ends it prints a
   rule and the total ("TOTAL  7 PROCS"), lingers C.TAPE.linger s (held while the mouse is on it) and fades. Out of a
   fight it drags anywhere (db.tapePos). Nothing ticks while it is away. ]]
-C.TAPE = { w = 170, lines = 7, lh = 15, roll = 0.15, linger = 8, fade = 1.5, pad = 5 }
-C.PAPER, C.INK, C.INK_FIRE = { 0.95, 0.94, 0.88 }, { 0.13, 0.12, 0.11 }, { 0.72, 0.22, 0.10 }
+-- (17 Nov, Arn's first look: "more warm white candle light" - "its so bright" - "30 sec idle time before it fades away":
+-- the paper a dim warm cream, brown ink, and it waits C.TAPE.linger s after the LAST line it printed, in a fight or not)
+C.TAPE = { w = 170, lines = 7, lh = 15, roll = 0.15, linger = 30, fade = 1.5, pad = 5, alpha = 0.82 }
+C.PAPER, C.INK, C.INK_FIRE = { 0.78, 0.69, 0.53 }, { 0.20, 0.13, 0.07 }, { 0.62, 0.20, 0.06 }
 local function tapePlace(t)
   t:ClearAllPoints()
   local p = db().tapePos
   if type(p) == "table" and p[1] then t:SetPoint(p[1], UIParent, p[2] or p[1], p[3] or 0, p[4] or 0) return end
-  local cp = db().cardPos
-  if type(cp) == "table" and cp[1] then t:SetPoint("BOTTOM", UIParent, cp[2] or cp[1], cp[3] or 0, (cp[4] or 0) + 4)
-  else t:SetPoint("BOTTOM", UIParent, "TOP", 0, -170 + 4) end
+  -- (17 Nov, Arn's first fight with it: above the card's spot it sat under his XP bar and AutoLayer's box at the top of the
+  -- screen - it hangs UNDER the card now, following the card wherever it was dragged)
+  local card = C.BuildCard()
+  if card then t:SetPoint("TOP", card, "BOTTOM", 0, -6) else t:SetPoint("TOP", UIParent, "TOP", 0, -234) end
 end
+C.TapePlace = tapePlace
 function C.Tape()
   if C.tape then return C.tape end
   local T = C.TAPE
   local t = CreateFrame("Frame", "BiSToolsComboTape", UIParent)
   t:SetSize(T.w, T.lines * T.lh + 2 * T.pad)
-  t:SetFrameStrata("MEDIUM")
+  t:SetFrameStrata("HIGH")                                     -- (over bars other addons keep at the top of the screen)
   if t.SetClipsChildren then t:SetClipsChildren(true) end    -- (the paper's top edge cuts the oldest line off)
   t:EnableMouse(true)
   t:SetMovable(true)
@@ -947,7 +952,7 @@ function C.Tape()
   t:SetScript("OnLeave", function(self) self.hold = nil end)
   t.paper = t:CreateTexture(nil, "BACKGROUND")
   t.paper:SetAllPoints(t)
-  t.paper:SetColorTexture(C.PAPER[1], C.PAPER[2], C.PAPER[3], 0.97)
+  t.paper:SetColorTexture(C.PAPER[1], C.PAPER[2], C.PAPER[3], T.alpha)
   t.edge = t:CreateTexture(nil, "BORDER")                       -- the printer's lip at the bottom, where the paper comes out
   t.edge:SetPoint("BOTTOMLEFT") t.edge:SetPoint("BOTTOMRIGHT") t.edge:SetHeight(2)
   t.edge:SetColorTexture(0.25, 0.24, 0.22, 1)
@@ -1004,7 +1009,7 @@ function C.TapePrint(text, fire)
     t.spare[#t.spare + 1] = old
   end
   t.shift = T.lh
-  t.left = nil                                                 -- (printing: no fading)
+  t.left = T.linger                                            -- (the idle clock starts again at every line)
   t:SetAlpha(1)
   C.TapeLay(t)
   t:Show()
@@ -1140,12 +1145,18 @@ end
 -- ---------------------------------------------------------------- events (heard always, acted on only while the tool is on)
 local ev = CreateFrame("Frame")
 for _, e in ipairs({ "PLAYER_REGEN_DISABLED", "PLAYER_REGEN_ENABLED", "PLAYER_TOTEM_UPDATE", "UNIT_SPELLCAST_SUCCEEDED",
-                    "PLAYER_ENTER_COMBAT", "PLAYER_LEAVE_COMBAT", "UNIT_COMBAT" }) do
+                    "PLAYER_ENTER_COMBAT", "PLAYER_LEAVE_COMBAT", "UNIT_COMBAT", "PLAYER_LOGOUT" }) do
   pcall(ev.RegisterEvent, ev, e)
 end
 ev:SetScript("OnEvent", function(_, event, a1, a2, a3, a4, a5)
   if event == "UNIT_COMBAT" then                       -- (first and quick: it fires for every unit hit, all the time)
     if a1 == "target" and C.cur then C.Hit(a2, a5) end
+    return
+  end
+  -- (17 Nov, Arn again: "every time I reload it closes the combo window" - db.open read false after two reloads with the
+  -- list up; whoever wrote it, the list's own state at the logout is the answer, written last)
+  if event == "PLAYER_LOGOUT" then
+    if C.frame then db().open = C.frame:IsShown() and true or false end
     return
   end
   if event == "PLAYER_REGEN_DISABLED" then             -- a drag still on ends before the fight takes the mouse
@@ -1200,6 +1211,8 @@ R:Register({
     if recenter then
       if C.frame then C.frame:ClearAllPoints() C.frame:SetPoint("CENTER") end
       if C.card then C.card:ClearAllPoints() C.card:SetPoint("TOP", UIParent, "TOP", 0, -170) d.cardPos = nil end
+      d.tapePos = nil
+      if C.tape then C.TapePlace(C.tape) end
       return
     end
     C.Toggle(true)
@@ -1216,6 +1229,8 @@ R:Register({
     if cmd == "why" then
       say("combo: recording %s - last fight: %s", R:Enabled("combo") and "ON" or "OFF (/bist on combo)", C.lastWhy or "none since the reload")
       say("combo: hits - %s", C.HitLine(C.lastHits))
+      say("combo: list %s, comes back after a reload: %s%s", C.IsOpen() and "open" or "closed", db().open and "yes" or "no",
+        C.closedBy and (" - last closed by " .. C.closedBy) or "")
       return
     end
     if cmd == "forget" then d.fights, d.lastSid = {}, nil if C.IsOpen() then C.Paint() end say("combo: every fight forgotten") return end

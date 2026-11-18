@@ -5398,6 +5398,9 @@ do
   R:Get("combo"):OnLogin(cdb)
   ok(not Co.IsOpen(), "a reload with it closed: it stays closed")
   Co.Toggle(true)
+  cdb.open = false                                              -- (Arn, again: something wrote false with the list up)
+  Co.events:GetScript("OnEvent")(Co.events, "PLAYER_LOGOUT")
+  ok(cdb.open == true, "at the logout the list's own state is written last: up = comes back")
   local onEsc = false
   for _, n in ipairs(_G.UISpecialFrames or {}) do if n == "BiSToolsCombo" then onEsc = true end end
   ok(not onEsc, "the list is never on the Escape list (Arn: Esc closed it while he was not in it)")
