@@ -24,6 +24,11 @@ local _, NS = ...
 local R = NS.Registry
 local C = {}
 NS.Combo = C
+local function plain(v)
+  if v == nil then return nil end
+  if issecretvalue and issecretvalue(v) then return nil end
+  return v
+end
 
 -- (C.MIN 0, 17 Nov - Arn: "fight under 10 sec should count because lucky procs means it can kill things fast": every
 -- fight counts by default; damage over TIME already weighs a short one by its few seconds. The setting stays.)
@@ -59,6 +64,42 @@ C.COL_WORD = { ["Strength of Earth Totem"] = "SoE", ["Grace of Air Totem"] = "Go
   ["Flametongue Totem"] = "FT", ["Searing Totem"] = "Searing", ["Magma Totem"] = "Magma", ["Fire Nova Totem"] = "Nova" }
 C.COLS = { "imbue", "fire", "earth", "air" }
 C.COL_SHARE = { imbue = 0.22, fire = 0.27, earth = 0.21, air = 0.30 }
+--[[ ICONS, NOT LETTERS (17 Nov 2026, Arn: "in bis combo can you put icons instead of wf ft soe goa"): every imbue and
+  totem is drawn as its spell's icon - the client's own texture for the spell by name (C_Spell.GetSpellTexture), else
+  the classic icon file below (a spell you have not learned yet). Hover a row, or the card, for the names. ]]
+C.ICON_FILES = {
+  ["Windfury Weapon"] = "Interface\\Icons\\Spell_Nature_Cyclone", ["Flametongue Weapon"] = "Interface\\Icons\\Spell_Fire_FlameTounge",
+  ["Rockbiter Weapon"] = "Interface\\Icons\\Spell_Nature_RockBiter", ["Frostbrand Weapon"] = "Interface\\Icons\\Spell_Frost_FrostBrand",
+  ["Strength of Earth Totem"] = "Interface\\Icons\\Spell_Nature_EarthBindTotem", ["Grace of Air Totem"] = "Interface\\Icons\\Spell_Nature_InvisibilityTotem",
+  ["Windfury Totem"] = "Interface\\Icons\\Spell_Nature_Windfury", ["Flametongue Totem"] = "Interface\\Icons\\Spell_Nature_GuardianWard",
+  ["Searing Totem"] = "Interface\\Icons\\Spell_Fire_SearingTotem", ["Magma Totem"] = "Interface\\Icons\\Spell_Fire_SelfDestruct",
+  ["Fire Nova Totem"] = "Interface\\Icons\\Spell_Fire_SealOfFire",
+}
+C.iconCache = {}
+function C.IconFor(name)
+  if type(name) ~= "string" then return nil end
+  local hit = C.iconCache[name]
+  if hit then return hit end
+  local tex
+  if C_Spell and C_Spell.GetSpellTexture then
+    local ok, t = pcall(C_Spell.GetSpellTexture, name)
+    if ok then t = plain(t) if t ~= nil and t ~= 0 and t ~= "" then tex = t end end
+  end
+  tex = tex or C.ICON_FILES[name]
+  if tex then C.iconCache[name] = tex end
+  return tex
+end
+--- The names in each column: { imbue = { name }, fire = { ... }, earth = { ... }, air = { ... } }.
+function C.CellNames(imbue, totems)
+  local out = { imbue = {}, fire = {}, earth = {}, air = {} }
+  if imbue then out.imbue[1] = imbue end
+  for _, name in ipairs(totems or {}) do
+    local el = C.ELEMENT[name]
+    if el then out[el][#out[el] + 1] = name end
+  end
+  for _, list in pairs(out) do table.sort(list) end
+  return out
+end
 --- A combo's four cells: imbue, fire, earth, air.
 function C.Cells(imbue, totems)
   local out = { imbue = (imbue and (C.IMBUE_SHORT[imbue] or imbue)) or "-" }
@@ -71,11 +112,7 @@ function C.Cells(imbue, totems)
   return out
 end
 
-local function plain(v)
-  if v == nil then return nil end
-  if issecretvalue and issecretvalue(v) then return nil end
-  return v
-end
+
 local function say(fmt, ...) NS.Print(fmt, ...) end
 local function F() return NS.Farm end
 -- (the tool's own saved table, always - never a throwaway one when the tool had not been handed it yet)
@@ -459,8 +496,18 @@ function C.BuildCard()
     if self.dragged then self.dragged = nil return end
     C.Toggle(true)
   end)
-  f:SetScript("OnEnter", function(self) self.hold = true self:SetAlpha(1) end)
-  f:SetScript("OnLeave", function(self) self.hold = nil end)
+  f:SetScript("OnEnter", function(self)
+    self.hold = true self:SetAlpha(1)
+    local rec = self.rec
+    if rec and GameTooltip then                                  -- (the names behind the icons)
+      GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
+      GameTooltip:AddLine(rec.imbue or "no imbue", 1, 1, 1)
+      for _, n in ipairs(rec.totems or {}) do GameTooltip:AddLine(n, 0.8, 0.8, 0.8) end
+      GameTooltip:AddLine("click: the list", 0.6, 0.6, 0.6)
+      GameTooltip:Show()
+    end
+  end)
+  f:SetScript("OnLeave", function(self) self.hold = nil if GameTooltip then GameTooltip:Hide() end end)
   K.tex(f, "BACKGROUND", "frame", 0.94)
   K.border(f, "edge", 1)
   f.title = K.fs(f, "BiS> combo", 9, "accent")
@@ -469,6 +516,7 @@ function C.BuildCard()
   f.where:SetPoint("TOPRIGHT", -6, -5)
   f.combo = K.fs(f, "", 11, "ink")
   f.combo:SetPoint("LEFT", f, "LEFT", 6, 2)
+  f.icons = {}                                         -- (the combo as icons; f.combo keeps "(mixed)" after them)
   f.dps = K.fs(f, "", 16, "good")
   f.dps:SetPoint("RIGHT", f, "RIGHT", -6, 2)
   f.place = K.fs(f, "", 9, "gold")
@@ -483,6 +531,41 @@ function C.BuildCard()
   C.card = f
   return f
 end
+C.CARD_ICON = 20
+--- The card's combo: the imbue's icon, then each totem's, then "(mixed)" when it was; words for anything with no icon.
+function C.CardIcons(f, rec)
+  local names = {}
+  if rec.imbue then names[#names + 1] = rec.imbue end
+  for _, n in ipairs(rec.totems or {}) do names[#names + 1] = n end
+  local x, words = 6, {}
+  for i, n in ipairs(names) do
+    local tex = C.IconFor(n)
+    local t = f.icons[i]
+    if tex and not t then
+      t = f:CreateTexture(nil, "ARTWORK")
+      t:SetSize(C.CARD_ICON, C.CARD_ICON)
+      if t.SetTexCoord then t:SetTexCoord(0.08, 0.92, 0.08, 0.92) end
+      f.icons[i] = t
+    end
+    if tex then
+      t:ClearAllPoints() t:SetPoint("LEFT", f, "LEFT", x, 2)
+      t:SetTexture(tex) t.name = n t:Show()
+      x = x + C.CARD_ICON + 2
+    else
+      if t then t:Hide() t.name = nil end
+      words[#words + 1] = C.TOTEMS[n] or C.IMBUE_SHORT[n] or n
+    end
+  end
+  for i = #names + 1, #f.icons do f.icons[i]:Hide() f.icons[i].name = nil end
+  f.iconW = x - 6
+  f.combo:ClearAllPoints()
+  f.combo:SetPoint("LEFT", f, "LEFT", x + 2, 2)
+  local text = table.concat(words, " · ")
+  if rec.mixed then text = text .. (text ~= "" and "  " or "") .. "(mixed)" end
+  if #names == 0 then text = "no imbue" .. (rec.mixed and "  (mixed)" or "") end
+  f.combo:SetText(text)
+  f.rec = rec
+end
 --- THE CARD GROWS TO FIT (17 Nov 2026, Arn's shot: "WF · FT totem · GoA · SoE · WF totem" ran under "100 dps"): as wide as
 --- its widest line - the combo with the dps beside it, the top line, the bottom line - never under C.CARD_W.
 C.CARD_W, C.CARD_GAP = 250, 14
@@ -492,7 +575,7 @@ local function textW(fs)
   return #(fs:GetText() or "") * 6
 end
 function C.FitCard(f)
-  local need = math.max(textW(f.combo) + C.CARD_GAP + textW(f.dps), textW(f.title) + C.CARD_GAP + textW(f.where), textW(f.place)) + 12
+  local need = math.max((f.iconW or 0) + 4 + textW(f.combo) + C.CARD_GAP + textW(f.dps), textW(f.title) + C.CARD_GAP + textW(f.where), textW(f.place)) + 12
   f:SetWidth(math.max(C.CARD_W, math.ceil(need)))
   return f:GetWidth()
 end
@@ -500,7 +583,7 @@ function C.ShowCard(rec)
   local f = C.BuildCard()
   f.where:SetText(("%s%s"):format(rec.active and ("%d of %d s swinging"):format(math.floor(rec.active + 0.5), math.floor(rec.dur + 0.5))
     or ("%d s"):format(math.floor(rec.dur + 0.5)), rec.mob and (" · " .. rec.mob) or ""))
-  f.combo:SetText(rec.combo .. (rec.mixed and "  (mixed)" or ""))
+  C.CardIcons(f, rec)
   f.dps:SetText(("%d dps"):format(math.floor(rec.dmg / C.Time(rec) + 0.5)))
   if rec.dur < C.Min() then
     f.place:SetText(("short fight - not ranked (under %d s)"):format(C.Min()))
@@ -544,6 +627,7 @@ function C.Build()
     self:StartMoving() self.moving = true
   end)
   local function keep(self)
+    if self.sizing then C.EndSizing(self) end                  -- (hidden mid-size: let go, as a drag does)
     if not self.moving then return end
     endDrag(self)
     local ok, pt, _, rp, x, y = pcall(self.GetPoint, self)
@@ -577,11 +661,51 @@ function C.Build()
   f.detail:SetJustifyH("LEFT")
   f.foot = K.fs(f, "", 9, "dim")
   f.foot:SetPoint("BOTTOMLEFT", 8, 7)
+  -- DRAG THE CORNER (17 Nov 2026, Arn: "let me resize the window by dragging the corner"): the grip at the bottom right
+  -- sizes the list inside the same bounds as SET's steps, the rows following live; db.w / db.h on letting go
+  if f.SetResizable then f:SetResizable(true) end
+  if f.SetResizeBounds then pcall(f.SetResizeBounds, f, C.W_MIN, C.H_MIN, C.W_MAX, C.H_MAX)
+  elseif f.SetMinResize then pcall(f.SetMinResize, f, C.W_MIN, C.H_MIN) pcall(f.SetMaxResize, f, C.W_MAX, C.H_MAX) end
+  local grip = CreateFrame("Button", nil, f)
+  grip:SetSize(14, 14)
+  grip:SetPoint("BOTTOMRIGHT", -2, 2)
+  grip.tex = grip:CreateTexture(nil, "OVERLAY")
+  grip.tex:SetAllPoints(grip)
+  grip.tex:SetTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Up")
+  grip.tex:SetAlpha(0.7)
+  grip:SetScript("OnEnter", function(self) self.tex:SetAlpha(1) end)
+  grip:SetScript("OnLeave", function(self) self.tex:SetAlpha(0.7) end)
+  grip:SetScript("OnMouseDown", function()
+    if f.StartSizing then f.sizing = true f:StartSizing("BOTTOMRIGHT") end
+  end)
+  grip:SetScript("OnMouseUp", function() C.EndSizing(f) end)
+  f.grip = grip
+  f:SetScript("OnSizeChanged", function(self, w, h)
+    if not self.sizing then return end
+    local d = db()
+    d.w = math.max(C.W_MIN, math.min(C.W_MAX, math.floor((tonumber(w) or C.W) + 0.5)))
+    d.h = math.max(C.H_MIN, math.min(C.H_MAX, math.floor((tonumber(h) or C.H) + 0.5)))
+    C.Layout() C.Paint()
+    if C.PaintSet then C.PaintSet() end
+  end)
   -- NEVER ON THE ESCAPE LIST (17 Nov, Arn: "I pressed esc when not in the window and it closed it" - the boss list's
   -- lesson again): the x or /bist combo closes it, nothing else
   f:Hide()
   C.frame = f
   return f
+end
+--- Let go of the corner: the size kept, its spot kept (sizing re-anchors it).
+function C.EndSizing(f)
+  if not f.sizing then return end
+  f.sizing = nil
+  f:StopMovingOrSizing()
+  local d = db()
+  d.w = math.max(C.W_MIN, math.min(C.W_MAX, math.floor((f:GetWidth() or C.W) + 0.5)))
+  d.h = math.max(C.H_MIN, math.min(C.H_MAX, math.floor((f:GetHeight() or C.H) + 0.5)))
+  local ok, pt, _, rp, x, y = pcall(f.GetPoint, f)
+  if ok and pt then d.listPos = { pt, rp, x, y } end
+  C.Layout() C.Paint()
+  if C.PaintSet then C.PaintSet() end
 end
 --- The list's size: the saved one, inside the bounds.
 function C.Size()
@@ -628,11 +752,22 @@ function C.Layout()
       r.name = K.fs(r, "", 9, "ink") r.name:SetJustifyH("LEFT")
       r.cells = {}
       for _, c in ipairs(C.COLS) do r.cells[c] = K.fs(r, "", 9, "ink") r.cells[c]:SetJustifyH("LEFT") end
+      r.icons = {}
+      for _, c in ipairs(C.COLS) do
+        r.icons[c] = {}
+        for k = 1, 2 do                                       -- (two totems of one element stack on Forever: two icons)
+          local t = r:CreateTexture(nil, "ARTWORK")
+          t:SetSize(C.ROW - 2, C.ROW - 2)
+          if t.SetTexCoord then t:SetTexCoord(0.08, 0.92, 0.08, 0.92) end
+          t:Hide()
+          r.icons[c][k] = t
+        end
+      end
       r.n = K.fs(r, "", 9, "muted") r.n:SetJustifyH("RIGHT")
       r.dps = K.fs(r, "", 9, "good") r.dps:SetJustifyH("RIGHT")
       r:SetScript("OnClick", function(self) if self.g then C.sel = self.g.combo C.Paint() end end)
-      r:SetScript("OnEnter", function(self) self.hover = true C.PaintRow(self) end)
-      r:SetScript("OnLeave", function(self) self.hover = nil C.PaintRow(self) end)
+      r:SetScript("OnEnter", function(self) self.hover = true C.PaintRow(self) C.RowTip(self) end)
+      r:SetScript("OnLeave", function(self) self.hover = nil C.PaintRow(self) if GameTooltip then GameTooltip:Hide() end end)
       f.rows[i] = r
     end
     if r then
@@ -644,6 +779,7 @@ function C.Layout()
         for _, c in ipairs(C.COLS) do
           local cw = math.floor(nameW * C.COL_SHARE[c])
           r.cells[c]:ClearAllPoints() r.cells[c]:SetPoint("LEFT", x, 0) r.cells[c]:SetWidth(cw - 2)
+          for k, t in ipairs(r.icons[c]) do t:ClearAllPoints() t:SetPoint("LEFT", r, "LEFT", x + (k - 1) * C.ROW, 0) end
           x = x + cw
         end
         r.n:ClearAllPoints() r.n:SetPoint("LEFT", 2 + nameW, 0) r.n:SetWidth(52)
@@ -736,6 +872,15 @@ function C.ToggleSet(want)
   return p:IsShown()
 end
 
+--- A row's names on hover (the icons carry no words).
+function C.RowTip(r)
+  if not (r.g and GameTooltip) then return end
+  GameTooltip:SetOwner(r, "ANCHOR_RIGHT")
+  GameTooltip:AddLine(r.g.imbue or "no imbue", 1, 1, 1)
+  for _, n in ipairs(r.g.totems or {}) do GameTooltip:AddLine(n, 0.8, 0.8, 0.8) end
+  GameTooltip:AddLine(("%d fights  -  %d dps"):format(r.g.n or 0, math.floor((r.g.dps or 0) + 0.5)), 0.6, 0.9, 0.6)
+  GameTooltip:Show()
+end
 function C.PaintRow(r)
   local sel = r.g and r.g.combo == C.sel
   r.lit:SetAlpha(sel and 0.35 or ((r.hover and r.g) and 0.16 or 0))
@@ -752,8 +897,16 @@ function C.Paint()
     r.name:SetText("")                              -- (the four columns say it now; the name keeps the combo for tests and tips)
     r.name.combo = g and g.combo or nil
     local cells = g and C.Cells(g.imbue, g.totems) or nil
+    local names = g and C.CellNames(g.imbue, g.totems) or nil
     for _, c in ipairs(C.COLS) do
       local v = cells and cells[c] or ""
+      local list = names and names[c] or {}
+      local drawn = 0
+      for k, t in ipairs(r.icons[c]) do
+        local tex = list[k] and C.IconFor(list[k])
+        if tex then t:SetTexture(tex) t.name = list[k] t:Show() drawn = drawn + 1 else t.name = nil t:Hide() end
+      end
+      if drawn > 0 and drawn == #list then v = "" end          -- (the icons say it; a name with no icon keeps its word)
       r.cells[c]:SetText(v)
       local col = (i == 1 and g) and "gold" or (v == "-" and "muted" or "ink")
       r.cells[c]:SetTextColor(F().color(col))

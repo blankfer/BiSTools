@@ -5385,9 +5385,31 @@ do
      "a click on the card opens the list, best first")
   -- THE COLUMNS (Arn: "can you make the imbue and totems line up")
   local r1, r2 = Co.frame.rows[1].cells, Co.frame.rows[2].cells
-  ok(r1.imbue:GetText() == "FT" and r1.earth:GetText() == "SoE" and r1.fire:GetText() == "-" and r1.air:GetText() == "-",
-     "the list in columns: imbue FT, earth SoE, fire and air empty", r1.imbue:GetText() .. "|" .. r1.fire:GetText() .. "|" .. r1.earth:GetText() .. "|" .. r1.air:GetText())
-  ok(r2.imbue:GetText() == "WF" and r2.air:GetText() == "WF" and r2.earth:GetText() == "SoE", "Windfury on the weapon and the Windfury Totem each in their own column")
+  -- ICONS, NOT LETTERS (Arn: "can you put icons instead of wf ft soe goa")
+  local i1, i2 = Co.frame.rows[1].icons, Co.frame.rows[2].icons
+  local function icon(set, col, k) local x = set[col][k or 1] return x and x.name end   -- (a name only while it shows)
+  ok(icon(i1, "imbue") == "Flametongue Weapon" and icon(i1, "earth") == "Strength of Earth Totem" and r1.imbue:GetText() == ""
+     and r1.fire:GetText() == "-" and r1.air:GetText() == "-",
+     "the list in columns, as icons: Flametongue's under imbue, Strength of Earth's under earth, a dash where nothing was",
+     tostring(icon(i1, "imbue")) .. "|" .. r1.fire:GetText() .. "|" .. tostring(icon(i1, "earth")) .. "|" .. r1.air:GetText())
+  ok(icon(i2, "imbue") == "Windfury Weapon" and icon(i2, "air") == "Windfury Totem" and icon(i2, "earth") == "Strength of Earth Totem",
+     "Windfury on the weapon and the Windfury Totem each in their own column, each its own icon")
+  ok(Co.IconFor("Grace of Air Totem") and Co.IconFor("Searing Totem") and Co.IconFor("nothing like it") == nil,
+     "every damage totem and imbue has an icon (the client's, else the classic file)")
+  -- DRAG THE CORNER (Arn: "let me resize the window by dragging the corner")
+  do
+    local fr = Co.frame
+    ok(fr.grip and fr.grip:GetScript("OnMouseDown"), "a grip in the list's bottom-right corner")
+    fr.sizing = true
+    fr:GetScript("OnSizeChanged")(fr, 420, 330)
+    ok(cdb.w == 420 and cdb.h == 330, "dragging it: the size kept as it goes, the rows following", cdb.w, cdb.h)
+    fr:GetScript("OnSizeChanged")(fr, 9999, 10)
+    ok(cdb.w == Co.W_MAX and cdb.h == Co.H_MIN, "never past the bounds SET's steps keep")
+    Co.EndSizing(fr)
+    ok(not fr.sizing, "let go: done")
+    cdb.w, cdb.h = nil, nil
+    Co.Layout()
+  end
   ok(Co.Cells("Windfury Weapon", { "Grace of Air Totem", "Windfury Totem" }).air == "GoA+WF", "two of one element (they stack now): joined with +")
   -- OPEN STAYS OPEN (Arn: "combo window closes every time I reload")
   ok(cdb.open == true, "the list open: written down")
