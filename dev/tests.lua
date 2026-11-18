@@ -2302,7 +2302,8 @@ do
   -- (threat (2) and pups (2), each with its section header, retired 9 Nov)
   -- (+ alts (1), 14 Nov: the main & alts window's open button - and its section header)
   -- (+ combo (4), 17 Nov: the card switch, the proc text, the shortest fight counted, the list's open button - and its header)
-  ok(#opt.rows == 11 + 3 + 5 + 7 + 1 + 8 + 2 + 4 + 7 + 4 + 4 + 5 + 1 + 1 + 1 + 1 + 3 + 2 + 4 + 2 + 5, "one row per section header and per option", #opt.rows)
+  -- (+3 in rivals, 17 Nov: griefer alerts, griefer card, griefer sound)
+  ok(#opt.rows == 11 + 3 + 5 + 7 + 1 + 8 + 2 + 4 + 7 + 4 + 4 + 5 + 1 + 1 + 1 + 1 + 3 + 2 + 4 + 2 + 5 + 3, "one row per section header and per option", #opt.rows)
   -- THE BiSTheme STANDARD, 1.43:1 (Arn, 14 Oct): its sections poured into columns, the window that shape
   ok(math.abs(opt.w / opt.h - 1.43) < 0.01 and (opt.columns or 1) >= 2, "options: 1.43:1, in columns", opt.w .. "x" .. opt.h)
   local function find(label) for _, r in ipairs(opt.rows) do if r.name and r.name.text == label then return r end end end
@@ -3967,15 +3968,15 @@ do
     local root = { lines = {} }
     function root:CreateButton(t) self.lines[#self.lines + 1] = t end
     RC.MenuLines(rdb2, root, { unit = "target", name = "Pal Guy" })
-    ok(root.lines[1] == "Add pal" and #root.lines == 1 and RC.menuDecision:find("friendly", 1, true),
-       "the right-click menu offers 'add pal' on them, never 'add rival'", RC.menuDecision)
+    ok(root.lines[1] == "Add pal" and root.lines[2] == "Add griefer..." and #root.lines == 2 and RC.menuDecision:find("friendly", 1, true),
+       "the right-click menu offers 'add pal' (and 'add griefer...') on them, never 'add rival'", RC.menuDecision)
     -- PALS (Arn: "a freindly list too ... puts a tiny little heart green ... only works out of combat")
     local pals = RC.Pals(rdb2)
     root.click = nil
-    function root:CreateButton(t, fn) self.lines[#self.lines + 1] = t self.click = fn end
+    function root:CreateButton(t, fn) self.lines[#self.lines + 1] = t self.click = fn self.clicks = self.clicks or {} self.clicks[t] = fn end
     root.lines = {}
     RC.MenuLines(rdb2, root, { unit = "target", name = "Pal Guy" })
-    root.click()
+    root.clicks["Add pal"]()
     ok(pals["Pal Guy"] and pals["Pal Guy"].guid == "Player-1-PAL", "clicked: a pal, GUID and all")
     -- THE FRIENDS LIST (Arn, 14 Oct: "it thinks is a rival when its the same faction as me"): a
     -- Battle.net friend's menu has no unit and names the BattleTag nickname; the character comes
@@ -4009,11 +4010,11 @@ do
     -- A NAME IN CHAT opens FRIEND too: nothing says friend or foe - BOTH lines, you pick
     -- (Arn, 14 Oct: "if we cant see we add both?")
     RC.MenuLines(rdb2, root, { name = "Charfriend" }, "FRIEND")
-    ok(root.lines[1] == "Add pal" and root.lines[2] == "Add rival" and #root.lines == 2,
-      "can't tell: both lines", table.concat(root.lines, " / "))
+    ok(root.lines[1] == "Add pal" and root.lines[2] == "Add griefer..." and root.lines[3] == "Add rival" and #root.lines == 3,
+      "can't tell: both lines (and the griefer line - he may be your own faction)", table.concat(root.lines, " / "))
     root.lines = {}
     RC.MenuLines(rdb2, root, { name = "Chatty" }, "CHAT_ROSTER")
-    ok(#root.lines == 2, "a name in chat, no unit: both lines too")
+    ok(#root.lines == 3, "a name in chat, no unit: both lines too")
     _G.C_BattleNet, _G.UnitFactionGroup = keepBN, keepFac
     pals["Darthsidiouz Sithlord"] = nil
     -- and in the rivals & pals window's right column
@@ -4037,6 +4038,52 @@ do
     RC.frame.scripts.OnEvent(RC.frame, "NAME_PLATE_UNIT_ADDED", "nameplate10")
     local noted = table.concat(saidP, " | ")
     ok(noted:find("Pal Guy", 1, true) and noted:find("is nearby", 1, true), "a pal in view: a small green line in chat", noted)
+    -- GRIEFERS (Arn, 17 Nov: "need a grief for same faction that alerts when nearby, if someone ninja loots etc")
+    do
+      local gl = RC.Griefers(rdb2)
+      for k in pairs(gl) do gl[k] = nil end
+      RC.griefSeen, RC.griefInGroup = {}, {}
+      local keepT2 = W.target
+      W.target = { name = "Ninja Looter", player = true, hostile = false, guid = "Player-1-NIN" }
+      local groot = { lines = {}, clicks = {} }
+      function groot:CreateButton(txt, fn) self.lines[#self.lines + 1] = txt self.clicks[txt] = fn end
+      RC.MenuLines(rdb2, groot, { unit = "target", name = "Ninja Looter" })
+      ok(groot.clicks["Add griefer..."] ~= nil, "a friendly player's menu: Add griefer...")
+      groot.clicks["Add griefer..."]()
+      ok(gl["Ninja Looter"] and gl["Ninja Looter"].guid == "Player-1-NIN", "added (no popup on this client: straight on, GUID kept)")
+      RC.AddGriefer(rdb2, "Ninja Looter", "ninja looted the belt")
+      ok(gl["Ninja Looter"].why == "ninja looted the belt", "the why kept")
+      local nA0 = #(W.alerts or {})
+      RC.frame.scripts.OnEvent(RC.frame, "PLAYER_TARGET_CHANGED")
+      local al = W.alerts and W.alerts[#W.alerts]
+      ok(#(W.alerts or {}) == nA0 + 1 and al.text:find("GRIEFER NEARBY: Ninja Looter - ninja looted the belt", 1, true),
+         "they come into view (your target): the alert, who and why", al and al.text)
+      -- THE CARD (Arn: "a pop up something for a small note" - "build 2")
+      local gc = RC.gcard
+      ok(gc and gc:IsShown() and gc.name:GetText() == "Ninja Looter" and gc.note:GetText() == "ninja looted the belt"
+         and gc.head:GetText() == "GRIEFER NEARBY", "and the card pops up: who, your note")
+      gc:GetScript("OnEnter")(gc) gc:GetScript("OnUpdate")(gc, 30)
+      ok(gc:IsShown(), "the mouse on it: it stays")
+      gc:GetScript("OnLeave")(gc) gc:GetScript("OnUpdate")(gc, 30)
+      ok(not gc:IsShown(), "then it fades away")
+      RC.frame.scripts.OnEvent(RC.frame, "UPDATE_MOUSEOVER_UNIT")
+      RC.frame.scripts.OnEvent(RC.frame, "PLAYER_TARGET_CHANGED")
+      ok(#W.alerts == nA0 + 1, "once per five minutes, not every time you look")
+      RC.frame.scripts.OnEvent(RC.frame, "PARTY_INVITE_REQUEST", "Ninja Looter")
+      ok(W.alerts[#W.alerts].text:find("GRIEFER INVITED YOU", 1, true), "they invite you: the alert")
+      RC.griefSeen = {}
+      RC.frame.scripts.OnEvent(RC.frame, "CHAT_MSG_SAY", "anyone need the chest?", "Ninja Looter-Forever")
+      ok(W.alerts[#W.alerts].text:find("NEARBY (talking)", 1, true), "they /say near you (a realm on the name): the alert")
+      local nA1 = #W.alerts
+      RC.frame.scripts.OnEvent(RC.frame, "CHAT_MSG_CHANNEL", "LFG RFC", "Ninja Looter")
+      ok(#W.alerts == nA1, "a channel post: a quiet chat line only, no alert")
+      W.target = keepT2
+      R:Get("recap").OnSlash(R:Get("recap"), rdb2, "grief Shady Person - griefed my quest mob")
+      ok(gl["Shady Person"] and gl["Shady Person"].why == "griefed my quest mob", "/bist rivals grief Name Surname - why")
+      R:Get("recap").OnSlash(R:Get("recap"), rdb2, "grief forget Shady")
+      ok(gl["Shady Person"] == nil, "/bist rivals grief forget <name> (a first name will do)")
+      for k in pairs(gl) do gl[k] = nil end
+    end
     local n1 = #saidP
     RC.UnmarkPal("nameplate10")
     RC.frame.scripts.OnEvent(RC.frame, "NAME_PLATE_UNIT_ADDED", "nameplate10")
@@ -6851,7 +6898,7 @@ do
       if tostring(l):find("^title:") then titles = titles + 1 end
     end
     ok(dividers == 1 and titles == 1 and f.lines[2]:find("BiS", 1, true), "one BiS section: one divider, one title", table.concat(f.lines, " | "))
-    ok(f.lines[#f.lines] == "Add to party list" and #f.lines == 5, "pal, rival (no faction seen: both) and the party line, together under it", table.concat(f.lines, " | "))
+    ok(f.lines[#f.lines] == "Add to party list" and #f.lines == 6, "pal, griefer, rival (no faction seen: both) and the party line, together under it", table.concat(f.lines, " | "))
     f["fn" .. #f.lines]()
     ok(P.Has(pdb, "Darthsidiouz Sithlord"), "a friend goes on the list, surname and all")
     sent.invite, sent.full, sent.raid, P.out = {}, {}, 0, {}
