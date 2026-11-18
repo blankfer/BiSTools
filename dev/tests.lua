@@ -2302,8 +2302,8 @@ do
   -- (threat (2) and pups (2), each with its section header, retired 9 Nov)
   -- (+ alts (1), 14 Nov: the main & alts window's open button - and its section header)
   -- (+ combo (4), 17 Nov: the card switch, the proc text, the shortest fight counted, the list's open button - and its header)
-  -- (+2 in rivals, 17 Nov: griefer alerts, griefer sound)
-  ok(#opt.rows == 11 + 3 + 5 + 7 + 1 + 8 + 2 + 4 + 7 + 4 + 4 + 5 + 1 + 1 + 1 + 1 + 3 + 2 + 4 + 2 + 5 + 2, "one row per section header and per option", #opt.rows)
+  -- (+3 in rivals, 17 Nov: griefer alerts, griefer card, griefer sound)
+  ok(#opt.rows == 11 + 3 + 5 + 7 + 1 + 8 + 2 + 4 + 7 + 4 + 4 + 5 + 1 + 1 + 1 + 1 + 3 + 2 + 4 + 2 + 5 + 3, "one row per section header and per option", #opt.rows)
   -- THE BiSTheme STANDARD, 1.43:1 (Arn, 14 Oct): its sections poured into columns, the window that shape
   ok(math.abs(opt.w / opt.h - 1.43) < 0.01 and (opt.columns or 1) >= 2, "options: 1.43:1, in columns", opt.w .. "x" .. opt.h)
   local function find(label) for _, r in ipairs(opt.rows) do if r.name and r.name.text == label then return r end end end
@@ -4058,6 +4058,14 @@ do
       local al = W.alerts and W.alerts[#W.alerts]
       ok(#(W.alerts or {}) == nA0 + 1 and al.text:find("GRIEFER NEARBY: Ninja Looter - ninja looted the belt", 1, true),
          "they come into view (your target): the alert, who and why", al and al.text)
+      -- THE CARD (Arn: "a pop up something for a small note" - "build 2")
+      local gc = RC.gcard
+      ok(gc and gc:IsShown() and gc.name:GetText() == "Ninja Looter" and gc.note:GetText() == "ninja looted the belt"
+         and gc.head:GetText() == "GRIEFER NEARBY", "and the card pops up: who, your note")
+      gc:GetScript("OnEnter")(gc) gc:GetScript("OnUpdate")(gc, 30)
+      ok(gc:IsShown(), "the mouse on it: it stays")
+      gc:GetScript("OnLeave")(gc) gc:GetScript("OnUpdate")(gc, 30)
+      ok(not gc:IsShown(), "then it fades away")
       RC.frame.scripts.OnEvent(RC.frame, "UPDATE_MOUSEOVER_UNIT")
       RC.frame.scripts.OnEvent(RC.frame, "PLAYER_TARGET_CHANGED")
       ok(#W.alerts == nA0 + 1, "once per five minutes, not every time you look")

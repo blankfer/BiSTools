@@ -3043,7 +3043,83 @@ function RC.GriefAlert(db, key, kind, line)
   if kind ~= "quiet" and db.griefSound ~= false and PlaySound then
     pcall(PlaySound, (SOUNDKIT and SOUNDKIT.RAID_WARNING) or 8959, "Master")
   end
+  if kind ~= "quiet" and db.griefCard ~= false then RC.GriefCard(db, key, line, g.why, where) end
   return true
+end
+
+--[[ THE GRIEFER CARD (17 Nov 2026, Arn: "a pop up something for a small note" - "build 2"): with the alert, a small card
+  near the top of the screen - GRIEFER NEARBY (or IN YOUR GROUP / INVITED YOU), their name, your note, where you are.
+  An x closes it; it fades after RC.GCARD_FOR s, and holds while the mouse is on it. Dragged anywhere (out of a fight),
+  kept in db.griefPos. db.griefCard false = only the line. ]]
+RC.GCARD_FOR, RC.GCARD_FADE = 10, 1
+function RC.BuildGriefCard(db)
+  if RC.gcard then return RC.gcard end
+  local K = NS.Farm
+  local f = CreateFrame("Frame", "BiSToolsGriefCard", UIParent)
+  f:SetSize(260, 64)
+  local p = db.griefPos
+  if type(p) == "table" and p[1] then f:SetPoint(p[1], UIParent, p[2] or p[1], p[3] or 0, p[4] or 0)
+  else f:SetPoint("TOP", UIParent, "TOP", 0, -110) end
+  f:SetFrameStrata("HIGH")
+  f:EnableMouse(true)
+  f:SetMovable(true)
+  f:SetClampedToScreen(true)
+  f:RegisterForDrag("LeftButton")
+  f:SetScript("OnDragStart", function(self)
+    if InCombatLockdown and InCombatLockdown() then return end
+    self:StartMoving() self.moving = true
+  end)
+  local function stop(self)
+    if not self.moving then return end
+    self.moving = nil
+    self:StopMovingOrSizing()
+    local ok, pt, _, rp, x, y = pcall(self.GetPoint, self)
+    if ok and pt then RC.DB().griefPos = { pt, rp, x, y } end
+  end
+  f:SetScript("OnDragStop", stop)
+  f:SetScript("OnHide", stop)
+  f:SetScript("OnEnter", function(self) self.hold = true self:SetAlpha(1) end)
+  f:SetScript("OnLeave", function(self) self.hold = nil end)
+  K.tex(f, "BACKGROUND", "frame", 0.95)
+  K.border(f, "edge", 1)
+  f.stripe = f:CreateTexture(nil, "ARTWORK")
+  f.stripe:SetPoint("TOPLEFT") f.stripe:SetPoint("BOTTOMLEFT") f.stripe:SetWidth(3)
+  f.stripe:SetColorTexture(RC.GRIEF_COL[1], RC.GRIEF_COL[2], RC.GRIEF_COL[3], 1)
+  f.head = K.fs(f, "", 10, "warn")
+  f.head:SetPoint("TOPLEFT", 10, -6)
+  f.name = K.fs(f, "", 13, "ink")
+  f.name:SetPoint("TOPLEFT", 10, -20)
+  f.note = K.fs(f, "", 10, "gold")
+  f.note:SetPoint("TOPLEFT", 10, -37) f.note:SetWidth(240) f.note:SetJustifyH("LEFT")
+  f.where = K.fs(f, "", 9, "muted")
+  f.where:SetPoint("BOTTOMLEFT", 10, 5)
+  f.close = CreateFrame("Button", nil, f)
+  f.close:SetSize(16, 16)
+  f.close:SetPoint("TOPRIGHT", -3, -3)
+  K.tex(f.close, "BACKGROUND", "field", 0.9)
+  f.close.label = K.fs(f.close, "x", 9, "ink")
+  f.close.label:SetPoint("CENTER")
+  f.close:SetScript("OnClick", function() f:Hide() end)
+  f:SetScript("OnUpdate", function(self, e)
+    if self.hold then self.left = RC.GCARD_FOR return end
+    self.left = (self.left or RC.GCARD_FOR) - (tonumber(e) or 0)
+    if self.left <= 0 then self:Hide() return end
+    if self.left < RC.GCARD_FADE then self:SetAlpha(self.left / RC.GCARD_FADE) end
+  end)
+  f:Hide()
+  RC.gcard = f
+  return f
+end
+function RC.GriefCard(db, key, line, why, where)
+  local f = RC.BuildGriefCard(db)
+  f.head:SetText("GRIEFER " .. tostring(line))
+  f.name:SetText(key)
+  f.note:SetText((type(why) == "string" and why ~= "") and why or "no note - /bist rivals grief " .. key .. " - why")
+  f.where:SetText((type(where) == "string" and where ~= "") and where or "")
+  f.left, f.hold = RC.GCARD_FOR, nil
+  f:SetAlpha(1)
+  f:Show()
+  return f
 end
 --- A unit came into view (a plate, your target, the mouse): a griefer, friendly, a player - the alert.
 function RC.SpotGriefer(db, unit)
