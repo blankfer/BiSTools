@@ -618,7 +618,7 @@ end
   every combo has C.TRY_ENOUGH fights the ranking stands on its own. ]]
 C.TRY = {
   imbue = { "Windfury Weapon", "Flametongue Weapon", "Rockbiter Weapon", "Frostbrand Weapon" },
-  fire = { "Flametongue Totem", "Searing Totem", "Magma Totem" },
+  fire = { "Flametongue Totem", "Searing Totem" },        -- (17 Nov, Arn: "no Magma Totem" - it is for packs, not one mob)
   earth = { "Strength of Earth Totem" },
   air = { "Grace of Air Totem", "Windfury Totem" },
 }
