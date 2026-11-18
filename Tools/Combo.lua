@@ -51,6 +51,26 @@ C.TOTEMS = {
   ["Flametongue Totem"] = "FT totem", ["Searing Totem"] = "Searing", ["Magma Totem"] = "Magma", ["Fire Nova Totem"] = "Nova",
 }
 
+-- THE COLUMNS (17 Nov 2026, Arn's list: "can you make the imbue and totems line up"): the imbue, then each totem under its
+-- element - fire, earth, air - two of one element (they stack on Forever now) joined with "+"; nothing there = "-".
+C.ELEMENT = { ["Strength of Earth Totem"] = "earth", ["Grace of Air Totem"] = "air", ["Windfury Totem"] = "air",
+  ["Flametongue Totem"] = "fire", ["Searing Totem"] = "fire", ["Magma Totem"] = "fire", ["Fire Nova Totem"] = "fire" }
+C.COL_WORD = { ["Strength of Earth Totem"] = "SoE", ["Grace of Air Totem"] = "GoA", ["Windfury Totem"] = "WF",
+  ["Flametongue Totem"] = "FT", ["Searing Totem"] = "Searing", ["Magma Totem"] = "Magma", ["Fire Nova Totem"] = "Nova" }
+C.COLS = { "imbue", "fire", "earth", "air" }
+C.COL_SHARE = { imbue = 0.22, fire = 0.27, earth = 0.21, air = 0.30 }
+--- A combo's four cells: imbue, fire, earth, air.
+function C.Cells(imbue, totems)
+  local out = { imbue = (imbue and (C.IMBUE_SHORT[imbue] or imbue)) or "-" }
+  local by = { fire = {}, earth = {}, air = {} }
+  for _, name in ipairs(totems or {}) do
+    local el = C.ELEMENT[name]
+    if el then by[el][#by[el] + 1] = C.COL_WORD[name] or name end
+  end
+  for el, list in pairs(by) do table.sort(list) out[el] = #list > 0 and table.concat(list, "+") or "-" end
+  return out
+end
+
 local function plain(v)
   if v == nil then return nil end
   if issecretvalue and issecretvalue(v) then return nil end
@@ -269,7 +289,7 @@ function C.Rank()
   for _, f in ipairs(db().fights or {}) do
     if (f.dur or 0) >= C.Min() then
       local g = by[f.combo]
-      if not g then g = { combo = f.combo, n = 0, dmg = 0, dur = 0 } by[f.combo] = g list[#list + 1] = g end
+      if not g then g = { combo = f.combo, n = 0, dmg = 0, dur = 0, imbue = f.imbue, totems = f.totems } by[f.combo] = g list[#list + 1] = g end
       g.n, g.dmg, g.dur = g.n + 1, g.dmg + f.dmg, g.dur + C.Time(f)
     end
   end
@@ -392,7 +412,9 @@ function C.Build()
   f.set.label = K.fs(f.set, "SET", 9, "ink")
   f.set.label:SetPoint("CENTER")
   f.set:SetScript("OnClick", function() C.ToggleSet() end)
-  f.heads = { K.fs(f, "imbue · totems", 9, "dim"), K.fs(f, "fights", 9, "dim"), K.fs(f, "dps", 9, "dim") }
+  f.heads = { K.fs(f, "", 9, "dim"), K.fs(f, "fights", 9, "dim"), K.fs(f, "dps", 9, "dim") }
+  f.colHeads = {}
+  for _, c in ipairs(C.COLS) do f.colHeads[c] = K.fs(f, c, 9, "dim") end
   f.rows = {}
   f.detail = K.fs(f, "", 9, "muted")
   f.detail:SetJustifyH("LEFT")
@@ -425,6 +447,15 @@ function C.Layout()
   f:SetSize(w, h)
   local nameW = w - 16 - 120
   f.heads[1]:ClearAllPoints() f.heads[1]:SetPoint("TOPLEFT", 10, -24) f.heads[1]:SetWidth(nameW)
+  do                                                   -- the column heads: imbue, fire, earth, air
+    local x = 10
+    for _, c in ipairs(C.COLS) do
+      local cw = math.floor(nameW * C.COL_SHARE[c])
+      f.colHeads[c]:ClearAllPoints() f.colHeads[c]:SetPoint("TOPLEFT", x, -24) f.colHeads[c]:SetWidth(cw - 2)
+      f.colHeads[c]:SetJustifyH("LEFT")
+      x = x + cw
+    end
+  end
   f.heads[2]:ClearAllPoints() f.heads[2]:SetPoint("TOPLEFT", 10 + nameW, -24) f.heads[2]:SetWidth(52) f.heads[2]:SetJustifyH("RIGHT")
   f.heads[3]:ClearAllPoints() f.heads[3]:SetPoint("TOPLEFT", 10 + nameW + 54, -24) f.heads[3]:SetWidth(56) f.heads[3]:SetJustifyH("RIGHT")
   local n = C.RowCount()
@@ -438,6 +469,8 @@ function C.Layout()
       do local rr, g, b = K.color("accent") r.bar:SetColorTexture(rr, g, b, 1) end
       r.bar:SetAlpha(0)
       r.name = K.fs(r, "", 9, "ink") r.name:SetJustifyH("LEFT")
+      r.cells = {}
+      for _, c in ipairs(C.COLS) do r.cells[c] = K.fs(r, "", 9, "ink") r.cells[c]:SetJustifyH("LEFT") end
       r.n = K.fs(r, "", 9, "muted") r.n:SetJustifyH("RIGHT")
       r.dps = K.fs(r, "", 9, "good") r.dps:SetJustifyH("RIGHT")
       r:SetScript("OnClick", function(self) if self.g then C.sel = self.g.combo C.Paint() end end)
@@ -450,6 +483,12 @@ function C.Layout()
         r:SetSize(w - 16, C.ROW)
         r:ClearAllPoints() r:SetPoint("TOPLEFT", 8, -38 - (i - 1) * C.ROW)
         r.name:ClearAllPoints() r.name:SetPoint("LEFT", 4, 0) r.name:SetWidth(nameW - 6)
+        local x = 2
+        for _, c in ipairs(C.COLS) do
+          local cw = math.floor(nameW * C.COL_SHARE[c])
+          r.cells[c]:ClearAllPoints() r.cells[c]:SetPoint("LEFT", x, 0) r.cells[c]:SetWidth(cw - 2)
+          x = x + cw
+        end
         r.n:ClearAllPoints() r.n:SetPoint("LEFT", 2 + nameW, 0) r.n:SetWidth(52)
         r.dps:ClearAllPoints() r.dps:SetPoint("LEFT", 2 + nameW + 54, 0) r.dps:SetWidth(56)
         r:Show()
@@ -550,10 +589,17 @@ function C.Paint()
   for i, r in ipairs(f.rows) do
     local g = i <= shownRows and list[i] or nil
     r.g = g
-    r.name:SetText(g and g.combo or "")
+    r.name:SetText("")                              -- (the four columns say it now; the name keeps the combo for tests and tips)
+    r.name.combo = g and g.combo or nil
+    local cells = g and C.Cells(g.imbue, g.totems) or nil
+    for _, c in ipairs(C.COLS) do
+      local v = cells and cells[c] or ""
+      r.cells[c]:SetText(v)
+      local col = (i == 1 and g) and "gold" or (v == "-" and "muted" or "ink")
+      r.cells[c]:SetTextColor(F().color(col))
+    end
     r.n:SetText(g and tostring(g.n) or "")
     r.dps:SetText(g and tostring(math.floor(g.dps + 0.5)) or "")
-    if g and i == 1 then r.name:SetTextColor(F().color("gold")) elseif g then r.name:SetTextColor(F().color("ink")) end
     C.PaintRow(r)
   end
   local lines = {}

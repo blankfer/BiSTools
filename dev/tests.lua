@@ -5333,8 +5333,14 @@ do
   ok(not Co.card:IsShown(), "mouse gone: it fades away")
   -- the list
   Co.card:GetScript("OnMouseUp")(Co.card)
-  ok(Co.IsOpen() and Co.frame.rows[1].name:GetText() == "FT · SoE" and Co.frame.rows[1].n:GetText() == "2",
+  ok(Co.IsOpen() and Co.frame.rows[1].name.combo == "FT · SoE" and Co.frame.rows[1].n:GetText() == "2",
      "a click on the card opens the list, best first")
+  -- THE COLUMNS (Arn: "can you make the imbue and totems line up")
+  local r1, r2 = Co.frame.rows[1].cells, Co.frame.rows[2].cells
+  ok(r1.imbue:GetText() == "FT" and r1.earth:GetText() == "SoE" and r1.fire:GetText() == "-" and r1.air:GetText() == "-",
+     "the list in columns: imbue FT, earth SoE, fire and air empty", r1.imbue:GetText() .. "|" .. r1.fire:GetText() .. "|" .. r1.earth:GetText() .. "|" .. r1.air:GetText())
+  ok(r2.imbue:GetText() == "WF" and r2.air:GetText() == "WF" and r2.earth:GetText() == "SoE", "Windfury on the weapon and the Windfury Totem each in their own column")
+  ok(Co.Cells("Windfury Weapon", { "Grace of Air Totem", "Windfury Totem" }).air == "GoA+WF", "two of one element (they stack now): joined with +")
   local onEsc = false
   for _, n in ipairs(_G.UISpecialFrames or {}) do if n == "BiSToolsCombo" then onEsc = true end end
   ok(not onEsc, "the list is never on the Escape list (Arn: Esc closed it while he was not in it)")
