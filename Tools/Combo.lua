@@ -414,6 +414,19 @@ function C.BuildCard()
   C.card = f
   return f
 end
+--- THE CARD GROWS TO FIT (17 Nov 2026, Arn's shot: "WF · FT totem · GoA · SoE · WF totem" ran under "100 dps"): as wide as
+--- its widest line - the combo with the dps beside it, the top line, the bottom line - never under C.CARD_W.
+C.CARD_W, C.CARD_GAP = 250, 14
+local function textW(fs)
+  local ok, w = pcall(fs.GetStringWidth, fs)
+  if ok and tonumber(w) and w > 0 then return w end
+  return #(fs:GetText() or "") * 6
+end
+function C.FitCard(f)
+  local need = math.max(textW(f.combo) + C.CARD_GAP + textW(f.dps), textW(f.title) + C.CARD_GAP + textW(f.where), textW(f.place)) + 12
+  f:SetWidth(math.max(C.CARD_W, math.ceil(need)))
+  return f:GetWidth()
+end
 function C.ShowCard(rec)
   local f = C.BuildCard()
   f.where:SetText(("%s%s"):format(rec.active and ("%d of %d s swinging"):format(math.floor(rec.active + 0.5), math.floor(rec.dur + 0.5))
@@ -426,11 +439,15 @@ function C.ShowCard(rec)
     local k, n = C.Place(rec.combo)
     local wf = rec.wf and rec.wf > 0 and ("  ·  Windfury %d%%"):format(math.floor(rec.wf * 100 + 0.5)) or ""
     local pr = rec.procs
-    if pr and (pr.extra1 + pr.extra2 + pr.more) > 0 then
-      wf = wf .. ("  ·  %d procs"):format(pr.extra1 + pr.extra2 + pr.more)
+    if pr then                                       -- (the same split as the tape's breakdown: Windfury's, Flametongue's)
+      local w, ft = (pr.extra1 or 0) + (pr.extra2 or 0) + (pr.more or 0), pr.fire or 0
+      if w > 0 then wf = wf .. ("  ·  %d WF"):format(w) end
+      if ft > 0 then wf = wf .. ("  ·  %d FT"):format(ft) end
+      if w + ft > 0 then wf = wf .. " procs" end
     end
     f.place:SetText(("#%d of %d combos · click for the list%s"):format(k or 1, n, wf))
   end
+  C.FitCard(f)
   f.left, f.hold = C.CARD_FOR, nil
   f:SetAlpha(1)
   f:Show()

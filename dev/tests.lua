@@ -5507,6 +5507,14 @@ do
     _G.C_Spell.GetSpellInfo = keepGSI
     _G.C_Spell.IsSpellInRange, _G.CheckInteractDistance, _G.UnitExists = keepCS2, keepCID, keepUE
   end
+  -- THE CARD FITS (Arn's shot: five totems ran under the dps)
+  do
+    local cf = Co.ShowCard({ combo = "WF · FT totem · GoA · SoE · WF totem", dmg = 2900, dur = 29, active = 29, mob = "Twilight Mauler",
+                             procs = { extra1 = 0, extra2 = 3, more = 0, fire = 4 } })
+    ok(cf:GetWidth() >= #cf.combo:GetText() * 4 + #cf.dps:GetText() * 4 and cf.place:GetText():find("3 WF  ·  4 FT procs", 1, true),
+       "a long combo: the card grows past it and the dps; the procs split WF / FT", cf:GetWidth() .. " " .. cf.place:GetText())
+    cf:Hide()
+  end
   -- THE BREAKDOWN (Arn: "total 5 procs - break it down: 4 flame, 1 wf imbue")
   do
     local rows = Co.TapeBreakdown({ procs = { extra1 = 0, extra2 = 1, more = 0, fire = 4 }, totems = {} })
