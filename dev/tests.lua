@@ -5385,9 +5385,90 @@ do
      "a click on the card opens the list, best first")
   -- THE COLUMNS (Arn: "can you make the imbue and totems line up")
   local r1, r2 = Co.frame.rows[1].cells, Co.frame.rows[2].cells
-  ok(r1.imbue:GetText() == "FT" and r1.earth:GetText() == "SoE" and r1.fire:GetText() == "-" and r1.air:GetText() == "-",
-     "the list in columns: imbue FT, earth SoE, fire and air empty", r1.imbue:GetText() .. "|" .. r1.fire:GetText() .. "|" .. r1.earth:GetText() .. "|" .. r1.air:GetText())
-  ok(r2.imbue:GetText() == "WF" and r2.air:GetText() == "WF" and r2.earth:GetText() == "SoE", "Windfury on the weapon and the Windfury Totem each in their own column")
+  -- ICONS, NOT LETTERS (Arn: "can you put icons instead of wf ft soe goa")
+  local i1, i2 = Co.frame.rows[1].icons, Co.frame.rows[2].icons
+  local function icon(set, col, k) local x = set[col][k or 1] return x and x.name end   -- (a name only while it shows)
+  ok(icon(i1, "imbue") == "Flametongue Weapon" and icon(i1, "earth") == "Strength of Earth Totem" and r1.imbue:GetText() == ""
+     and r1.fire:GetText() == "-" and r1.air:GetText() == "-",
+     "the list in columns, as icons: Flametongue's under imbue, Strength of Earth's under earth, a dash where nothing was",
+     tostring(icon(i1, "imbue")) .. "|" .. r1.fire:GetText() .. "|" .. tostring(icon(i1, "earth")) .. "|" .. r1.air:GetText())
+  ok(icon(i2, "imbue") == "Windfury Weapon" and icon(i2, "air") == "Windfury Totem" and icon(i2, "earth") == "Strength of Earth Totem",
+     "Windfury on the weapon and the Windfury Totem each in their own column, each its own icon")
+  ok(Co.IconFor("Grace of Air Totem") and Co.IconFor("Searing Totem") and Co.IconFor("nothing like it") == nil,
+     "every damage totem and imbue has an icon (the client's, else the classic file)")
+  -- DRAG THE CORNER (Arn: "let me resize the window by dragging the corner")
+  do
+    local fr = Co.frame
+    ok(fr.grip and fr.grip:GetScript("OnMouseDown"), "a grip in the list's bottom-right corner")
+    fr.sizing = true
+    fr:GetScript("OnSizeChanged")(fr, 420, 330)
+    ok(cdb.w == 420 and cdb.h == 330, "dragging it: the size kept as it goes, the rows following", cdb.w, cdb.h)
+    fr:GetScript("OnSizeChanged")(fr, 9999, 10)
+    ok(cdb.w == Co.W_MAX and cdb.h == Co.H_MIN, "never past the bounds SET's steps keep")
+    Co.EndSizing(fr)
+    ok(not fr.sizing, "let go: done")
+    cdb.w, cdb.h = nil, nil
+    Co.Layout()
+  end
+  -- TRY NEXT (Arn: "is there a combination I am not trying - maybe the combo box can smartly suggest combos to get more data")
+  do
+    local keepGSI, keepIPS = _G.C_Spell.GetSpellInfo, _G.IsPlayerSpell
+    local ids = { ["Windfury Weapon"] = 1, ["Flametongue Weapon"] = 2, ["Flametongue Totem"] = 3, ["Searing Totem"] = 4,
+                  ["Strength of Earth Totem"] = 5, ["Grace of Air Totem"] = 6, ["Windfury Totem"] = 7 }
+    _G.C_Spell.GetSpellInfo = function(n) return ids[n] and { spellID = ids[n] } or nil end
+    _G.IsPlayerSpell = function(id) return id ~= nil end
+    local pick, total, untried = Co.TryNext()
+    ok(total == 4 and pick and pick.n == 0 and untried == 4,
+       "every combo you know (2 imbues x Flametongue Totem only - Arn: no Magma, no Searing - x 1 earth x 2 air = 4), the next one never fought with",
+       total, pick and pick.combo, untried)
+    Co.Paint()
+    local tr = Co.frame.try
+    ok(tr.icons[1].name and tr.note:GetText():find("never tried", 1, true), "TRY NEXT shows it as icons, and says it's untried", tr.note:GetText())
+    -- CLICK AN ICON TO CAST IT (Arn: "maybe we can make these buttons clickable?")
+    local ib = tr.icons[1]
+    ib:GetScript("OnEnter")(ib)
+    local cb = _G.BiSToolsComboCast
+    ok(cb and cb.template == "SecureActionButtonTemplate" and cb:IsShown() and cb.attrs.type == "spell" and cb.attrs.spell == ib.name,
+       "pointing at an icon out of a fight: one secure button over it, casting that spell", cb and cb.attrs.spell)
+    cb:GetScript("OnLeave")(cb)
+    local _, rel = cb:GetPoint(1)
+    ok(not cb:IsShown() and rel ~= ib, "the mouse leaves: it goes away AND lets go of the icon (Arn's BugSack: a protected list in a fight)")
+    ib:GetScript("OnEnter")(ib)
+    Co.events:GetScript("OnEvent")(Co.events, "PLAYER_REGEN_DISABLED")
+    local _, rel2 = cb:GetPoint(1)
+    ok(not cb:IsShown() and rel2 ~= ib, "a pull: put away and let go before the lockdown")
+    Co.FightOver() W.runAfters(Co.READ_WAIT + 0.1)
+    _G.C_Spell.GetSpellInfo, _G.IsPlayerSpell = keepGSI, keepIPS
+  end
+  -- THE LEVEL PENALTY (Arn: "higher level mobs come with a lot of penalties, like misses and dodges ... an adjusted dps column")
+  do
+    local P0, P3, Pm5 = Co.LevelPenalty(0), Co.LevelPenalty(3), Co.LevelPenalty(-5)
+    ok(P0.miss == 5 and P0.dodge == 5 and P0.glance == 10 and P0.cut == 5, "your level: 5% miss, 5% dodge, 10% glancing for 5% less")
+    ok(math.abs(P3.miss - 8) < 1e-9 and math.abs(P3.dodge - 6.5) < 1e-9 and P3.glance == 40 and P3.cut == 35,
+       "+3: 8% miss, 6.5% dodge, 40% glancing for 35% less (Classic's table)", P3.miss, P3.dodge, P3.glance, P3.cut)
+    ok(math.abs(Pm5.miss - 4) < 1e-9 and math.abs(Pm5.dodge - 2.5) < 1e-9 and Pm5.glance == 0, "5 levels under you: 4% miss, 2.5% dodge, no glancing")
+    ok(Co.AdjFactor(3) > 1.2 and Co.AdjFactor(-5) < 1 and Co.AdjFactor(nil) == 1, "adjusted: a +3 fight counts up, a grey mob down, an unknown level as yours",
+       Co.AdjFactor(3), Co.AdjFactor(-5))
+    local fs0 = cdb.fights
+    cdb.fights = { { combo = "EASY", dur = 10, dmg = 1000, gap = -5 }, { combo = "HARD", dur = 10, dmg = 950, gap = 3 } }
+    local L = Co.Rank()
+    ok(L[1].combo == "HARD" and L[1].dps < L[2].dps and L[1].adj > L[2].adj, "the list ranks by adjusted dps: 95 dps on +3 mobs beats 100 on greys")
+    cdb.fights = fs0
+  end
+  -- THE NUMBERS UNDER THE LIST (Arn: "proc %, lifetime, ... something to do with gear, crit chance")
+  do
+    local fs0 = cdb.fights
+    cdb.fights = { { combo = "TEST", dur = 20, active = 20, dmg = 2000, wf = 0.3, swings = 10, mob = "Murloc",
+                     procs = { extra1 = 0, extra2 = 2, more = 0, fire = 8 }, spells = { { name = "Melee", share = 0.7 } } } }
+    local keepCC = _G.GetCritChance
+    _G.GetCritChance = function() return 7.4 end
+    local L = Co.StatLines("TEST")
+    ok(L[1]:find("Windfury on 20%% of your swings") and L[1]:find("Flametongue 80%%") and L[2]:find("100 dps average")
+       and L[3]:find("Murloc", 1, true) and L[#L]:find("crit 7.4%%"),
+       "under the list: proc % of your own swings, average / best, the last fight, and you now (crit)", table.concat(L, " | "))
+    _G.GetCritChance = keepCC
+    cdb.fights = fs0
+  end
   ok(Co.Cells("Windfury Weapon", { "Grace of Air Totem", "Windfury Totem" }).air == "GoA+WF", "two of one element (they stack now): joined with +")
   -- OPEN STAYS OPEN (Arn: "combo window closes every time I reload")
   ok(cdb.open == true, "the list open: written down")
@@ -5409,9 +5490,11 @@ do
   for _, n in ipairs(_G.UISpecialFrames or {}) do if n == "BiSToolsCombo" then onEsc = true end end
   ok(not onEsc, "the list is never on the Escape list (Arn: Esc closed it while he was not in it)")
   Co.frame.rows[2]:GetScript("OnClick")(Co.frame.rows[2])
-  ok(Co.frame.detail:GetText():find("Bloodsnout", 1, true) and Co.frame.detail:GetText():find("Windfury 30%", 1, true),
-     "a row clicked: its fights, with Windfury's share", Co.frame.detail:GetText())
-  ok(rec.spells and rec.spells[1].name == "Melee" and math.abs(rec.spells[2].share - 0.3) < 1e-9 and Co.frame.detail:GetText():find("last fight: Melee 70%", 1, true),
+  ok(Co.frame.detail:GetText():find("Bloodsnout", 1, true) and table.concat(Co.frame.tiles[1].tip or {}, " "):find("Windfury did 30%", 1, true)
+     and Co.frame.tiles[1].label:GetText() == "WINDFURY" and Co.frame.tiles[6].label:GetText() == "AVERAGE",
+     "a row clicked: its numbers in boxes (Arn: \"easier to read, boxes\") - Windfury's share in its box's tip, the last fight under them",
+     Co.frame.detail:GetText())
+  ok(rec.spells and rec.spells[1].name == "Melee" and math.abs(rec.spells[2].share - 0.3) < 1e-9 and Co.frame.detail:GetText():find("Melee 70%", 1, true),
      "each fight keeps its spells' shares (the weapon's Windfury and the totem's stack on Forever now)", Co.frame.detail:GetText())
   -- THE SIZE AND THE SWITCHES (Arn: "we forgot the rule of letting us resize the window")
   ok(Co.ToggleSet() and Co.frame.sw:IsShown() and Co.frame.sw.card.value:GetText() == "ON", "SET: the switches panel over the list")
@@ -5522,11 +5605,27 @@ do
     local cur = { segs = { { imbue = "Windfury Weapon", tot = {}, at = W.now } }, nowImbue = "Windfury Weapon", nowTot = {}, headed = true, start = W.now }
     W.now = W.now + 21
     ok(Co.SwitchCheck(cur, "Windfury Weapon", { ["Flametongue Totem"] = true }), "a totem dropped mid-fight: the tape cuts")
+    W.now = W.now + 1
+    Co.SwitchCheck(cur, "Windfury Weapon", { ["Flametongue Totem"] = true, ["Grace of Air Totem"] = true })   -- a second one, 1 s on
+    local before = #Co.Tape().log
+    W.runAfters(Co.CUT_SETTLE + 0.1)
+    ok(#Co.tape.log == before + 2, "two totems a second apart: ONE cut once they settle (Arn's tape had three)", #Co.tape.log - before)
     local rows = Co.tape.rows
     local n = #rows
-    ok(rows[n - 2]:GetText() == "- - - - CUT 0:21 - - - -" and rows[n - 1]:GetText() == "IMBUE  WF" and rows[n]:GetText() == "TOTEMS  FT",
-       "the cut, when, and the new set under it", rows[n - 2]:GetText() .. " | " .. rows[n - 1]:GetText() .. " | " .. rows[n]:GetText())
-    ok(not Co.SwitchCheck(cur, "Windfury Weapon", {}) and #cur.segs == 3, "a totem gone: a new stretch kept, no cut")
+    local set = rows[n]:GetText()
+    ok(rows[n - 1]:GetText() == "- - - - CUT 0:21 - - - -" and set:find("Spell_Nature_Cyclone", 1, true) and set:find("Spell_Nature_GuardianWard", 1, true)
+       and set:find("Spell_Nature_InvisibilityTotem", 1, true) and set:find("|T", 1, true),
+       "the cut, when, and the new set under it as ONE line of icons (Arn: icons save space)", rows[n - 1]:GetText() .. " | " .. set)
+    ok(not Co.SwitchCheck(cur, "Windfury Weapon", {}) and #cur.segs == 4, "a totem gone: a new stretch kept, no cut")
+    -- THE FOOTER AND THE SIZE (Arn: "a BiS> Procs footer", "draggable bigger, drag icon smaller, only words")
+    local tp0 = Co.tape
+    ok(tp0.foot and tp0.foot.word:GetText() == "BiS> Procs" and tp0.grip, "the tape's footer: BiS> Procs in words, a small grip in its corner")
+    tp0.sizing = true
+    tp0:GetScript("OnSizeChanged")(tp0, 240, 260)
+    ok(tp0.lines >= 14 and cdb.tapeH == 260, "dragged taller: more lines, the size kept", tp0.lines)
+    Co.TapeEndSize(tp0)
+    cdb.tapeW, cdb.tapeH = nil, nil
+    Co.TapeFit(tp0)
     -- SCROLL BACK (Arn: "does the receipt keep going or is it scrollable?")
     for k = 1, 12 do Co.TapePrint("line " .. k) end
     local tp = Co.tape
@@ -5546,13 +5645,36 @@ do
        "a long combo: the card grows past it and the dps; the procs split WF / FT", cf:GetWidth() .. " " .. cf.place:GetText())
     cf:Hide()
   end
+  -- NO WINDFURY, NO WINDFURY PROC (Arn: "I don't have Windfury but it's counting ... like I have Windfury")
+  do
+    local cur = { imbue = "Rockbiter Weapon", totems = { ["Strength of Earth Totem"] = true } }
+    Co.CloseBurst(cur, { swings = 3, fire = 2, at = 50 })
+    ok(cur.procs.extra1 + cur.procs.extra2 + cur.procs.more == 0 and cur.procs.fire == 0,
+       "no Windfury and no Flametongue up: three hits at once count nothing (someone else's)")
+    cur = { imbue = "Flametongue Weapon", totems = { ["Flametongue Totem"] = true } }
+    Co.CloseBurst(cur, { swings = 1, fire = 3, at = 50 })
+    ok(cur.procs.fire == 1, "the Flametongue imbue and totem: a fire proc (at most two fire hits counted, one per source)")
+    cur = { imbue = "Flametongue Weapon", totems = {}, wfAura = true }
+    Co.CloseBurst(cur, { swings = 2, fire = 1, at = 50 })
+    ok(cur.procs.extra1 == 1 and cur.procs.fire == 1, "a party member's Windfury Totem on you: its +1 counts")
+    Co.Pull()
+    Co.cur.nowImbue = "Frostbrand Weapon"
+    local fq = Co.events:GetScript("OnEvent")
+    fq(Co.events, "UNIT_COMBAT", "target", "WOUND", "", 100, 1)
+    fq(Co.events, "UNIT_COMBAT", "target", "WOUND", "", 30, 16)       -- Frostbrand's frost hit with the swing
+    W.runAfters(1)
+    ok(Co.cur.procs.frost == 1 and Co.cur.procs.extra1 == 0 and Co.cur.burst.swings == 1,
+       "Frostbrand: its frost hit is a Frostbrand proc, never a second swing (Arn's +1s with no Windfury)")
+    Co.FightOver() W.runAfters(Co.READ_WAIT + 0.1)
+  end
   -- THE BREAKDOWN (Arn: "total 5 procs - break it down: 4 flame, 1 wf imbue")
   do
     local rows = Co.TapeBreakdown({ procs = { extra1 = 0, extra2 = 1, more = 0, fire = 4 }, totems = {} })
-    ok(#rows == 2 and rows[1][2] == "4  FLAMETONGUE" and rows[2][2] == "1  WF IMBUE", "under the total: 4 FLAMETONGUE, 1 WF IMBUE (most first, none of the empty kinds)",
+    local function bare(x) return (x:gsub("|T[^|]*|t", "[icon]")) end
+    ok(#rows == 2 and bare(rows[1][2]) == "4  [icon]  Flametongue" and bare(rows[2][2]) == "1  [icon]  +2" and rows[2][2]:find("Spell_Nature_Cyclone", 1, true), "under the total: 4 FLAMETONGUE, 1 WF IMBUE (most first, none of the empty kinds)",
        (rows[1] and rows[1][2] or "") .. " / " .. (rows[2] and rows[2][2] or ""))
     rows = Co.TapeBreakdown({ procs = { extra1 = 2, extra2 = 0, more = 0, fire = 0 }, totems = { ["Windfury Totem"] = true } })
-    ok(rows[1] and rows[1][2] == "2  WF TOTEM", "with the totem down, +1s are the totem's")
+    ok(rows[1] and bare(rows[1][2]) == "2  [icon]  +1" and rows[1][2]:find("Spell_Nature_Windfury", 1, true), "with the totem down, +1s are the totem's (its icon)")
   end
   -- WHOSE WINDFURY (Arn: "if I have imbue WF we can safely assume it's +2 hits")
   do
@@ -5568,29 +5690,34 @@ do
   end
   -- THE PROC TEXT (Arn: "can we just see when we got 2 melee hits back to back and 3"): hits on your target in one instant
   do
+    local keepAS0 = _G.UnitAttackSpeed
+    _G.UnitAttackSpeed = function() return 1.2, nil end         -- (a 1.2 s weapon: these hits come a second apart)
     Co.Pull()
+    Co.cur.nowImbue = "Windfury Weapon"                          -- (both Windfurys and the Flametongue Totem up: every word can print)
+    Co.cur.nowTot["Windfury Totem"], Co.cur.nowTot["Flametongue Totem"] = true, true
     local fire = Co.events:GetScript("OnEvent")
     local function hit(action, school) fire(Co.events, "UNIT_COMBAT", "target", action, "", 100, school or 1) end
     hit("WOUND") W.runAfters(1)                                          -- a plain swing: nothing
     ok(not (Co.tape and Co.tape:IsShown()), "one swing: nothing printed")
     hit("WOUND") W.runAfters(0.4) hit("WOUND") W.runAfters(1)                  -- the extra hit a batch later (Arn's gaps: 0.3-0.6 s)
     local function last() local rows = Co.tape and Co.tape.rows or {} return rows[#rows] and rows[#rows]:GetText() or "" end
-    ok(Co.tape and Co.tape:IsShown() and last():find("+1 EXTRA HIT", 1, true) and last():find("^%d+:%d%d"),
-       "two hits a batch apart: the receipt prints +1 EXTRA HIT at the bottom, with the fight's clock (Arn: a receipt printer)", last())
+    local WFI, FTI = "Spell_Nature_Windfury", "Spell_Nature_GuardianWard"   -- (a +1 is the totem's; the Flametongue Totem's fire)
+    ok(Co.tape and Co.tape:IsShown() and last():find(WFI, 1, true) and last():find(" +1", 1, true) and last():find("^%d+:%d%d"),
+       "two hits a batch apart: the receipt prints Windfury's icon +1 at the bottom, with the fight's clock (Arn: a receipt printer, icons)", last())
     hit("WOUND") hit("WOUND") hit("MISS") W.runAfters(1)
-    ok(last():find("+2 EXTRA HITS", 1, true) and #Co.tape.rows == 4 and Co.tape.rows[1]:GetText():find("^IMBUE")
-       and Co.tape.rows[3]:GetText():find("+1 EXTRA HIT", 1, true), "three at once (a miss counts as a swing): +2 EXTRA HITS under the first, the set at the receipt's head", last())
+    ok(last():find(" +2", 1, true) and #Co.tape.rows == 3 and Co.tape.rows[1]:GetText():find("|T", 1, true)
+       and Co.tape.rows[2]:GetText():find(" +1", 1, true), "three at once (a miss counts as a swing): +2 under the first, the set's icons at the receipt's head", last())
     Co.tape:GetScript("OnUpdate")(Co.tape, 1)
     local y1b, y2 = Co.tape.rows[1].y, Co.tape.rows[2].y
     ok(type(y1b) == "number" and type(y2) == "number" and y1b > y2, "the older line a line higher: the paper rolls bottom to top")
     hit("WOUND") W.runAfters(0.45) hit("WOUND", 4) W.runAfters(1)            -- (the fire hit a batch later: 0.45 s, Arn's log)
-    ok(last():find("FLAMETONGUE", 1, true), "a fire hit with the swing: FLAMETONGUE", last())
+    ok(last():find(FTI, 1, true), "a fire hit with the swing: Flametongue's icon", last())
     fire(Co.events, "UNIT_COMBAT", "nameplate1", "WOUND", "", 100, 1)
     ok(Co.cur.burst and Co.cur.burst.swings == 1, "the same mob as a nameplate: never counted twice (target only)")
     hit("WOUND") W.runAfters(0.4) hit("WOUND") hit("WOUND", 4) W.runAfters(1)
     local rows = Co.tape.rows
-    ok(last():find("FLAMETONGUE", 1, true) and rows[#rows - 1]:GetText():find("+1 EXTRA HIT", 1, true),
-       "an extra hit AND Flametongue in one burst: two lines, never one that wraps (Arn's shot)", rows[#rows - 1]:GetText() .. " / " .. last())
+    ok(last():find(FTI, 1, true) and last():find(WFI, 1, true) and last():find(" +1", 1, true),
+       "an extra hit AND Flametongue in one burst: ONE short line of icons (Arn: \"WINDFURY +2 FT +1 in the same line\")", last())
     for _ = 1, 8 do hit("WOUND") W.runAfters(0.4) hit("WOUND") W.runAfters(1) end
     ok(#Co.tape.rows <= Co.TAPE.lines + 1, "a long fight: the oldest lines roll off the top", #Co.tape.rows)
     Co.tape:GetScript("OnUpdate")(Co.tape, 5)
@@ -5610,7 +5737,7 @@ do
     local printed = {}
     for _, row in ipairs(Co.tape.rows) do printed[#printed + 1] = row:GetText() end
     local all = table.concat(printed, " | ")
-    ok(all:find("TOTAL  14 PROCS | 11  +1 EXTRA HIT | 2  FLAMETONGUE | 1  WF IMBUE", 1, true),
+    ok((all:gsub("|T[^|]*|t", "[icon]")):find("TOTAL  14 PROCS | 11  [icon]  +1 | 2  [icon]  Flametongue | 1  [icon]  +2", 1, true),
        "the fight over: a rule, the TOTAL, then what it was made of", all)
     Co.tape:GetScript("OnUpdate")(Co.tape, 29)
     ok(Co.tape:IsShown() and not Co.tape.toss, "29 s idle: still there (Arn: 30 s idle before it goes)")
@@ -5633,6 +5760,32 @@ do
     W.runAfters(Co.READ_WAIT + 0.1)                    -- (that fight's read done before the next one's meter is set up)
     ok(Co.HitLine(Co.lastHits):find("hidden 2", 1, true) and Co.HitLine(Co.lastHits):find("hits heard", 1, true),
        "/bist combo why: what the game sent (hits, plain/hidden, schools, gaps)", Co.HitLine(Co.lastHits))
+    _G.UnitAttackSpeed = keepAS0
+    -- ONLY YOUR OWN SWINGS (Arn: "I think the tape is reading other shaman hits")
+    do
+      local keepAS = _G.UnitAttackSpeed
+      _G.UnitAttackSpeed = function() return 2.0, nil end
+      Co.Pull()
+      Co.cur.nowTot["Windfury Totem"] = true
+      local f3 = Co.events:GetScript("OnEvent")
+      local function h() f3(Co.events, "UNIT_COMBAT", "target", "WOUND", "", 100, 1) end
+      h() W.runAfters(0.3) h() W.runAfters(0.6)                   -- your swing + an extra hit: +1
+      h() W.runAfters(0.3) h() W.runAfters(0.6)                   -- 0.9 s after it, on a 2 s weapon: someone else's
+      ok(Co.cur.procs.extra1 == 1 and Co.cur.foreign == 1 and Co.cur.beats == 1,
+         "a burst 0.9 s after your swing on a 2 s weapon is someone else's: no proc, no beat", Co.cur.procs.extra1, Co.cur.foreign)
+      W.runAfters(0.6) h() W.runAfters(1)                         -- 2.4 s after your swing: yours again
+      ok(Co.cur.beats == 2, "your next swing, on your clock: counted")
+      _G.UnitAttackSpeed = function() return 2.0, 1.4 end         -- two weapons: each hand its own clock
+      local c2 = { procs = { extra1 = 0, extra2 = 0, more = 0, fire = 0 } }
+      Co.CloseBurst(c2, { swings = 1, fire = 0, at = 100 })
+      Co.CloseBurst(c2, { swings = 1, fire = 0, at = 100.7 })
+      Co.CloseBurst(c2, { swings = 1, fire = 0, at = 101.0 })
+      ok(c2.beats == 2 and c2.foreign == 1, "dual wield: the off hand's swing is yours, a third one that soon is not", c2.beats, c2.foreign)
+      Co.FightOver() W.runAfters(Co.READ_WAIT + 0.1)
+      ok(Co.MeterCheck({ wf = 0, procs = { extra1 = 0, extra2 = 3, more = 0, fire = 0 } }) and not Co.MeterCheck({ wf = 0.2, procs = { extra2 = 3 } }),
+         "after the fight: Windfury procs on the tape but none in your damage = the meter says they were someone else's")
+      _G.UnitAttackSpeed = keepAS
+    end
     -- THE SWING CADENCE (Arn: "as long as I'm in combat and my melee is not in cadence it's considered out of range")
     do
       local keepAS = _G.UnitAttackSpeed

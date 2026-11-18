@@ -24,16 +24,21 @@ local _, NS = ...
 local R = NS.Registry
 local C = {}
 NS.Combo = C
+local function plain(v)
+  if v == nil then return nil end
+  if issecretvalue and issecretvalue(v) then return nil end
+  return v
+end
 
 -- (C.MIN 0, 17 Nov - Arn: "fight under 10 sec should count because lucky procs means it can kill things fast": every
 -- fight counts by default; damage over TIME already weighs a short one by its few seconds. The setting stays.)
 C.MIN, C.KEEP, C.READ_WAIT, C.CARD_FOR, C.CARD_FADE = 0, 300, 1.5, 8, 1
-C.W, C.H, C.ROWS, C.ROW = 330, 236, 7, 16
+C.W, C.H, C.ROWS, C.ROW = 330, 320, 7, 16
 -- THE SIZE AND THE SWITCHES (17 Nov 2026, Arn: "we forgot the rule of letting us resize the window that we did with bis
 -- healing deck" - the family rule: every window a switches panel with its toggles, width and height, RESET): the list's
 -- SET button opens the panel over its lower half; width / height in C.STEP px steps between the bounds, kept in
 -- db.w / db.h; the rows follow the height. RESET puts the look back (never your fights).
-C.W_MIN, C.W_MAX, C.H_MIN, C.H_MAX, C.STEP = 280, 560, 200, 440, 20
+C.W_MIN, C.W_MAX, C.H_MIN, C.H_MAX, C.STEP = 300, 560, 280, 520, 20   -- (17 Nov: taller for the number boxes)
 -- the imbues by enchant id (Classic's numbers; a cast of yours teaches the rest - db.imbueNames)
 C.IMBUE_IDS = {
   [283] = "Windfury Weapon", [284] = "Windfury Weapon", [525] = "Windfury Weapon", [1669] = "Windfury Weapon",
@@ -59,6 +64,116 @@ C.COL_WORD = { ["Strength of Earth Totem"] = "SoE", ["Grace of Air Totem"] = "Go
   ["Flametongue Totem"] = "FT", ["Searing Totem"] = "Searing", ["Magma Totem"] = "Magma", ["Fire Nova Totem"] = "Nova" }
 C.COLS = { "imbue", "fire", "earth", "air" }
 C.COL_SHARE = { imbue = 0.22, fire = 0.27, earth = 0.21, air = 0.30 }
+--[[ ICONS, NOT LETTERS (17 Nov 2026, Arn: "in bis combo can you put icons instead of wf ft soe goa"): every imbue and
+  totem is drawn as its spell's icon - the client's own texture for the spell by name (C_Spell.GetSpellTexture), else
+  the classic icon file below (a spell you have not learned yet). Hover a row, or the card, for the names. ]]
+C.ICON_FILES = {
+  ["Windfury Weapon"] = "Interface\\Icons\\Spell_Nature_Cyclone", ["Flametongue Weapon"] = "Interface\\Icons\\Spell_Fire_FlameTounge",
+  ["Rockbiter Weapon"] = "Interface\\Icons\\Spell_Nature_RockBiter", ["Frostbrand Weapon"] = "Interface\\Icons\\Spell_Frost_FrostBrand",
+  ["Strength of Earth Totem"] = "Interface\\Icons\\Spell_Nature_EarthBindTotem", ["Grace of Air Totem"] = "Interface\\Icons\\Spell_Nature_InvisibilityTotem",
+  ["Windfury Totem"] = "Interface\\Icons\\Spell_Nature_Windfury", ["Flametongue Totem"] = "Interface\\Icons\\Spell_Nature_GuardianWard",
+  ["Searing Totem"] = "Interface\\Icons\\Spell_Fire_SearingTotem", ["Magma Totem"] = "Interface\\Icons\\Spell_Fire_SelfDestruct",
+  ["Fire Nova Totem"] = "Interface\\Icons\\Spell_Fire_SealOfFire",
+}
+C.iconCache = {}
+function C.IconFor(name)
+  if type(name) ~= "string" then return nil end
+  local hit = C.iconCache[name]
+  if hit then return hit end
+  local tex
+  if C_Spell and C_Spell.GetSpellTexture then
+    local ok, t = pcall(C_Spell.GetSpellTexture, name)
+    if ok then t = plain(t) if t ~= nil and t ~= 0 and t ~= "" then tex = t end end
+  end
+  tex = tex or C.ICON_FILES[name]
+  if tex then C.iconCache[name] = tex end
+  return tex
+end
+--[[ CLICK AN ICON TO CAST IT (17 Nov 2026, Arn, of the icons: "maybe we can make these buttons clickable?"): every icon
+  (list, TRY NEXT, card) is a plain button; pointing at one out of a fight moves ONE secure button (BiSToolsComboCast,
+  type "spell") over it with that spell - a click puts the imbue on your weapon or drops the totem. Nothing secure is
+  written in a fight: there the icons only tell their names. The secure button goes away at the pull and when the
+  mouse leaves it. ]]
+local function fighting() return InCombatLockdown and InCombatLockdown() and true or false end
+function C.IconButton(parent, size)
+  local b = CreateFrame("Button", nil, parent)
+  b:SetSize(size, size)
+  b.tex = b:CreateTexture(nil, "ARTWORK")
+  b.tex:SetAllPoints(b)
+  if b.tex.SetTexCoord then b.tex:SetTexCoord(0.08, 0.92, 0.08, 0.92) end
+  b.SetTexture = function(self, t) self.tex:SetTexture(t) end
+  b:SetScript("OnEnter", function(self) C.IconEnter(self) end)
+  b:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+  b:Hide()
+  return b
+end
+function C.CastButton()
+  if C.cast then return C.cast end
+  local c = CreateFrame("Button", "BiSToolsComboCast", UIParent, "SecureActionButtonTemplate")
+  c:RegisterForClicks("AnyUp", "AnyDown")
+  c:SetFrameStrata("FULLSCREEN_DIALOG")
+  c:SetAttribute("type", "spell")
+  c.hl = c:CreateTexture(nil, "OVERLAY")
+  c.hl:SetAllPoints(c)
+  c.hl:SetColorTexture(1, 1, 1, 0.25)
+  c:SetScript("OnEnter", function(self) C.CastTip(self) end)
+  c:SetScript("OnLeave", function(self)
+    if GameTooltip then GameTooltip:Hide() end
+    C.CastAway()
+  end)
+  c:Hide()
+  C.cast = c
+  return c
+end
+--- The cast button put away AND let go of the icon it sat on (17 Nov 2026, Arn's BugSack: "BiSTools tried to call the
+--- protected function BiSToolsCombo:StartSizing()" - a secure button anchored to an icon, even hidden, makes the list a
+--- protected frame in a fight). Out of a fight only - at PLAYER_REGEN_DISABLED the lockdown has not started yet.
+function C.CastAway()
+  local c = C.cast
+  if not c or fighting() then return end
+  c:Hide()
+  c:ClearAllPoints()
+  c:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", -200, -200)
+  c.spell = nil
+end
+function C.CastTip(c)
+  if not (GameTooltip and c.spell) then return end
+  GameTooltip:SetOwner(c, "ANCHOR_RIGHT")
+  GameTooltip:AddLine(c.spell, 1, 1, 1)
+  GameTooltip:AddLine(c.spell:find("Weapon", 1, true) and "click: put it on your weapon" or "click: drop it", 0.4, 1, 0.4)
+  GameTooltip:Show()
+end
+--- The mouse on an icon: out of a fight, the secure cast button over it with its spell; in one, its name.
+function C.IconEnter(b)
+  if not b.name then return end
+  if fighting() or not C.Knows(b.name) then
+    if GameTooltip then
+      GameTooltip:SetOwner(b, "ANCHOR_RIGHT")
+      GameTooltip:AddLine(b.name, 1, 1, 1)
+      GameTooltip:AddLine(fighting() and "out of a fight: click to cast" or "not known yet", 0.6, 0.6, 0.6)
+      GameTooltip:Show()
+    end
+    return
+  end
+  local c = C.CastButton()
+  c:ClearAllPoints()
+  c:SetAllPoints(b)
+  c:SetAttribute("spell", b.name)
+  c.spell = b.name
+  c:Show()
+  C.CastTip(c)
+end
+--- The names in each column: { imbue = { name }, fire = { ... }, earth = { ... }, air = { ... } }.
+function C.CellNames(imbue, totems)
+  local out = { imbue = {}, fire = {}, earth = {}, air = {} }
+  if imbue then out.imbue[1] = imbue end
+  for _, name in ipairs(totems or {}) do
+    local el = C.ELEMENT[name]
+    if el then out[el][#out[el] + 1] = name end
+  end
+  for _, list in pairs(out) do table.sort(list) end
+  return out
+end
 --- A combo's four cells: imbue, fire, earth, air.
 function C.Cells(imbue, totems)
   local out = { imbue = (imbue and (C.IMBUE_SHORT[imbue] or imbue)) or "-" }
@@ -71,11 +186,7 @@ function C.Cells(imbue, totems)
   return out
 end
 
-local function plain(v)
-  if v == nil then return nil end
-  if issecretvalue and issecretvalue(v) then return nil end
-  return v
-end
+
 local function say(fmt, ...) NS.Print(fmt, ...) end
 local function F() return NS.Farm end
 -- (the tool's own saved table, always - never a throwaway one when the tool had not been handed it yet)
@@ -220,11 +331,68 @@ end
 C.MIX_SHARE, C.MIX_MIN = 0.2, 3
 local function now() return GetTime and GetTime() or 0 end
 local function copySet(t) local o = {} for k in pairs(t or {}) do o[k] = true end return o end
+--[[ THE LEVEL PENALTY (17 Nov 2026, Arn: "fighting higher level mobs comes with a lot of penalties, like misses and dodges
+  - can you find the Forever math for them, and maybe a dps column and an adjusted dps column taking higher and lower
+  level enemies into account"). Nothing Forever-specific is published; this is Classic's melee table (warcraft.wiki.gg
+  Hit / Glancing blow), your weapon skill taken as maxed (5 x your level) against the mob's defense (5 x its level):
+    d = 5 x (mob level - your level)
+    miss    5% + 0.1% x d (d <= 10), 5% + 0.2% x d (above: +3 = 8%); a lower mob 5% + 0.04% x d (never under 0)
+    dodge   5% + 0.1% x d, never under 0
+    glance  only a mob at your level or above: 10% + 2% x d of your swings (+3 = 40%), each doing 5% less up to d 5,
+            15% at d 10, 35% from d 15 (between, a straight line)
+  How much of your swing damage lands at a level gap: (1 - miss - dodge) x (1 - glance x its cut). The ADJUSTED dps is
+  a fight's dps as if the mob were your level: dps x landed(0) / landed(gap). Parry (from the front) and crits are left
+  out; spells too (it is the swing's table). A "??" (skull) mob counts as +3. Fights from before the level was kept
+  count as your level. ]]
+C.LVL_MIN, C.LVL_MAX = -10, 5
+function C.LevelPenalty(gap)
+  gap = math.max(C.LVL_MIN, math.min(C.LVL_MAX, tonumber(gap) or 0))
+  local d = 5 * gap
+  local miss
+  if d <= 0 then miss = math.max(0, 5 + 0.04 * d)
+  elseif d <= 10 then miss = 5 + 0.1 * d
+  else miss = 5 + 0.2 * d end
+  local dodge = math.max(0, 5 + 0.1 * d)
+  local glance, cut = 0, 0
+  if d >= 0 then
+    glance = 10 + 2 * d
+    if d <= 5 then cut = 5 elseif d <= 10 then cut = 5 + (d - 5) * 2 elseif d < 15 then cut = 15 + (d - 10) * 4 else cut = 35 end
+  end
+  local landed = (1 - (miss + dodge) / 100) * (1 - glance / 100 * cut / 100)
+  return { miss = miss, dodge = dodge, glance = glance, cut = cut, landed = landed }
+end
+--- A fight's dps as if the mob had been your level.
+function C.AdjFactor(gap)
+  if gap == nil then return 1 end
+  return C.LevelPenalty(0).landed / C.LevelPenalty(gap).landed
+end
+--- The level gap to your target now (nil when it can't be read): its level minus yours; "??" = +3.
+function C.TargetGap()
+  if not UnitLevel then return nil end
+  local okE, there = pcall(UnitExists, "target")
+  if not (okE and plain(there) == true) then return nil end
+  local ok1, mob = pcall(UnitLevel, "target")
+  local ok2, me = pcall(UnitLevel, "player")
+  if ok1 then mob = plain(mob) else mob = nil end
+  if ok2 then me = plain(me) else me = nil end
+  if type(mob) ~= "number" or type(me) ~= "number" then return nil end
+  if mob <= 0 then return 3, true end
+  return mob - me
+end
+--- A buff on you by name (a party member's totem), plain answers only.
+function C.AuraUp(name)
+  if not (C_UnitAuras and C_UnitAuras.GetAuraDataBySpellName) then return false end
+  local ok, a = pcall(C_UnitAuras.GetAuraDataBySpellName, "player", name, "HELPFUL")
+  if not ok or a == nil or (issecretvalue and issecretvalue(a)) then return false end
+  return type(a) == "table"
+end
 function C.Pull()
   local tot = C.ScanTotems({})
   local imbue = C.ImbueNow()
   C.cur = { imbue = imbue, totems = copySet(tot), active = 0, swing = C.Swinging(), start = now(),
             nowImbue = imbue, nowTot = tot, segs = { { imbue = imbue, tot = copySet(tot), at = now() } } }
+  C.cur.gap, C.cur.skull = C.TargetGap()
+  C.cur.wfAura, C.cur.ftAura = C.AuraUp("Windfury Totem"), C.AuraUp("Flametongue Totem")   -- (a party member's totems)
   C.TapeClear()
   if C.activeTicker and C.activeTicker.Cancel then C.activeTicker:Cancel() end
   if C_Timer and C_Timer.NewTicker then C.activeTicker = C_Timer.NewTicker(C.ACTIVE_EVERY, C.ActiveTick) end
@@ -237,13 +405,27 @@ function C.SwitchCheck(cur, imbue, tot)
   for n in pairs(tot) do if not (cur.nowTot or {})[n] then added = true end end
   cur.nowImbue, cur.nowTot = imbue, tot
   cur.segs[#cur.segs + 1] = { imbue = imbue, tot = copySet(tot), at = now() }
+  -- (17 Nov, Arn's tape: three totems dropped in a row printed three CUTs - the changes settle C.CUT_SETTLE s first and
+  -- print as ONE cut, at the first change's time, with the set as it ended up)
   if added and cur.headed and db().scroll ~= false then
-    local secs = math.max(0, now() - (cur.start or now()))
-    C.TapePrint(("- - - - CUT %d:%02d - - - -"):format(math.floor(secs / 60), math.floor(secs % 60)))
-    C.TapeSet(imbue, tot)
+    cur.cutFrom = cur.cutFrom or now()
+    cur.cutTok = (cur.cutTok or 0) + 1
+    local tok = cur.cutTok
+    if C_Timer and C_Timer.After then
+      C_Timer.After(C.CUT_SETTLE, function() if cur.cutTok == tok and not cur.endAt then C.PrintCut(cur) end end)
+    else
+      C.PrintCut(cur)
+    end
     return true
   end
   return false
+end
+C.CUT_SETTLE = 2
+function C.PrintCut(cur)
+  local secs = math.max(0, (cur.cutFrom or now()) - (cur.start or now()))
+  cur.cutFrom = nil
+  C.TapePrint(("- - - - CUT %d:%02d - - - -"):format(math.floor(secs / 60), math.floor(secs % 60)))
+  C.TapeSet(cur.nowImbue, cur.nowTot)
 end
 --- The fight's set filed under: the one up the longest (to `endAt`); answers imbue, totem set, mixed.
 function C.Longest(cur, endAt)
@@ -291,7 +473,7 @@ end
 function C.FightOver()
   local cur = C.cur
   C.cur = nil
-  if cur then cur.endAt = now() C.lastHits = cur.hitStats C.TapeEnd(cur) end
+  if cur then cur.endAt = now() C.lastHits, C.lastForeign = cur.hitStats, cur.foreign C.TapeEnd(cur) end
   if C.activeTicker and C.activeTicker.Cancel then C.activeTicker:Cancel() end
   C.activeTicker = nil
   if not cur or not (C_Timer and C_Timer.After) then return end
@@ -368,17 +550,33 @@ function C.Close(cur)
                 active = active, how = how,
                 imbue = imbue, totems = totems, combo = C.Label(imbue, set),
                 wf = dmg > 0 and wf / dmg or 0, ft = dmg > 0 and ft / dmg or 0, spells = C.TopSpells(spells, dmg),
-                procs = cur.procs, mixed = mixed or nil }
+                procs = cur.procs, mixed = mixed or nil, swings = cur.beats, gap = cur.gap, skull = cur.skull }
   d.fights = d.fights or {}
   d.fights[#d.fights + 1] = rec
   while #d.fights > C.KEEP do table.remove(d.fights, 1) end
   C.lastWhy = ("kept fight %d: %s, %d s (%s %s), %d dps"):format(sid, rec.combo, math.floor(dur + 0.5),
     active and math.floor(active + 0.5) .. " s" or "-", rec.how, math.floor(dmg / C.Time(rec) + 0.5))
+  rec.foreign = cur.foreign
+  C.MeterCheck(rec)
   if d.card ~= false then C.ShowCard(rec) end
   if C.IsOpen() then C.Paint() end
   return rec
 end
 
+--- After the fight the meter is plain: no Windfury in YOUR damage but Windfury procs on the tape = they were someone
+--- else's swings landing on your clock. Said on the tape while it is still up.
+function C.MeterCheck(rec)
+  local pr = rec.procs or {}
+  local wfProcs = (pr.extra1 or 0) + (pr.extra2 or 0) + (pr.more or 0)
+  if (rec.wf or 0) > 0 or wfProcs == 0 then return false end
+  rec.notMine = true
+  local t = C.tape
+  if t and t:IsShown() and db().scroll ~= false then
+    C.TapePrint("METER: NO WINDFURY OF YOURS", true)
+    C.TapePrint("THOSE WERE SOMEONE ELSE'S")
+  end
+  return true
+end
 --- A fight's biggest spells as shares, at most C.TOP_SPELLS (kept small in the save). (17 Nov, Arn: "they let you stack
 --- totems and imbue now" - "totem is 1 extra hit, imbue is 2": Windfury Weapon and Windfury Totem both proc on Forever
 --- since the 11-12 Nov hotfix; if the game names their hits apart, the list shows each one's share.)
@@ -400,13 +598,93 @@ function C.Rank()
   for _, f in ipairs(db().fights or {}) do
     if (f.dur or 0) >= C.Min() then
       local g = by[f.combo]
-      if not g then g = { combo = f.combo, n = 0, dmg = 0, dur = 0, imbue = f.imbue, totems = f.totems } by[f.combo] = g list[#list + 1] = g end
+      if not g then g = { combo = f.combo, n = 0, dmg = 0, dur = 0, adjDmg = 0, imbue = f.imbue, totems = f.totems } by[f.combo] = g list[#list + 1] = g end
       g.n, g.dmg, g.dur = g.n + 1, g.dmg + f.dmg, g.dur + C.Time(f)
+      g.adjDmg = g.adjDmg + f.dmg * C.AdjFactor(f.gap)
     end
   end
-  for _, g in ipairs(list) do g.dps = g.dur > 0 and g.dmg / g.dur or 0 end
-  table.sort(list, function(a, b) return a.dps > b.dps end)
+  for _, g in ipairs(list) do
+    g.dps = g.dur > 0 and g.dmg / g.dur or 0
+    g.adj = g.dur > 0 and g.adjDmg / g.dur or 0
+  end
+  -- (sorted by the ADJUSTED dps: a combo tried on harder mobs is not ranked down for it)
+  table.sort(list, function(a, b) if a.adj ~= b.adj then return a.adj > b.adj end return a.dps > b.dps end)
   return list
+end
+--[[ TRY NEXT (17 Nov 2026, Arn: "it seems Flametongue Totem is best with WF imbue ... or is there a combination I am not
+  trying - maybe the combo box can smartly suggest combos to get more data"): every combo you COULD run - each imbue you
+  know, times one totem per element you know (the damage ones only: C.TRY), each slot filled - and how many fights each
+  has. The one with the fewest fights is next; a tie goes to the one most like your best (fewest changes to try). When
+  every combo has C.TRY_ENOUGH fights the ranking stands on its own. ]]
+C.TRY = {
+  imbue = { "Windfury Weapon", "Flametongue Weapon", "Rockbiter Weapon", "Frostbrand Weapon" },
+  fire = { "Flametongue Totem" },   -- (17 Nov, Arn: no Magma, no Searing - "everything else lasts 5 min, so it's more neat")
+  earth = { "Strength of Earth Totem" },
+  air = { "Grace of Air Totem", "Windfury Totem" },
+}
+C.TRY_ENOUGH = 5
+--- Do you know this spell? (by name: the client's spell info, then whether it is yours)
+function C.Knows(name)
+  if not (C_Spell and C_Spell.GetSpellInfo) then return false end
+  local ok, info = pcall(C_Spell.GetSpellInfo, name)
+  if not ok or type(info) ~= "table" then return false end
+  local id = plain(info.spellID)
+  if type(id) ~= "number" then return false end
+  local known = IsPlayerSpell or IsSpellKnown
+  if not known then return true end
+  local ok2, yes = pcall(known, id)
+  return ok2 and plain(yes) == true
+end
+--- Every combo you could run: { imbue, totems = { names }, combo = label, n = fights } for each.
+function C.Possible()
+  local have = {}
+  for slot, names in pairs(C.TRY) do
+    have[slot] = {}
+    for _, n in ipairs(names) do if C.Knows(n) then have[slot][#have[slot] + 1] = n end end
+    if #have[slot] == 0 then have[slot] = { false } end   -- (none known for that element: the slot stays empty)
+  end
+  local counts = {}
+  for _, g in ipairs(C.Rank()) do counts[g.combo] = g.n end
+  local out = {}
+  for _, im in ipairs(have.imbue) do
+    for _, fi in ipairs(have.fire) do
+      for _, ea in ipairs(have.earth) do
+        for _, ai in ipairs(have.air) do
+          local set, list = {}, {}
+          for _, t in ipairs({ fi, ea, ai }) do if t then set[t] = true list[#list + 1] = t end end
+          local imbue = im or nil
+          local label = C.Label(imbue, set)
+          out[#out + 1] = { imbue = imbue, totems = list, combo = label, n = counts[label] or 0 }
+        end
+      end
+    end
+  end
+  return out
+end
+--- The combo to try next, or nil when every one has enough fights (or nothing is known).
+function C.TryNext()
+  local all = C.Possible()
+  if #all == 0 or (#all == 1 and not all[1].imbue and #all[1].totems == 0) then return nil end
+  local best = C.Rank()[1]
+  local function like(c)
+    if not best then return 0 end
+    local k = (c.imbue == best.imbue) and 1 or 0
+    local bt = {}
+    for _, t in ipairs(best.totems or {}) do bt[t] = true end
+    for _, t in ipairs(c.totems) do if bt[t] then k = k + 1 end end
+    return k
+  end
+  table.sort(all, function(a, b)
+    if a.n ~= b.n then return a.n < b.n end
+    local la, lb = like(a), like(b)
+    if la ~= lb then return la > lb end
+    return a.combo < b.combo
+  end)
+  local pick = all[1]
+  if pick.n >= C.TRY_ENOUGH then return nil, #all end
+  local untried = 0
+  for _, c in ipairs(all) do if c.n == 0 then untried = untried + 1 end end
+  return pick, #all, untried
 end
 function C.Place(combo)
   local list = C.Rank()
@@ -431,6 +709,7 @@ function C.BuildCard()
   f:RegisterForDrag("LeftButton")
   f:SetScript("OnDragStart", function(self)
     if InCombatLockdown and InCombatLockdown() then return end
+    C.CastAway()
     self:StartMoving() self.moving, self.dragged = true, true
   end)
   f:SetScript("OnDragStop", function(self)
@@ -443,8 +722,18 @@ function C.BuildCard()
     if self.dragged then self.dragged = nil return end
     C.Toggle(true)
   end)
-  f:SetScript("OnEnter", function(self) self.hold = true self:SetAlpha(1) end)
-  f:SetScript("OnLeave", function(self) self.hold = nil end)
+  f:SetScript("OnEnter", function(self)
+    self.hold = true self:SetAlpha(1)
+    local rec = self.rec
+    if rec and GameTooltip then                                  -- (the names behind the icons)
+      GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
+      GameTooltip:AddLine(rec.imbue or "no imbue", 1, 1, 1)
+      for _, n in ipairs(rec.totems or {}) do GameTooltip:AddLine(n, 0.8, 0.8, 0.8) end
+      GameTooltip:AddLine("click: the list", 0.6, 0.6, 0.6)
+      GameTooltip:Show()
+    end
+  end)
+  f:SetScript("OnLeave", function(self) self.hold = nil if GameTooltip then GameTooltip:Hide() end end)
   K.tex(f, "BACKGROUND", "frame", 0.94)
   K.border(f, "edge", 1)
   f.title = K.fs(f, "BiS> combo", 9, "accent")
@@ -453,6 +742,7 @@ function C.BuildCard()
   f.where:SetPoint("TOPRIGHT", -6, -5)
   f.combo = K.fs(f, "", 11, "ink")
   f.combo:SetPoint("LEFT", f, "LEFT", 6, 2)
+  f.icons = {}                                         -- (the combo as icons; f.combo keeps "(mixed)" after them)
   f.dps = K.fs(f, "", 16, "good")
   f.dps:SetPoint("RIGHT", f, "RIGHT", -6, 2)
   f.place = K.fs(f, "", 9, "gold")
@@ -467,6 +757,39 @@ function C.BuildCard()
   C.card = f
   return f
 end
+C.CARD_ICON = 20
+--- The card's combo: the imbue's icon, then each totem's, then "(mixed)" when it was; words for anything with no icon.
+function C.CardIcons(f, rec)
+  local names = {}
+  if rec.imbue then names[#names + 1] = rec.imbue end
+  for _, n in ipairs(rec.totems or {}) do names[#names + 1] = n end
+  local x, words = 6, {}
+  for i, n in ipairs(names) do
+    local tex = C.IconFor(n)
+    local t = f.icons[i]
+    if tex and not t then
+      t = C.IconButton(f, C.CARD_ICON)
+      f.icons[i] = t
+    end
+    if tex then
+      t:ClearAllPoints() t:SetPoint("LEFT", f, "LEFT", x, 2)
+      t:SetTexture(tex) t.name = n t:Show()
+      x = x + C.CARD_ICON + 2
+    else
+      if t then t:Hide() t.name = nil end
+      words[#words + 1] = C.TOTEMS[n] or C.IMBUE_SHORT[n] or n
+    end
+  end
+  for i = #names + 1, #f.icons do f.icons[i]:Hide() f.icons[i].name = nil end
+  f.iconW = x - 6
+  f.combo:ClearAllPoints()
+  f.combo:SetPoint("LEFT", f, "LEFT", x + 2, 2)
+  local text = table.concat(words, " · ")
+  if rec.mixed then text = text .. (text ~= "" and "  " or "") .. "(mixed)" end
+  if #names == 0 then text = "no imbue" .. (rec.mixed and "  (mixed)" or "") end
+  f.combo:SetText(text)
+  f.rec = rec
+end
 --- THE CARD GROWS TO FIT (17 Nov 2026, Arn's shot: "WF · FT totem · GoA · SoE · WF totem" ran under "100 dps"): as wide as
 --- its widest line - the combo with the dps beside it, the top line, the bottom line - never under C.CARD_W.
 C.CARD_W, C.CARD_GAP = 250, 14
@@ -476,7 +799,7 @@ local function textW(fs)
   return #(fs:GetText() or "") * 6
 end
 function C.FitCard(f)
-  local need = math.max(textW(f.combo) + C.CARD_GAP + textW(f.dps), textW(f.title) + C.CARD_GAP + textW(f.where), textW(f.place)) + 12
+  local need = math.max((f.iconW or 0) + 4 + textW(f.combo) + C.CARD_GAP + textW(f.dps), textW(f.title) + C.CARD_GAP + textW(f.where), textW(f.place)) + 12
   f:SetWidth(math.max(C.CARD_W, math.ceil(need)))
   return f:GetWidth()
 end
@@ -484,7 +807,7 @@ function C.ShowCard(rec)
   local f = C.BuildCard()
   f.where:SetText(("%s%s"):format(rec.active and ("%d of %d s swinging"):format(math.floor(rec.active + 0.5), math.floor(rec.dur + 0.5))
     or ("%d s"):format(math.floor(rec.dur + 0.5)), rec.mob and (" · " .. rec.mob) or ""))
-  f.combo:SetText(rec.combo .. (rec.mixed and "  (mixed)" or ""))
+  C.CardIcons(f, rec)
   f.dps:SetText(("%d dps"):format(math.floor(rec.dmg / C.Time(rec) + 0.5)))
   if rec.dur < C.Min() then
     f.place:SetText(("short fight - not ranked (under %d s)"):format(C.Min()))
@@ -525,9 +848,12 @@ function C.Build()
   f:RegisterForDrag("LeftButton")
   f:SetScript("OnDragStart", function(self)
     if InCombatLockdown and InCombatLockdown() then return end
+    C.CastAway()
     self:StartMoving() self.moving = true
   end)
   local function keep(self)
+    if not self:IsShown() then C.CastAway() end
+    if self.sizing then C.EndSizing(self) end                  -- (hidden mid-size: let go, as a drag does)
     if not self.moving then return end
     endDrag(self)
     local ok, pt, _, rp, x, y = pcall(self.GetPoint, self)
@@ -553,7 +879,7 @@ function C.Build()
   f.set.label = K.fs(f.set, "SET", 9, "ink")
   f.set.label:SetPoint("CENTER")
   f.set:SetScript("OnClick", function() C.ToggleSet() end)
-  f.heads = { K.fs(f, "", 9, "dim"), K.fs(f, "fights", 9, "dim"), K.fs(f, "dps", 9, "dim") }
+  f.heads = { K.fs(f, "", 9, "dim"), K.fs(f, "fights", 9, "dim"), K.fs(f, "dps", 9, "dim"), K.fs(f, "adj", 9, "dim") }
   f.colHeads = {}
   for _, c in ipairs(C.COLS) do f.colHeads[c] = K.fs(f, c, 9, "dim") end
   f.rows = {}
@@ -561,11 +887,81 @@ function C.Build()
   f.detail:SetJustifyH("LEFT")
   f.foot = K.fs(f, "", 9, "dim")
   f.foot:SetPoint("BOTTOMLEFT", 8, 7)
+  -- TRY NEXT: the combo with the fewest fights, as icons, over the foot (C.TryNext)
+  local tr = CreateFrame("Button", nil, f)
+  tr:SetHeight(C.TRY_H - 2)
+  tr:SetPoint("BOTTOMLEFT", 8, 22) tr:SetPoint("BOTTOMRIGHT", -8, 22)
+  tr.lit = K.tex(tr, "BACKGROUND", "accent", 0.08)
+  tr.word = K.fs(tr, "TRY NEXT", 9, "gold")
+  tr.word:SetPoint("LEFT", 4, 0)
+  tr.icons = {}
+  for k = 1, 4 do
+    local t = C.IconButton(tr, C.TRY_H - 4)
+    t:SetPoint("LEFT", tr, "LEFT", 62 + (k - 1) * (C.TRY_H - 2), 0)
+    tr.icons[k] = t
+  end
+  tr.note = K.fs(tr, "", 9, "muted")
+  tr.note:SetPoint("LEFT", tr, "LEFT", 62 + 4 * (C.TRY_H - 2) + 4, 0)
+  tr:SetScript("OnEnter", function(self)
+    self.lit:SetAlpha(0.2)
+    local c = self.c
+    if not (c and GameTooltip) then return end
+    GameTooltip:SetOwner(self, "ANCHOR_TOP")
+    GameTooltip:AddLine("Try next: " .. (c.n == 0 and "never fought with" or ("only %d fights"):format(c.n)), 1, 0.82, 0)
+    GameTooltip:AddLine(c.imbue or "no imbue", 1, 1, 1)
+    for _, n in ipairs(c.totems) do GameTooltip:AddLine(n, 0.8, 0.8, 0.8) end
+    GameTooltip:AddLine("A few fights with it and the ranking knows where it stands.", 0.6, 0.6, 0.6, true)
+    GameTooltip:Show()
+  end)
+  tr:SetScript("OnLeave", function(self) self.lit:SetAlpha(0.08) if GameTooltip then GameTooltip:Hide() end end)
+  f.try = tr
+  -- DRAG THE CORNER (17 Nov 2026, Arn: "let me resize the window by dragging the corner"): the grip at the bottom right
+  -- sizes the list inside the same bounds as SET's steps, the rows following live; db.w / db.h on letting go
+  if f.SetResizable then f:SetResizable(true) end
+  if f.SetResizeBounds then pcall(f.SetResizeBounds, f, C.W_MIN, C.H_MIN, C.W_MAX, C.H_MAX)
+  elseif f.SetMinResize then pcall(f.SetMinResize, f, C.W_MIN, C.H_MIN) pcall(f.SetMaxResize, f, C.W_MAX, C.H_MAX) end
+  local grip = CreateFrame("Button", nil, f)
+  grip:SetSize(14, 14)
+  grip:SetPoint("BOTTOMRIGHT", -2, 2)
+  grip.tex = grip:CreateTexture(nil, "OVERLAY")
+  grip.tex:SetAllPoints(grip)
+  grip.tex:SetTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Up")
+  grip.tex:SetAlpha(0.7)
+  grip:SetScript("OnEnter", function(self) self.tex:SetAlpha(1) end)
+  grip:SetScript("OnLeave", function(self) self.tex:SetAlpha(0.7) end)
+  grip:SetScript("OnMouseDown", function()
+    if fighting() then return end                       -- (never in a fight)
+    C.CastAway()
+    if f.StartSizing then f.sizing = true f:StartSizing("BOTTOMRIGHT") end
+  end)
+  grip:SetScript("OnMouseUp", function() C.EndSizing(f) end)
+  f.grip = grip
+  f:SetScript("OnSizeChanged", function(self, w, h)
+    if not self.sizing then return end
+    local d = db()
+    d.w = math.max(C.W_MIN, math.min(C.W_MAX, math.floor((tonumber(w) or C.W) + 0.5)))
+    d.h = math.max(C.H_MIN, math.min(C.H_MAX, math.floor((tonumber(h) or C.H) + 0.5)))
+    C.Layout() C.Paint()
+    if C.PaintSet then C.PaintSet() end
+  end)
   -- NEVER ON THE ESCAPE LIST (17 Nov, Arn: "I pressed esc when not in the window and it closed it" - the boss list's
   -- lesson again): the x or /bist combo closes it, nothing else
   f:Hide()
   C.frame = f
   return f
+end
+--- Let go of the corner: the size kept, its spot kept (sizing re-anchors it).
+function C.EndSizing(f)
+  if not f.sizing then return end
+  f.sizing = nil
+  f:StopMovingOrSizing()
+  local d = db()
+  d.w = math.max(C.W_MIN, math.min(C.W_MAX, math.floor((f:GetWidth() or C.W) + 0.5)))
+  d.h = math.max(C.H_MIN, math.min(C.H_MAX, math.floor((f:GetHeight() or C.H) + 0.5)))
+  local ok, pt, _, rp, x, y = pcall(f.GetPoint, f)
+  if ok and pt then d.listPos = { pt, rp, x, y } end
+  C.Layout() C.Paint()
+  if C.PaintSet then C.PaintSet() end
 end
 --- The list's size: the saved one, inside the bounds.
 function C.Size()
@@ -574,10 +970,17 @@ function C.Size()
   local h = math.max(C.H_MIN, math.min(C.H_MAX, tonumber(d.h) or C.H))
   return w, h
 end
---- How many rows the height holds.
+--[[ THE NUMBER BOXES (17 Nov 2026, Arn, of the text under the list: "can you clean up the text, easier to read - boxes"):
+  three rows of four boxes, each a small label over one big number - the procs (% of your own swings), the fights
+  (count, average, best, the mobs' level), and you now (crit, attack power, weapon speed, damage) - the last fight on one
+  short line under them. Hover a box for what it means. ]]
+C.TILE_H, C.TILE_GAP, C.TILE_COLS, C.TILE_ROWS = 28, 4, 4, 3
+C.TILES_H = C.TILE_ROWS * (C.TILE_H + C.TILE_GAP) + 18
+--- How many rows the height holds (the TRY NEXT strip takes C.TRY_H above the foot).
+C.TRY_H = 20
 function C.RowCount()
   local _, h = C.Size()
-  return math.max(3, math.floor((h - 38 - 62 - 22) / C.ROW))
+  return math.max(3, math.floor((h - 38 - C.TILES_H - 22 - C.TRY_H) / C.ROW))
 end
 --- Lay the list out on its size: the columns on the width, as many rows as the height holds.
 function C.Layout()
@@ -586,7 +989,7 @@ function C.Layout()
   local K = F()
   local w, h = C.Size()
   f:SetSize(w, h)
-  local nameW = w - 16 - 120
+  local nameW = w - 16 - 168                           -- (fights, dps and adj on the right)
   f.heads[1]:ClearAllPoints() f.heads[1]:SetPoint("TOPLEFT", 10, -24) f.heads[1]:SetWidth(nameW)
   do                                                   -- the column heads: imbue, fire, earth, air
     local x = 10
@@ -598,7 +1001,8 @@ function C.Layout()
     end
   end
   f.heads[2]:ClearAllPoints() f.heads[2]:SetPoint("TOPLEFT", 10 + nameW, -24) f.heads[2]:SetWidth(52) f.heads[2]:SetJustifyH("RIGHT")
-  f.heads[3]:ClearAllPoints() f.heads[3]:SetPoint("TOPLEFT", 10 + nameW + 54, -24) f.heads[3]:SetWidth(56) f.heads[3]:SetJustifyH("RIGHT")
+  f.heads[3]:ClearAllPoints() f.heads[3]:SetPoint("TOPLEFT", 10 + nameW + 54, -24) f.heads[3]:SetWidth(46) f.heads[3]:SetJustifyH("RIGHT")
+  f.heads[4]:ClearAllPoints() f.heads[4]:SetPoint("TOPLEFT", 10 + nameW + 102, -24) f.heads[4]:SetWidth(52) f.heads[4]:SetJustifyH("RIGHT")
   local n = C.RowCount()
   for i = 1, math.max(n, #f.rows) do
     local r = f.rows[i]
@@ -612,11 +1016,19 @@ function C.Layout()
       r.name = K.fs(r, "", 9, "ink") r.name:SetJustifyH("LEFT")
       r.cells = {}
       for _, c in ipairs(C.COLS) do r.cells[c] = K.fs(r, "", 9, "ink") r.cells[c]:SetJustifyH("LEFT") end
+      r.icons = {}
+      for _, c in ipairs(C.COLS) do
+        r.icons[c] = {}
+        for k = 1, 2 do                                       -- (two totems of one element stack on Forever: two icons)
+          r.icons[c][k] = C.IconButton(r, C.ROW - 2)
+        end
+      end
       r.n = K.fs(r, "", 9, "muted") r.n:SetJustifyH("RIGHT")
-      r.dps = K.fs(r, "", 9, "good") r.dps:SetJustifyH("RIGHT")
+      r.dps = K.fs(r, "", 9, "muted") r.dps:SetJustifyH("RIGHT")
+      r.adj = K.fs(r, "", 9, "good") r.adj:SetJustifyH("RIGHT")
       r:SetScript("OnClick", function(self) if self.g then C.sel = self.g.combo C.Paint() end end)
-      r:SetScript("OnEnter", function(self) self.hover = true C.PaintRow(self) end)
-      r:SetScript("OnLeave", function(self) self.hover = nil C.PaintRow(self) end)
+      r:SetScript("OnEnter", function(self) self.hover = true C.PaintRow(self) C.RowTip(self) end)
+      r:SetScript("OnLeave", function(self) self.hover = nil C.PaintRow(self) if GameTooltip then GameTooltip:Hide() end end)
       f.rows[i] = r
     end
     if r then
@@ -628,10 +1040,12 @@ function C.Layout()
         for _, c in ipairs(C.COLS) do
           local cw = math.floor(nameW * C.COL_SHARE[c])
           r.cells[c]:ClearAllPoints() r.cells[c]:SetPoint("LEFT", x, 0) r.cells[c]:SetWidth(cw - 2)
+          for k, t in ipairs(r.icons[c]) do t:ClearAllPoints() t:SetPoint("LEFT", r, "LEFT", x + (k - 1) * C.ROW, 0) end
           x = x + cw
         end
         r.n:ClearAllPoints() r.n:SetPoint("LEFT", 2 + nameW, 0) r.n:SetWidth(52)
-        r.dps:ClearAllPoints() r.dps:SetPoint("LEFT", 2 + nameW + 54, 0) r.dps:SetWidth(56)
+        r.dps:ClearAllPoints() r.dps:SetPoint("LEFT", 2 + nameW + 54, 0) r.dps:SetWidth(46)
+        r.adj:ClearAllPoints() r.adj:SetPoint("LEFT", 2 + nameW + 102, 0) r.adj:SetWidth(52)
         r:Show()
       else
         r.g = nil
@@ -639,9 +1053,22 @@ function C.Layout()
       end
     end
   end
+  local top = -42 - n * C.ROW
+  local tw = math.floor((w - 16 - (C.TILE_COLS - 1) * C.TILE_GAP) / C.TILE_COLS)
+  f.tiles = f.tiles or {}
+  for i = 1, C.TILE_COLS * C.TILE_ROWS do
+    local t = f.tiles[i] or C.MakeTile(f)
+    f.tiles[i] = t
+    local col, row = (i - 1) % C.TILE_COLS, math.floor((i - 1) / C.TILE_COLS)
+    t:ClearAllPoints()
+    t:SetPoint("TOPLEFT", 8 + col * (tw + C.TILE_GAP), top - row * (C.TILE_H + C.TILE_GAP))
+    t:SetSize(tw, C.TILE_H)
+    t.value:SetWidth(tw - 8)
+  end
   f.detail:ClearAllPoints()
-  f.detail:SetPoint("TOPLEFT", 10, -42 - n * C.ROW)
+  f.detail:SetPoint("TOPLEFT", 10, top - C.TILE_ROWS * (C.TILE_H + C.TILE_GAP) - 1)
   f.detail:SetWidth(w - 20)
+  if f.detail.SetWordWrap then f.detail:SetWordWrap(false) end
   if f.sw then f.sw:SetWidth(w - 16) end
 end
 
@@ -720,6 +1147,15 @@ function C.ToggleSet(want)
   return p:IsShown()
 end
 
+--- A row's names on hover (the icons carry no words).
+function C.RowTip(r)
+  if not (r.g and GameTooltip) then return end
+  GameTooltip:SetOwner(r, "ANCHOR_RIGHT")
+  GameTooltip:AddLine(r.g.imbue or "no imbue", 1, 1, 1)
+  for _, n in ipairs(r.g.totems or {}) do GameTooltip:AddLine(n, 0.8, 0.8, 0.8) end
+  GameTooltip:AddLine(("%d fights  -  %d dps"):format(r.g.n or 0, math.floor((r.g.dps or 0) + 0.5)), 0.6, 0.9, 0.6)
+  GameTooltip:Show()
+end
 function C.PaintRow(r)
   local sel = r.g and r.g.combo == C.sel
   r.lit:SetAlpha(sel and 0.35 or ((r.hover and r.g) and 0.16 or 0))
@@ -736,50 +1172,232 @@ function C.Paint()
     r.name:SetText("")                              -- (the four columns say it now; the name keeps the combo for tests and tips)
     r.name.combo = g and g.combo or nil
     local cells = g and C.Cells(g.imbue, g.totems) or nil
+    local names = g and C.CellNames(g.imbue, g.totems) or nil
     for _, c in ipairs(C.COLS) do
       local v = cells and cells[c] or ""
+      local list = names and names[c] or {}
+      local drawn = 0
+      for k, t in ipairs(r.icons[c]) do
+        local tex = list[k] and C.IconFor(list[k])
+        if tex then t:SetTexture(tex) t.name = list[k] t:Show() drawn = drawn + 1 else t.name = nil t:Hide() end
+      end
+      if drawn > 0 and drawn == #list then v = "" end          -- (the icons say it; a name with no icon keeps its word)
       r.cells[c]:SetText(v)
       local col = (i == 1 and g) and "gold" or (v == "-" and "muted" or "ink")
       r.cells[c]:SetTextColor(F().color(col))
     end
     r.n:SetText(g and tostring(g.n) or "")
     r.dps:SetText(g and tostring(math.floor(g.dps + 0.5)) or "")
+    r.adj:SetText(g and tostring(math.floor(g.adj + 0.5)) or "")
     C.PaintRow(r)
   end
-  local lines = {}
-  if C.sel then
-    local n = 0
-    local fights = db().fights or {}
-    for k = #fights, 1, -1 do
-      local fi = fights[k]
-      if fi.combo == C.sel and (fi.dur or 0) >= C.Min() then
-        n = n + 1
-        if n > 4 then break end
-        lines[#lines + 1] = ("%s  %s  %d dps%s"):format(fi.mob or "?", fi.active and ("%d/%d s"):format(math.floor(fi.active + 0.5), math.floor(fi.dur + 0.5))
-          or ("%d s"):format(math.floor(fi.dur + 0.5)), math.floor(fi.dmg / C.Time(fi) + 0.5),
-          (fi.wf or 0) > 0 and ("  Windfury %d%%"):format(math.floor(fi.wf * 100 + 0.5)) or
-          ((fi.ft or 0) > 0 and ("  Flametongue %d%%"):format(math.floor(fi.ft * 100 + 0.5)) or ""))
-      end
-    end
-  end
-  if C.sel then                                    -- the newest fight of that combo, spell by spell
-    local fights = db().fights or {}
-    for k = #fights, 1, -1 do
-      local fi = fights[k]
-      if fi.combo == C.sel and fi.spells and #fi.spells > 0 then
-        local parts = {}
-        for i = 1, math.min(3, #fi.spells) do
-          parts[#parts + 1] = ("%s %d%%"):format(fi.spells[i].name, math.floor(fi.spells[i].share * 100 + 0.5))
-        end
-        lines[#lines + 1] = "last fight: " .. table.concat(parts, "  -  ")
-        break
-      end
-    end
-  end
-  f.detail:SetText(#lines > 0 and table.concat(lines, "\n") or (#list > 0 and "click a combo: its last fights" or
-    "no fights yet - fight something with an imbue and totems up"))
+  local tiles, last = C.StatTiles(C.sel or (list[1] and list[1].combo))
+  for i, t in ipairs(f.tiles or {}) do C.PaintTile(t, tiles[i]) end
+  f.detail:SetText(last or (#list > 0 and "click a combo: its numbers" or "no fights yet - fight something with an imbue and totems up"))
   f.foot:SetText(C.Min() > 0 and ("%d fights kept  ·  fights under %d s are not counted"):format(#(db().fights or {}), C.Min())
     or ("%d fights kept  ·  dps over the time you swing"):format(#(db().fights or {})))
+  C.PaintTry()
+end
+--[[ THE NUMBERS UNDER THE LIST (17 Nov 2026, Arn: "maybe we can put better information at the bottom, like proc %, lifetime,
+  other relevant info, maybe something to do with gear, crit chance"): for the combo clicked (else the best one), over
+  every fight it has - how often Windfury and Flametongue came on YOUR swings (procs / your own swings, counted since the
+  tape learned to tell yours: rec.swings), its average and best dps and Windfury's share of the damage; its newest fight;
+  and you now: melee crit, attack power, weapon speed and damage, read out of a fight (C.Gear). ]]
+function C.StatLines(combo)
+  local out = {}
+  if not combo then out[1] = C.GearLine() return out end
+  local n, dmg, secs, best, wfDmg, sw, wfP, ftP, lastF = 0, 0, 0, 0, 0, 0, 0, 0, nil
+  local fbP = 0
+  for _, fi in ipairs(db().fights or {}) do
+    if fi.combo == combo and (fi.dur or 0) >= C.Min() then
+      n = n + 1
+      local t = C.Time(fi)
+      dmg, secs = dmg + (fi.dmg or 0), secs + t
+      wfDmg = wfDmg + (fi.dmg or 0) * (fi.wf or 0)
+      if t > 0 and fi.dmg / t > best then best = fi.dmg / t end
+      if fi.swings and fi.swings > 0 and fi.procs then
+        sw = sw + fi.swings
+        wfP = wfP + (fi.procs.extra1 or 0) + (fi.procs.extra2 or 0) + (fi.procs.more or 0)
+        ftP = ftP + (fi.procs.fire or 0)
+        fbP = fbP + (fi.procs.frost or 0)
+      end
+      lastF = fi
+    end
+  end
+  if n == 0 then out[1] = C.GearLine() return out end
+  if sw > 0 then
+    out[#out + 1] = ("PROCS  Windfury on %d%% of your swings  -  Flametongue %d%%%s   (%d swings)"):format(
+      math.floor(wfP / sw * 100 + 0.5), math.floor(ftP / sw * 100 + 0.5),
+      fbP > 0 and ("  -  Frostbrand %d%%"):format(math.floor(fbP / sw * 100 + 0.5)) or "", sw)
+  else
+    out[#out + 1] = "PROCS  counted from your next fight with it"
+  end
+  local gaps, gn = 0, 0
+  for _, fi in ipairs(db().fights or {}) do
+    if fi.combo == combo and fi.gap ~= nil and (fi.dur or 0) >= C.Min() then gaps, gn = gaps + fi.gap, gn + 1 end
+  end
+  if gn > 0 then
+    local avg = gaps / gn
+    local P = C.LevelPenalty(math.floor(avg + 0.5))
+    out[#out + 1] = ("LEVELS  mobs %s%.1f on average: miss %.0f%%, dodge %.0f%%%s"):format(avg >= 0 and "+" or "", avg, P.miss, P.dodge,
+      P.glance > 0 and (", glancing %.0f%% (-%.0f%%)"):format(P.glance, P.cut) or "")
+  end
+  out[#out + 1] = ("%d %s  -  %d dps average, best %d  -  Windfury %d%% of the damage"):format(n, n == 1 and "fight" or "fights",
+    math.floor((secs > 0 and dmg / secs or 0) + 0.5), math.floor(best + 0.5), math.floor((dmg > 0 and wfDmg / dmg or 0) * 100 + 0.5))
+  if lastF then
+    out[#out + 1] = ("last: %s  %s  %d dps"):format(lastF.mob or "?", lastF.active and ("%d/%d s"):format(math.floor(lastF.active + 0.5),
+      math.floor(lastF.dur + 0.5)) or ("%d s"):format(math.floor(lastF.dur + 0.5)), math.floor(lastF.dmg / C.Time(lastF) + 0.5))
+    local parts = {}
+    for k = 1, math.min(3, #(lastF.spells or {})) do
+      parts[#parts + 1] = ("%s %d%%"):format(lastF.spells[k].name, math.floor(lastF.spells[k].share * 100 + 0.5))
+    end
+    if #parts > 0 then out[#out] = out[#out] .. "  -  " .. table.concat(parts, ", ") end
+  end
+  out[#out + 1] = C.GearLine()
+  return out
+end
+function C.MakeTile(f)
+  local K = F()
+  local t = CreateFrame("Frame", nil, f)
+  K.tex(t, "BACKGROUND", "field", 0.85)
+  K.border(t, "edge", 1)
+  t.label = K.fs(t, "", 8, "dim")
+  t.label:SetPoint("TOPLEFT", 4, -3)
+  t.value = K.fs(t, "", 12, "ink")
+  t.value:SetPoint("BOTTOMLEFT", 4, 3)
+  t.value:SetJustifyH("LEFT")
+  if t.value.SetWordWrap then t.value:SetWordWrap(false) end
+  t:EnableMouse(true)
+  t:SetScript("OnEnter", function(self)
+    if not (self.tip and GameTooltip) then return end
+    GameTooltip:SetOwner(self, "ANCHOR_TOP")
+    for k, line in ipairs(self.tip) do
+      if k == 1 then GameTooltip:AddLine(line, 1, 1, 1) else GameTooltip:AddLine(line, 0.8, 0.8, 0.8, true) end
+    end
+    GameTooltip:Show()
+  end)
+  t:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+  return t
+end
+--- One box: { label, value, colour key, tip lines } - nil = an empty box, its frame still there (the grid keeps its shape).
+function C.PaintTile(t, d)
+  if not d then t.label:SetText("") t.value:SetText("") t.tip = nil t:SetAlpha(0.35) return end
+  t:SetAlpha(1)
+  t.label:SetText(d[1])
+  t.value:SetText(d[2])
+  t.value:SetTextColor(F().color(d[3] or "ink"))
+  t.tip = d[4]
+end
+--- The twelve boxes for a combo (nil = the best), and the last fight's line.
+function C.StatTiles(combo)
+  local out = {}
+  local n, dmg, secs, best, wfDmg, sw, wfP, ftP, fbP, lastF, gaps, gn = 0, 0, 0, 0, 0, 0, 0, 0, 0, nil, 0, 0
+  for _, fi in ipairs(combo and db().fights or {}) do
+    if fi.combo == combo and (fi.dur or 0) >= C.Min() then
+      n = n + 1
+      local t = C.Time(fi)
+      dmg, secs = dmg + (fi.dmg or 0), secs + t
+      wfDmg = wfDmg + (fi.dmg or 0) * (fi.wf or 0)
+      if t > 0 and fi.dmg / t > best then best = fi.dmg / t end
+      if fi.swings and fi.swings > 0 and fi.procs then
+        sw = sw + fi.swings
+        wfP = wfP + (fi.procs.extra1 or 0) + (fi.procs.extra2 or 0) + (fi.procs.more or 0)
+        ftP = ftP + (fi.procs.fire or 0)
+        fbP = fbP + (fi.procs.frost or 0)
+      end
+      if fi.gap ~= nil then gaps, gn = gaps + fi.gap, gn + 1 end
+      lastF = fi
+    end
+  end
+  local function pct(x) return sw > 0 and (math.floor(x / sw * 100 + 0.5) .. "%") or "-" end
+  if n > 0 then
+    out[1] = { "WINDFURY", pct(wfP), "gold", { "Windfury procs", "On this share of your own swings, over every fight with this combo since the tape counts your swings.",
+      ("Windfury did %d%% of the damage."):format(math.floor((dmg > 0 and wfDmg / dmg or 0) * 100 + 0.5)) } }
+    out[2] = { "FLAMETONGUE", pct(ftP), "warn", { "Flametongue procs", "On this share of your own swings (the imbue's and the totem's fire hits)." } }
+    out[3] = { "FROSTBRAND", pct(fbP), "accent", { "Frostbrand procs", "On this share of your own swings." } }
+    out[4] = { "SWINGS", tostring(sw), "ink", { "Your swings counted", "Only your own (someone else's hits on your target are left out)." } }
+    out[5] = { "FIGHTS", tostring(n), "ink", { "Fights with this combo" } }
+    out[6] = { "AVERAGE", tostring(math.floor((secs > 0 and dmg / secs or 0) + 0.5)), "good", { "Average dps", "Over the time you were swinging." } }
+    out[7] = { "BEST", tostring(math.floor(best + 0.5)), "good", { "Best fight's dps" } }
+    if gn > 0 then
+      local avg = gaps / gn
+      local P = C.LevelPenalty(math.floor(avg + 0.5))
+      out[8] = { "MOB LEVEL", ("%s%.1f"):format(avg >= 0 and "+" or "", avg), avg > 0.5 and "warn" or "ink",
+        { "Mobs' level against yours, on average", ("Miss %.1f%%, dodge %.1f%%%s (Classic's melee table)."):format(P.miss, P.dodge,
+          P.glance > 0 and (", glancing %d%% for %d%% less"):format(P.glance, P.cut) or ""), "The adj column counts every fight as if the mob were your level." } }
+    else
+      out[8] = { "MOB LEVEL", "-", "muted", { "Mobs' level", "Kept from tonight's fights on." } }
+    end
+  end
+  local g, base = C.Gear(), n > 0 and 8 or 0
+  out[base + 1] = { "CRIT", g.crit and ("%.1f%%"):format(g.crit) or "-", "ink", { "Your melee crit chance now" } }
+  out[base + 2] = { "ATTACK POWER", g.ap and tostring(g.ap) or "-", "ink", { "Your attack power now" } }
+  out[base + 3] = { "WEAPON", g.speed and ("%.1f s"):format(g.speed) or "-", "ink", { "Your weapon's speed now" } }
+  out[base + 4] = { "DAMAGE", g.lo and ("%d-%d"):format(math.floor(g.lo + 0.5), math.floor(g.hi + 0.5)) or "-", "ink", { "Your weapon's damage now" } }
+  local line
+  if lastF then
+    line = ("last: %s  %s  %d dps"):format(lastF.mob or "?", lastF.active and ("%d/%d s"):format(math.floor(lastF.active + 0.5),
+      math.floor(lastF.dur + 0.5)) or ("%d s"):format(math.floor(lastF.dur + 0.5)), math.floor(lastF.dmg / C.Time(lastF) + 0.5))
+    local parts = {}
+    for k = 1, math.min(3, #(lastF.spells or {})) do
+      parts[#parts + 1] = ("%s %d%%"):format(lastF.spells[k].name, math.floor(lastF.spells[k].share * 100 + 0.5))
+    end
+    if #parts > 0 then line = line .. "  -  " .. table.concat(parts, ", ") end
+  end
+  return out, line
+end
+--- You now: melee crit, attack power, the weapon's speed and damage (plain answers only; read out of a fight, kept).
+function C.Gear()
+  if not (InCombatLockdown and InCombatLockdown()) then
+    local g = {}
+    if GetCritChance then local ok, v = pcall(GetCritChance) v = ok and plain(v) if type(v) == "number" then g.crit = v end end
+    if UnitAttackPower then
+      local ok, base, pos, neg = pcall(UnitAttackPower, "player")
+      base, pos, neg = plain(base), plain(pos), plain(neg)
+      if ok and type(base) == "number" then g.ap = base + (type(pos) == "number" and pos or 0) + (type(neg) == "number" and neg or 0) end
+    end
+    local mh = C.Speeds()
+    g.speed = mh
+    if UnitDamage then
+      local ok, lo, hi = pcall(UnitDamage, "player")
+      lo, hi = plain(lo), plain(hi)
+      if ok and type(lo) == "number" and type(hi) == "number" then g.lo, g.hi = lo, hi end
+    end
+    C.gear = g
+  end
+  return C.gear or {}
+end
+function C.GearLine()
+  local g, parts = C.Gear(), {}
+  if g.crit then parts[#parts + 1] = ("crit %.1f%%"):format(g.crit) end
+  if g.ap then parts[#parts + 1] = ("attack power %d"):format(g.ap) end
+  if g.speed then parts[#parts + 1] = ("%.1f s weapon"):format(g.speed) end
+  if g.lo then parts[#parts + 1] = ("%d-%d damage"):format(math.floor(g.lo + 0.5), math.floor(g.hi + 0.5)) end
+  return #parts > 0 and ("YOU NOW  " .. table.concat(parts, "  -  ")) or ""
+end
+function C.PaintTry()
+  local tr = C.frame and C.frame.try
+  if not tr then return end
+  local c, total, untried = C.TryNext()
+  tr.c = c
+  local names = {}
+  if c then
+    if c.imbue then names[#names + 1] = c.imbue end
+    for _, n in ipairs(c.totems) do names[#names + 1] = n end
+  end
+  for k, t in ipairs(tr.icons) do
+    local tex = names[k] and C.IconFor(names[k])
+    if tex then t:SetTexture(tex) t.name = names[k] t:Show() else t.name = nil t:Hide() end
+  end
+  if c then
+    tr.note:SetText(c.n == 0 and ("never tried  -  %d of %d combos untried"):format(untried or 0, total or 0)
+      or ("only %d fights  -  %d combos to compare"):format(c.n, total or 0))
+  elseif total then
+    tr.note:SetText(("every combo you know has %d+ fights: the ranking holds"):format(C.TRY_ENOUGH))
+  else
+    tr.note:SetText("learn an imbue or a totem first")
+  end
+  tr.note:SetPoint("LEFT", tr, "LEFT", 62 + #names * (C.TRY_H - 2) + 4, 0)
 end
 function C.IsOpen() return C.frame ~= nil and C.frame:IsShown() end
 -- OPEN STAYS OPEN (17 Nov 2026, Arn: "combo window closes every time I reload and it says on in the options"): the
@@ -940,16 +1558,22 @@ function C.Hit(action, school)
   action = plain(action)
   school = plain(school)
   stat(cur, action, school, now)
+  if cur.gap == nil then cur.gap, cur.skull = C.TargetGap() end
   if action ~= nil and (type(action) ~= "string" or not C.SWING_ACTIONS[action]) then return end   -- (a heal, a plain non-swing)
-  local fire = type(school) == "number" and school == 4
+  -- ONLY A PHYSICAL HIT IS A SWING (17 Nov 2026, Arn on Frostbrand: "+1"s printed with no Windfury - its frost hits were
+  -- counted as swings). Fire (4) is Flametongue's, frost (16) Frostbrand's, any other magic school nobody's swing; a
+  -- hidden school still counts as a swing (it usually is one).
+  local sch = type(school) == "number" and school or nil
   local b = cur.burst
   local win = C.BurstWindow()
   if not b or now - b.at > win then
-    b = { at = now, swings = 0, fire = 0 }
+    b = { at = now, swings = 0, fire = 0, frost = 0 }
     cur.burst = b
     if C_Timer and C_Timer.After then C_Timer.After(win + 0.02, function() C.CloseBurst(cur, b) end) end
   end
-  if fire then b.fire = b.fire + 1 else b.swings = b.swings + 1 end
+  if sch == 4 then b.fire = b.fire + 1
+  elseif sch == 16 then b.frost = (b.frost or 0) + 1
+  elseif sch == nil or sch == 1 then b.swings = b.swings + 1 end
 end
 --[[ THE SWING CADENCE (17 Nov 2026, Arn: "a weak aura used to determine range as idle time in the swings ... as long as I'm in
   combat and my melee is not in cadence it's considered out of range"). Each burst with a swing is a beat; the active time
@@ -971,9 +1595,36 @@ function C.Beat(cur, at)
   if cur.lastBeat then cur.cadence = (cur.cadence or 0) + math.min(at - cur.lastBeat, sp * C.CADENCE) end
   cur.lastBeat, cur.lastSpeed = at, sp
 end
+--[[ ONLY YOUR OWN SWINGS (17 Nov 2026, Arn: "I think the tape is reading other shaman hits"; his save: 30 s fights with 29
+  "swings", 20 Windfury procs - and the meter after them said none of his damage was Windfury). UNIT_COMBAT says what your
+  target took, never from whom, so a burst is yours only if it lands on YOUR swing clock: at least C.OWN_K x your weapon's
+  speed after your last one (each hand its own clock when you hold two). Anything sooner is someone else's - no proc, no
+  beat - counted in cur.foreign for /bist combo why. In a group a stranger's swing can still land on your clock now and
+  then; after the fight the meter checks (C.MeterCheck). ]]
+C.OWN_K = 0.75
+function C.Speeds()
+  if not UnitAttackSpeed then return C.SPEED_GUESS, nil end
+  local ok, mh, oh = pcall(UnitAttackSpeed, "player")
+  if not ok then return C.SPEED_GUESS, nil end
+  mh, oh = plain(mh), plain(oh)
+  if not (type(mh) == "number" and mh > 0.5 and mh < 6) then mh = C.SPEED_GUESS end
+  if not (type(oh) == "number" and oh > 0.5 and oh < 6) then oh = nil end
+  return mh, oh
+end
+--- Is this burst on your swing clock? (and if so the clock moves to it)
+function C.OwnSwing(cur, at)
+  local mh, oh = C.Speeds()
+  if not cur.lastMH or at - cur.lastMH >= mh * C.OWN_K then cur.lastMH = at return true end
+  if oh and (not cur.lastOH or at - cur.lastOH >= oh * C.OWN_K) then cur.lastOH = at return true end
+  return false
+end
 function C.CloseBurst(cur, b)
   if b.done then return end
   b.done = true
+  if b.swings > 0 and not C.OwnSwing(cur, b.at) then
+    cur.foreign = (cur.foreign or 0) + 1
+    return
+  end
   if b.swings > 0 then C.Beat(cur, b.at) end
   cur.procs = cur.procs or { extra1 = 0, extra2 = 0, more = 0, fire = 0 }
   local extra = b.swings - 1
@@ -984,15 +1635,46 @@ function C.CloseBurst(cur, b)
   -- Totem down this fight, any extra swing is the weapon's: +2. With both, the count decides as before.
   local im = cur.nowImbue or cur.imbue
   local weapon = type(im) == "string" and im:find("Windfury", 1, true) and true or false
-  local totem = (cur.nowTot or cur.totems or {})["Windfury Totem"] and true or false
+  local tot = cur.nowTot or cur.totems or {}
+  local totem = (tot["Windfury Totem"] or cur.wfAura) and true or false
+  -- NO WINDFURY, NO WINDFURY PROC (17 Nov 2026, Arn's tape: "I don't have Windfury but it's counting ... like I have
+  -- Windfury" - and the meter agreed none were his): two hits in one moment with no Windfury up (your imbue, your totem,
+  -- or a party member's Windfury Totem buff on you - cur.wfAura) were someone else's - nothing counted. Flametongue the
+  -- same: no more fire hits counted on a swing than Flametongue sources you have up (the imbue, the totem: Forever stacks
+  -- them, so two can be real).
+  if not (weapon or totem) then extra = 0 end
+  local ftSources = ((type(im) == "string" and im:find("Flametongue", 1, true)) and 1 or 0)
+    + ((tot["Flametongue Totem"] or cur.ftAura) and 1 or 0)
+  local fireN = math.min(b.fire, ftSources)
+  local frostN = ((type(im) == "string" and im:find("Frostbrand", 1, true)) and math.min(b.frost or 0, 1)) or 0
   if extra == 1 and weapon and not totem then extra = 2 end
-  if extra == 1 then cur.procs.extra1 = cur.procs.extra1 + 1 words[#words + 1] = "+1 extra hit"
-  elseif extra == 2 then cur.procs.extra2 = cur.procs.extra2 + 1 words[#words + 1] = "+2 extra hits"
-  elseif extra > 2 then cur.procs.more = cur.procs.more + 1 words[#words + 1] = ("+%d extra hits"):format(extra) end
-  if b.fire > 0 and b.swings > 0 then cur.procs.fire = cur.procs.fire + 1 words[#words + 1] = "Flametongue" end
-  -- (17 Nov, Arn's shot of the tape: "+1 EXTRA HIT  FLAMETONGUE" wrapped onto two lines and the next line printed over
-  -- it - each word is its own line now, and a line never wraps)
-  if db().scroll ~= false then for _, w in ipairs(words) do C.Scroll(w, w == "Flametongue") end end
+  -- ICONS ON THE TAPE (17 Nov 2026, Arn: "on the receipt we can actually save so much space by just using icons"): one line
+  -- a swing - the Windfury that procced as its icon and +N, Flametongue's icon and +N beside it (the totem's when one
+  -- stands, else the weapon's), drawn inside the text (C.Ico), so a line stays short and never wraps
+  local wfIcon = (extra == 1 and totem) and "Windfury Totem" or "Windfury Weapon"
+  if extra == 1 then cur.procs.extra1 = cur.procs.extra1 + 1 words[#words + 1] = C.Ico(wfIcon, "WF") .. " +1"
+  elseif extra == 2 then cur.procs.extra2 = cur.procs.extra2 + 1 words[#words + 1] = C.Ico("Windfury Weapon", "WF") .. " +2"
+  elseif extra > 2 then cur.procs.more = cur.procs.more + 1 words[#words + 1] = C.Ico("Windfury Weapon", "WF") .. " +" .. extra end
+  local fireOnly = false
+  if fireN > 0 and b.swings > 0 then
+    cur.procs.fire = cur.procs.fire + 1
+    local ft = (cur.nowTot or cur.totems or {})["Flametongue Totem"] and "Flametongue Totem" or "Flametongue Weapon"
+    words[#words + 1] = C.Ico(ft, "FT") .. " +" .. fireN
+    fireOnly = #words == 1
+  end
+  if frostN > 0 and b.swings > 0 then                            -- (Frostbrand: its frost hit with your swing)
+    cur.procs.frost = (cur.procs.frost or 0) + 1
+    words[#words + 1] = C.Ico("Frostbrand Weapon", "FB") .. " +1"
+    fireOnly = false
+  end
+  if #words > 0 and db().scroll ~= false then C.Scroll(table.concat(words, "    "), fireOnly) end
+end
+--- A spell's icon inside a line of text (|T...|t, the tape's line height), else its short word.
+C.ICO = 13
+function C.Ico(name, word)
+  local tex = C.IconFor(name)
+  if not tex then return word or name end
+  return ("|T%s:%d:%d:0:0:64:64:5:59:5:59|t"):format(tostring(tex), C.ICO, C.ICO)
 end
 --[[ THE RECEIPT TAPE (17 Nov 2026, Arn: "make it like a receipt calculator printer, it scrolling from bottom to top"): a
   small strip of paper beside the card's spot. Each proc prints a line at the bottom - the fight's clock, then the words
@@ -1001,7 +1683,27 @@ end
   fight it drags anywhere (db.tapePos). Nothing ticks while it is away. ]]
 -- (17 Nov, Arn's first look: "more warm white candle light" - "its so bright" - "30 sec idle time before it fades away":
 -- the paper a dim warm cream, brown ink, and it waits C.TAPE.linger s after the LAST line it printed, in a fight or not)
-C.TAPE = { w = 190, lines = 7, lh = 15, roll = 0.15, linger = 30, fade = 1.5, pad = 5, alpha = 0.82, keep = 300 }
+C.TAPE = { w = 190, lines = 7, lh = 15, roll = 0.15, linger = 30, fade = 1.5, pad = 5, alpha = 0.82, keep = 300,
+           foot = 15, wMin = 130, wMax = 360, hMin = 70, hMax = 420 }
+--[[ THE FOOTER AND THE SIZE (17 Nov 2026, Arn, of the tape: "let's get rid of this empty space, and maybe draggable bigger,
+  drag icon smaller, only words" - "let's give this one a BiS> Procs footer"): the strip under the newest line is the
+  footer now - "BiS> Procs" in words, a thin rule over it, the lines printing up out of it. A small grip in its corner
+  sizes the paper (db.tapeW / db.tapeH, inside the bounds); taller holds more lines, re-read from the fight's log. ]]
+local function tapeLines(t) return t.lines or C.TAPE.lines end
+function C.TapeSize()
+  local T, d = C.TAPE, db()
+  local w = math.max(T.wMin, math.min(T.wMax, tonumber(d.tapeW) or T.w))
+  local h = math.max(T.hMin, math.min(T.hMax, tonumber(d.tapeH) or (T.lines * T.lh + T.foot + 2 + T.pad)))
+  return w, h
+end
+function C.TapeFit(t)
+  local T = C.TAPE
+  local w, h = C.TapeSize()
+  t:SetSize(w, h)
+  t.lines = math.max(2, math.floor((h - T.foot - 2 - T.pad) / T.lh))
+  for _, r in ipairs(t.rows or {}) do r:SetWidth(w - 2 * T.pad - 4) end
+  for _, r in ipairs(t.spare or {}) do r:SetWidth(w - 2 * T.pad - 4) end
+end
 C.PAPER, C.INK, C.INK_FIRE = { 0.78, 0.69, 0.53 }, { 0.20, 0.13, 0.07 }, { 0.62, 0.20, 0.06 }
 local function tapePlace(t, dx, dy)
   dx, dy = dx or 0, dy or 0
@@ -1093,7 +1795,6 @@ function C.Tape()
   if C.tape then return C.tape end
   local T = C.TAPE
   local t = CreateFrame("Frame", "BiSToolsComboTape", UIParent)
-  t:SetSize(T.w, T.lines * T.lh + 2 * T.pad)
   t:SetFrameStrata("HIGH")                                     -- (over bars other addons keep at the top of the screen)
   if t.SetClipsChildren then t:SetClipsChildren(true) end    -- (the paper's top edge cuts the oldest line off)
   t:EnableMouse(true)
@@ -1118,9 +1819,46 @@ function C.Tape()
   t.paper = t:CreateTexture(nil, "BACKGROUND")
   t.paper:SetAllPoints(t)
   t.paper:SetColorTexture(C.PAPER[1], C.PAPER[2], C.PAPER[3], T.alpha)
-  t.edge = t:CreateTexture(nil, "BORDER")                       -- the printer's lip at the bottom, where the paper comes out
-  t.edge:SetPoint("BOTTOMLEFT") t.edge:SetPoint("BOTTOMRIGHT") t.edge:SetHeight(2)
-  t.edge:SetColorTexture(0.25, 0.24, 0.22, 1)
+  t.edge = t:CreateTexture(nil, "BORDER")                       -- the rule over the footer: where the paper comes out
+  t.edge:SetPoint("BOTTOMLEFT", 0, T.foot) t.edge:SetPoint("BOTTOMRIGHT", 0, T.foot) t.edge:SetHeight(1)
+  t.edge:SetColorTexture(C.INK[1], C.INK[2], C.INK[3], 0.35)
+  t.footBg = t:CreateTexture(nil, "BORDER")                     -- the footer a shade darker, under the lines rolling out
+  t.footBg:SetPoint("BOTTOMLEFT") t.footBg:SetPoint("BOTTOMRIGHT") t.footBg:SetHeight(T.foot)
+  t.footBg:SetColorTexture(C.PAPER[1] * 0.88, C.PAPER[2] * 0.88, C.PAPER[3] * 0.88, T.alpha)
+  t.foot = CreateFrame("Frame", nil, t)                         -- (its own frame, over the rows: the words stay clean)
+  t.foot:SetPoint("BOTTOMLEFT") t.foot:SetPoint("BOTTOMRIGHT") t.foot:SetHeight(T.foot)
+  t.foot:SetFrameLevel((t:GetFrameLevel() or 1) + 3)
+  t.foot.bg = t.foot:CreateTexture(nil, "BACKGROUND")
+  t.foot.bg:SetAllPoints(t.foot)
+  t.foot.bg:SetColorTexture(C.PAPER[1] * 0.88, C.PAPER[2] * 0.88, C.PAPER[3] * 0.88, 1)
+  t.foot.word = t.foot:CreateFontString(nil, "OVERLAY")
+  t.foot.word:SetFont("Fonts\\ARIALN.TTF", 10, "")
+  t.foot.word:SetPoint("CENTER", 0, 0)
+  t.foot.word:SetTextColor(C.INK[1], C.INK[2], C.INK[3], 0.7)
+  t.foot.word:SetText("BiS> Procs")
+  if t.SetResizable then t:SetResizable(true) end
+  if t.SetResizeBounds then pcall(t.SetResizeBounds, t, T.wMin, T.hMin, T.wMax, T.hMax) end
+  local grip = CreateFrame("Button", nil, t.foot)               -- small, in the footer's corner
+  grip:SetSize(9, 9)
+  grip:SetPoint("BOTTOMRIGHT", -1, 1)
+  grip.tex = grip:CreateTexture(nil, "OVERLAY")
+  grip.tex:SetAllPoints(grip)
+  grip.tex:SetTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Up")
+  grip.tex:SetVertexColor(C.INK[1], C.INK[2], C.INK[3], 0.8)
+  grip:SetScript("OnMouseDown", function()
+    if InCombatLockdown and InCombatLockdown() then return end
+    if t.StartSizing then t.sizing = true t:StartSizing("BOTTOMRIGHT") end
+  end)
+  grip:SetScript("OnMouseUp", function() C.TapeEndSize(t) end)
+  t.grip = grip
+  t:SetScript("OnSizeChanged", function(self, w, h)
+    if not self.sizing then return end
+    local d = db()
+    d.tapeW = math.floor((tonumber(w) or T.w) + 0.5)
+    d.tapeH = math.floor((tonumber(h) or 100) + 0.5)
+    C.TapeFit(self)
+    C.TapeBack(self, 0)
+  end)
   t.rows, t.spare, t.shift, t.log, t.back = {}, {}, 0, {}, 0
   -- SCROLL BACK (17 Nov 2026, Arn: "does the receipt keep going or is it scrollable?"): the whole fight is kept (t.log, up
   -- to C.TAPE.keep lines); the mouse wheel over the paper rolls it back, and new lines wait below while you read
@@ -1128,7 +1866,7 @@ function C.Tape()
   t:SetScript("OnMouseWheel", function(self, delta) C.TapeBack(self, (tonumber(delta) or 0) > 0 and 1 or -1) end)
   t.hint = t:CreateFontString(nil, "OVERLAY")
   t.hint:SetFont("Fonts\\ARIALN.TTF", 10, "")
-  t.hint:SetPoint("BOTTOMRIGHT", t, "BOTTOMRIGHT", -T.pad, 2)
+  t.hint:SetPoint("TOPRIGHT", t, "TOPRIGHT", -T.pad, -2)
   t.hint:SetTextColor(C.INK_FIRE[1], C.INK_FIRE[2], C.INK_FIRE[3], 1)
   t.hint:Hide()
   t:SetScript("OnUpdate", function(self, e)
@@ -1146,6 +1884,7 @@ function C.Tape()
       end
     end
   end)
+  C.TapeFit(t)
   t:Hide()
   tapePlace(t)
   C.tape = t
@@ -1157,7 +1896,7 @@ function C.TapeLay(t)
   local n = #t.rows
   for i, r in ipairs(t.rows) do
     r:ClearAllPoints()
-    r.y = T.pad + (n - i) * T.lh - t.shift
+    r.y = T.foot + 2 + (n - i) * T.lh - t.shift
     r:SetPoint("BOTTOMLEFT", t, "BOTTOMLEFT", T.pad + 2, r.y)
   end
 end
@@ -1168,7 +1907,7 @@ local function newRow(t)
   if not r then
     r = t:CreateFontString(nil, "OVERLAY")
     r:SetFont("Fonts\\ARIALN.TTF", 12, "")
-    r:SetWidth(T.w - 2 * T.pad - 4)
+    r:SetWidth((t:GetWidth() or T.w) - 2 * T.pad - 4)
     r:SetJustifyH("LEFT")
     if r.SetWordWrap then r:SetWordWrap(false) end
     if r.SetMaxLines then r:SetMaxLines(1) end
@@ -1189,7 +1928,7 @@ function C.TapePrint(text, fire)
   t:SetAlpha(1)
   t:Show()
   if (t.back or 0) > 0 then                                    -- (reading back: the new line waits below)
-    t.back = math.min(t.back + 1, math.max(0, #t.log - T.lines))
+    t.back = math.min(t.back + 1, math.max(0, #t.log - tapeLines(t)))
     C.TapeHint(t)
     return nil
   end
@@ -1198,7 +1937,7 @@ function C.TapePrint(text, fire)
   r:SetText(text)
   r:Show()
   t.rows[#t.rows + 1] = r
-  while #t.rows > T.lines + 1 do                               -- (one spare line rides off the top as the paper rolls)
+  while #t.rows > tapeLines(t) + 1 do                               -- (one spare line rides off the top as the paper rolls)
     local old = table.remove(t.rows, 1)
     old:Hide()
     t.spare[#t.spare + 1] = old
@@ -1207,14 +1946,26 @@ function C.TapePrint(text, fire)
   C.TapeLay(t)
   return r
 end
+--- Let go of the tape's corner: its size kept, its spot kept.
+function C.TapeEndSize(t)
+  if not t.sizing then return end
+  t.sizing = nil
+  t:StopMovingOrSizing()
+  local d = db()
+  d.tapeW, d.tapeH = math.floor((t:GetWidth() or C.TAPE.w) + 0.5), math.floor((t:GetHeight() or 100) + 0.5)
+  local ok, pt, _, rp, x, y = pcall(t.GetPoint, t)
+  if ok and pt then d.tapePos = { pt, rp, x, y } end
+  C.TapeFit(t)
+  C.TapeBack(t, 0)
+end
 --- Roll back (+1, older) or forward (-1) a line; the paper shows the log from there, no animation.
 function C.TapeBack(t, step)
   local T = C.TAPE
-  t.back = math.max(0, math.min((t.back or 0) + step, math.max(0, #t.log - T.lines)))
+  t.back = math.max(0, math.min((t.back or 0) + step, math.max(0, #t.log - tapeLines(t))))
   for _, r in ipairs(t.rows) do r:Hide() t.spare[#t.spare + 1] = r end
   t.rows, t.shift = {}, 0
   local last = #t.log - t.back
-  for k = math.max(1, last - T.lines + 1), last do
+  for k = math.max(1, last - tapeLines(t) + 1), last do
     local r = newRow(t)
     ink(r, t.log[k][2])
     r:SetText(t.log[k][1])
@@ -1236,11 +1987,14 @@ function C.TapeHint(t)
 end
 --- The set on the tape: the imbue, then the totems (short words), each its own line.
 function C.TapeSet(imbue, tot)
-  local words = {}
-  for n in pairs(tot or {}) do words[#words + 1] = ((C.TOTEMS[n] or n):gsub(" totem$", "")) end
-  table.sort(words)
-  C.TapePrint("IMBUE  " .. string.upper(imbue and (C.IMBUE_SHORT[imbue] or imbue) or "none"))
-  C.TapePrint("TOTEMS  " .. (#words > 0 and string.upper(table.concat(words, " · ")) or "NONE"))
+  local names = {}
+  for n in pairs(tot or {}) do names[#names + 1] = n end
+  table.sort(names)
+  local parts = { imbue and C.Ico(imbue, C.IMBUE_SHORT[imbue] or imbue) or "NO IMBUE" }
+  parts[#parts + 1] = " "
+  for _, n in ipairs(names) do parts[#parts + 1] = C.Ico(n, C.TOTEMS[n] or n) end
+  if #names == 0 then parts[#parts + 1] = "NO TOTEMS" end
+  C.TapePrint(table.concat(parts, " "))                         -- (one line of icons: the imbue, a gap, the totems)
 end
 --- A new fight: a fresh stretch of paper.
 function C.TapeClear()
@@ -1258,10 +2012,12 @@ function C.TapeBreakdown(cur)
   local pr, out = cur.procs or {}, {}
   local totem = cur.totems and cur.totems["Windfury Totem"]
   local function add(n, word, fire) if (n or 0) > 0 then out[#out + 1] = { n, ("%d  %s"):format(n, word), fire } end end
-  add(pr.fire, "FLAMETONGUE", true)
-  add(pr.extra2, "WF IMBUE")
-  add(pr.extra1, totem and "WF TOTEM" or "+1 EXTRA HIT")
-  add(pr.more, "BIG WINDFURY (+3 OR MORE)")
+  local ft = (cur.totems or {})["Flametongue Totem"] and "Flametongue Totem" or "Flametongue Weapon"
+  add(pr.fire, C.Ico(ft, "FT") .. "  Flametongue", true)
+  add(pr.extra2, C.Ico("Windfury Weapon", "WF") .. "  +2")
+  add(pr.extra1, totem and (C.Ico("Windfury Totem", "WF totem") .. "  +1") or (C.Ico("Windfury Weapon", "WF") .. "  +1"))
+  add(pr.more, C.Ico("Windfury Weapon", "WF") .. "  +3 or more")
+  add(pr.frost, C.Ico("Frostbrand Weapon", "FB") .. "  Frostbrand")
   table.sort(out, function(a, b) return a[1] > b[1] end)
   return out
 end
@@ -1270,7 +2026,7 @@ function C.TapeEnd(cur)
   local t = C.tape
   if not (t and t:IsShown() and cur and cur.procs) then return end
   local pr = cur.procs
-  local n = (pr.extra1 or 0) + (pr.extra2 or 0) + (pr.more or 0) + (pr.fire or 0)
+  local n = (pr.extra1 or 0) + (pr.extra2 or 0) + (pr.more or 0) + (pr.fire or 0) + (pr.frost or 0)
   C.TapePrint("- - - - - - - - - - - - -")
   C.TapePrint(("TOTAL  %d PROC%s"):format(n, n == 1 and "" or "S"))
   for _, row in ipairs(C.TapeBreakdown(cur)) do C.TapePrint(row[2], row[3]) end
@@ -1282,10 +2038,12 @@ function C.Scroll(text, fireOnly)
   if cur and not cur.headed then                               -- (the receipt's head: what you started with)
     cur.headed = true
     C.TapeSet(cur.nowImbue or cur.imbue, cur.nowTot or cur.totems)
+    local okG, grouped = pcall(function() return IsInGroup and IsInGroup() end)
+    if okG and plain(grouped) == true then C.TapePrint("GROUP: OTHERS MAY SLIP IN") end
   end
   local now = GetTime and GetTime() or 0
   local secs = (cur and cur.start) and math.max(0, now - cur.start) or 0
-  return C.TapePrint(("%d:%02d  %s"):format(math.floor(secs / 60), math.floor(secs % 60), string.upper(text)), fireOnly)
+  return C.TapePrint(("%d:%02d  %s"):format(math.floor(secs / 60), math.floor(secs % 60), text), fireOnly)   -- (never upper: icon codes)
 end
 
 -- ---------------------------------------------------------------- the LIVE probe (/bist combo live)
@@ -1408,6 +2166,7 @@ ev:SetScript("OnEvent", function(_, event, a1, a2, a3, a4, a5)
   end
   if event == "PLAYER_REGEN_DISABLED" then             -- a drag still on ends before the fight takes the mouse
     endDrag(C.frame) endDrag(C.card)
+    C.CastAway()                                       -- (the secure cast button: away, and off the icon, before the lockdown)
     if C.live then C.LiveStart() end                  -- (the live probe, armed by hand: on or off with the tool)
   elseif event == "PLAYER_REGEN_ENABLED" and C.live and C.live.polls then
     C.LiveEnd()
@@ -1478,6 +2237,7 @@ R:Register({
     if cmd == "why" then
       say("combo: recording %s - last fight: %s", R:Enabled("combo") and "ON" or "OFF (/bist on combo)", C.lastWhy or "none since the reload")
       say("combo: hits - %s", C.HitLine(C.lastHits))
+      say("combo: last fight - %d bursts too soon after your own swing (someone else's) were left out", C.lastForeign or 0)
       say("combo: list %s, comes back after a reload: %s%s", C.IsOpen() and "open" or "closed", db().open and "yes" or "no",
         C.closedBy and (" - last closed by " .. C.closedBy) or "")
       return
