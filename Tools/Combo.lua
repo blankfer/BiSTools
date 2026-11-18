@@ -320,11 +320,60 @@ end
 C.MIX_SHARE, C.MIX_MIN = 0.2, 3
 local function now() return GetTime and GetTime() or 0 end
 local function copySet(t) local o = {} for k in pairs(t or {}) do o[k] = true end return o end
+--[[ THE LEVEL PENALTY (17 Nov 2026, Arn: "fighting higher level mobs comes with a lot of penalties, like misses and dodges
+  - can you find the Forever math for them, and maybe a dps column and an adjusted dps column taking higher and lower
+  level enemies into account"). Nothing Forever-specific is published; this is Classic's melee table (warcraft.wiki.gg
+  Hit / Glancing blow), your weapon skill taken as maxed (5 x your level) against the mob's defense (5 x its level):
+    d = 5 x (mob level - your level)
+    miss    5% + 0.1% x d (d <= 10), 5% + 0.2% x d (above: +3 = 8%); a lower mob 5% + 0.04% x d (never under 0)
+    dodge   5% + 0.1% x d, never under 0
+    glance  only a mob at your level or above: 10% + 2% x d of your swings (+3 = 40%), each doing 5% less up to d 5,
+            15% at d 10, 35% from d 15 (between, a straight line)
+  How much of your swing damage lands at a level gap: (1 - miss - dodge) x (1 - glance x its cut). The ADJUSTED dps is
+  a fight's dps as if the mob were your level: dps x landed(0) / landed(gap). Parry (from the front) and crits are left
+  out; spells too (it is the swing's table). A "??" (skull) mob counts as +3. Fights from before the level was kept
+  count as your level. ]]
+C.LVL_MIN, C.LVL_MAX = -10, 5
+function C.LevelPenalty(gap)
+  gap = math.max(C.LVL_MIN, math.min(C.LVL_MAX, tonumber(gap) or 0))
+  local d = 5 * gap
+  local miss
+  if d <= 0 then miss = math.max(0, 5 + 0.04 * d)
+  elseif d <= 10 then miss = 5 + 0.1 * d
+  else miss = 5 + 0.2 * d end
+  local dodge = math.max(0, 5 + 0.1 * d)
+  local glance, cut = 0, 0
+  if d >= 0 then
+    glance = 10 + 2 * d
+    if d <= 5 then cut = 5 elseif d <= 10 then cut = 5 + (d - 5) * 2 elseif d < 15 then cut = 15 + (d - 10) * 4 else cut = 35 end
+  end
+  local landed = (1 - (miss + dodge) / 100) * (1 - glance / 100 * cut / 100)
+  return { miss = miss, dodge = dodge, glance = glance, cut = cut, landed = landed }
+end
+--- A fight's dps as if the mob had been your level.
+function C.AdjFactor(gap)
+  if gap == nil then return 1 end
+  return C.LevelPenalty(0).landed / C.LevelPenalty(gap).landed
+end
+--- The level gap to your target now (nil when it can't be read): its level minus yours; "??" = +3.
+function C.TargetGap()
+  if not UnitLevel then return nil end
+  local okE, there = pcall(UnitExists, "target")
+  if not (okE and plain(there) == true) then return nil end
+  local ok1, mob = pcall(UnitLevel, "target")
+  local ok2, me = pcall(UnitLevel, "player")
+  if ok1 then mob = plain(mob) else mob = nil end
+  if ok2 then me = plain(me) else me = nil end
+  if type(mob) ~= "number" or type(me) ~= "number" then return nil end
+  if mob <= 0 then return 3, true end
+  return mob - me
+end
 function C.Pull()
   local tot = C.ScanTotems({})
   local imbue = C.ImbueNow()
   C.cur = { imbue = imbue, totems = copySet(tot), active = 0, swing = C.Swinging(), start = now(),
             nowImbue = imbue, nowTot = tot, segs = { { imbue = imbue, tot = copySet(tot), at = now() } } }
+  C.cur.gap, C.cur.skull = C.TargetGap()
   C.TapeClear()
   if C.activeTicker and C.activeTicker.Cancel then C.activeTicker:Cancel() end
   if C_Timer and C_Timer.NewTicker then C.activeTicker = C_Timer.NewTicker(C.ACTIVE_EVERY, C.ActiveTick) end
@@ -482,7 +531,7 @@ function C.Close(cur)
                 active = active, how = how,
                 imbue = imbue, totems = totems, combo = C.Label(imbue, set),
                 wf = dmg > 0 and wf / dmg or 0, ft = dmg > 0 and ft / dmg or 0, spells = C.TopSpells(spells, dmg),
-                procs = cur.procs, mixed = mixed or nil, swings = cur.beats }
+                procs = cur.procs, mixed = mixed or nil, swings = cur.beats, gap = cur.gap, skull = cur.skull }
   d.fights = d.fights or {}
   d.fights[#d.fights + 1] = rec
   while #d.fights > C.KEEP do table.remove(d.fights, 1) end
@@ -530,12 +579,17 @@ function C.Rank()
   for _, f in ipairs(db().fights or {}) do
     if (f.dur or 0) >= C.Min() then
       local g = by[f.combo]
-      if not g then g = { combo = f.combo, n = 0, dmg = 0, dur = 0, imbue = f.imbue, totems = f.totems } by[f.combo] = g list[#list + 1] = g end
+      if not g then g = { combo = f.combo, n = 0, dmg = 0, dur = 0, adjDmg = 0, imbue = f.imbue, totems = f.totems } by[f.combo] = g list[#list + 1] = g end
       g.n, g.dmg, g.dur = g.n + 1, g.dmg + f.dmg, g.dur + C.Time(f)
+      g.adjDmg = g.adjDmg + f.dmg * C.AdjFactor(f.gap)
     end
   end
-  for _, g in ipairs(list) do g.dps = g.dur > 0 and g.dmg / g.dur or 0 end
-  table.sort(list, function(a, b) return a.dps > b.dps end)
+  for _, g in ipairs(list) do
+    g.dps = g.dur > 0 and g.dmg / g.dur or 0
+    g.adj = g.dur > 0 and g.adjDmg / g.dur or 0
+  end
+  -- (sorted by the ADJUSTED dps: a combo tried on harder mobs is not ranked down for it)
+  table.sort(list, function(a, b) if a.adj ~= b.adj then return a.adj > b.adj end return a.dps > b.dps end)
   return list
 end
 --[[ TRY NEXT (17 Nov 2026, Arn: "it seems Flametongue Totem is best with WF imbue ... or is there a combination I am not
@@ -804,7 +858,7 @@ function C.Build()
   f.set.label = K.fs(f.set, "SET", 9, "ink")
   f.set.label:SetPoint("CENTER")
   f.set:SetScript("OnClick", function() C.ToggleSet() end)
-  f.heads = { K.fs(f, "", 9, "dim"), K.fs(f, "fights", 9, "dim"), K.fs(f, "dps", 9, "dim") }
+  f.heads = { K.fs(f, "", 9, "dim"), K.fs(f, "fights", 9, "dim"), K.fs(f, "dps", 9, "dim"), K.fs(f, "adj", 9, "dim") }
   f.colHeads = {}
   for _, c in ipairs(C.COLS) do f.colHeads[c] = K.fs(f, c, 9, "dim") end
   f.rows = {}
@@ -906,7 +960,7 @@ function C.Layout()
   local K = F()
   local w, h = C.Size()
   f:SetSize(w, h)
-  local nameW = w - 16 - 120
+  local nameW = w - 16 - 168                           -- (fights, dps and adj on the right)
   f.heads[1]:ClearAllPoints() f.heads[1]:SetPoint("TOPLEFT", 10, -24) f.heads[1]:SetWidth(nameW)
   do                                                   -- the column heads: imbue, fire, earth, air
     local x = 10
@@ -918,7 +972,8 @@ function C.Layout()
     end
   end
   f.heads[2]:ClearAllPoints() f.heads[2]:SetPoint("TOPLEFT", 10 + nameW, -24) f.heads[2]:SetWidth(52) f.heads[2]:SetJustifyH("RIGHT")
-  f.heads[3]:ClearAllPoints() f.heads[3]:SetPoint("TOPLEFT", 10 + nameW + 54, -24) f.heads[3]:SetWidth(56) f.heads[3]:SetJustifyH("RIGHT")
+  f.heads[3]:ClearAllPoints() f.heads[3]:SetPoint("TOPLEFT", 10 + nameW + 54, -24) f.heads[3]:SetWidth(46) f.heads[3]:SetJustifyH("RIGHT")
+  f.heads[4]:ClearAllPoints() f.heads[4]:SetPoint("TOPLEFT", 10 + nameW + 102, -24) f.heads[4]:SetWidth(52) f.heads[4]:SetJustifyH("RIGHT")
   local n = C.RowCount()
   for i = 1, math.max(n, #f.rows) do
     local r = f.rows[i]
@@ -940,7 +995,8 @@ function C.Layout()
         end
       end
       r.n = K.fs(r, "", 9, "muted") r.n:SetJustifyH("RIGHT")
-      r.dps = K.fs(r, "", 9, "good") r.dps:SetJustifyH("RIGHT")
+      r.dps = K.fs(r, "", 9, "muted") r.dps:SetJustifyH("RIGHT")
+      r.adj = K.fs(r, "", 9, "good") r.adj:SetJustifyH("RIGHT")
       r:SetScript("OnClick", function(self) if self.g then C.sel = self.g.combo C.Paint() end end)
       r:SetScript("OnEnter", function(self) self.hover = true C.PaintRow(self) C.RowTip(self) end)
       r:SetScript("OnLeave", function(self) self.hover = nil C.PaintRow(self) if GameTooltip then GameTooltip:Hide() end end)
@@ -959,7 +1015,8 @@ function C.Layout()
           x = x + cw
         end
         r.n:ClearAllPoints() r.n:SetPoint("LEFT", 2 + nameW, 0) r.n:SetWidth(52)
-        r.dps:ClearAllPoints() r.dps:SetPoint("LEFT", 2 + nameW + 54, 0) r.dps:SetWidth(56)
+        r.dps:ClearAllPoints() r.dps:SetPoint("LEFT", 2 + nameW + 54, 0) r.dps:SetWidth(46)
+        r.adj:ClearAllPoints() r.adj:SetPoint("LEFT", 2 + nameW + 102, 0) r.adj:SetWidth(52)
         r:Show()
       else
         r.g = nil
@@ -1089,6 +1146,7 @@ function C.Paint()
     end
     r.n:SetText(g and tostring(g.n) or "")
     r.dps:SetText(g and tostring(math.floor(g.dps + 0.5)) or "")
+    r.adj:SetText(g and tostring(math.floor(g.adj + 0.5)) or "")
     C.PaintRow(r)
   end
   local lines = C.StatLines(C.sel or (list[1] and list[1].combo))
@@ -1128,6 +1186,16 @@ function C.StatLines(combo)
       math.floor(wfP / sw * 100 + 0.5), math.floor(ftP / sw * 100 + 0.5), sw)
   else
     out[#out + 1] = "PROCS  counted from your next fight with it"
+  end
+  local gaps, gn = 0, 0
+  for _, fi in ipairs(db().fights or {}) do
+    if fi.combo == combo and fi.gap ~= nil and (fi.dur or 0) >= C.Min() then gaps, gn = gaps + fi.gap, gn + 1 end
+  end
+  if gn > 0 then
+    local avg = gaps / gn
+    local P = C.LevelPenalty(math.floor(avg + 0.5))
+    out[#out + 1] = ("LEVELS  mobs %s%.1f on average: miss %.0f%%, dodge %.0f%%%s"):format(avg >= 0 and "+" or "", avg, P.miss, P.dodge,
+      P.glance > 0 and (", glancing %.0f%% (-%.0f%%)"):format(P.glance, P.cut) or "")
   end
   out[#out + 1] = ("%d %s  -  %d dps average, best %d  -  Windfury %d%% of the damage"):format(n, n == 1 and "fight" or "fights",
     math.floor((secs > 0 and dmg / secs or 0) + 0.5), math.floor(best + 0.5), math.floor((dmg > 0 and wfDmg / dmg or 0) * 100 + 0.5))
@@ -1355,6 +1423,7 @@ function C.Hit(action, school)
   action = plain(action)
   school = plain(school)
   stat(cur, action, school, now)
+  if cur.gap == nil then cur.gap, cur.skull = C.TargetGap() end
   if action ~= nil and (type(action) ~= "string" or not C.SWING_ACTIONS[action]) then return end   -- (a heal, a plain non-swing)
   local fire = type(school) == "number" and school == 4
   local b = cur.burst

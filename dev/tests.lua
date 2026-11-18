@@ -5433,6 +5433,21 @@ do
     ok(not cb:IsShown(), "the mouse leaves: it goes away")
     _G.C_Spell.GetSpellInfo, _G.IsPlayerSpell = keepGSI, keepIPS
   end
+  -- THE LEVEL PENALTY (Arn: "higher level mobs come with a lot of penalties, like misses and dodges ... an adjusted dps column")
+  do
+    local P0, P3, Pm5 = Co.LevelPenalty(0), Co.LevelPenalty(3), Co.LevelPenalty(-5)
+    ok(P0.miss == 5 and P0.dodge == 5 and P0.glance == 10 and P0.cut == 5, "your level: 5% miss, 5% dodge, 10% glancing for 5% less")
+    ok(math.abs(P3.miss - 8) < 1e-9 and math.abs(P3.dodge - 6.5) < 1e-9 and P3.glance == 40 and P3.cut == 35,
+       "+3: 8% miss, 6.5% dodge, 40% glancing for 35% less (Classic's table)", P3.miss, P3.dodge, P3.glance, P3.cut)
+    ok(math.abs(Pm5.miss - 4) < 1e-9 and math.abs(Pm5.dodge - 2.5) < 1e-9 and Pm5.glance == 0, "5 levels under you: 4% miss, 2.5% dodge, no glancing")
+    ok(Co.AdjFactor(3) > 1.2 and Co.AdjFactor(-5) < 1 and Co.AdjFactor(nil) == 1, "adjusted: a +3 fight counts up, a grey mob down, an unknown level as yours",
+       Co.AdjFactor(3), Co.AdjFactor(-5))
+    local fs0 = cdb.fights
+    cdb.fights = { { combo = "EASY", dur = 10, dmg = 1000, gap = -5 }, { combo = "HARD", dur = 10, dmg = 950, gap = 3 } }
+    local L = Co.Rank()
+    ok(L[1].combo == "HARD" and L[1].dps < L[2].dps and L[1].adj > L[2].adj, "the list ranks by adjusted dps: 95 dps on +3 mobs beats 100 on greys")
+    cdb.fights = fs0
+  end
   -- THE NUMBERS UNDER THE LIST (Arn: "proc %, lifetime, ... something to do with gear, crit chance")
   do
     local fs0 = cdb.fights
