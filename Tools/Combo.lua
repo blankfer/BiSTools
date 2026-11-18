@@ -899,6 +899,13 @@ function C.CloseBurst(cur, b)
   cur.procs = cur.procs or { extra1 = 0, extra2 = 0, more = 0, fire = 0 }
   local extra = b.swings - 1
   local words = {}
+  -- WHOSE WINDFURY (17 Nov 2026, Arn: "if I have imbue WF we can safely assume it's +2 hits - right now it's showing as 1;
+  -- people can have the WF imbue and totem, so it's going to be hard to say for sure"): Forever's batches split the
+  -- weapon's two extra swings, so a burst often holds only one of them. With the weapon's Windfury on and no Windfury
+  -- Totem down this fight, any extra swing is the weapon's: +2. With both, the count decides as before.
+  local weapon = type(cur.imbue) == "string" and cur.imbue:find("Windfury", 1, true) and true or false
+  local totem = cur.totems and cur.totems["Windfury Totem"] and true or false
+  if extra == 1 and weapon and not totem then extra = 2 end
   if extra == 1 then cur.procs.extra1 = cur.procs.extra1 + 1 words[#words + 1] = "+1 extra hit"
   elseif extra == 2 then cur.procs.extra2 = cur.procs.extra2 + 1 words[#words + 1] = "+2 extra hits"
   elseif extra > 2 then cur.procs.more = cur.procs.more + 1 words[#words + 1] = ("+%d extra hits"):format(extra) end

@@ -5507,6 +5507,18 @@ do
     _G.C_Spell.GetSpellInfo = keepGSI
     _G.C_Spell.IsSpellInRange, _G.CheckInteractDistance, _G.UnitExists = keepCS2, keepCID, keepUE
   end
+  -- WHOSE WINDFURY (Arn: "if I have imbue WF we can safely assume it's +2 hits")
+  do
+    local cur = { imbue = "Windfury Weapon", totems = {} }
+    Co.CloseBurst(cur, { swings = 2, fire = 0, at = 1 })
+    ok(cur.procs.extra2 == 1 and cur.procs.extra1 == 0, "the weapon's Windfury alone: one extra swing heard = the weapon's +2")
+    cur = { imbue = "Windfury Weapon", totems = { ["Windfury Totem"] = true } }
+    Co.CloseBurst(cur, { swings = 2, fire = 0, at = 1 })
+    ok(cur.procs.extra1 == 1 and cur.procs.extra2 == 0, "weapon AND totem: one extra swing stays +1 (can't tell whose)")
+    cur = { imbue = "Flametongue Weapon", totems = { ["Windfury Totem"] = true } }
+    Co.CloseBurst(cur, { swings = 2, fire = 0, at = 1 })
+    ok(cur.procs.extra1 == 1, "the totem alone: +1")
+  end
   -- THE PROC TEXT (Arn: "can we just see when we got 2 melee hits back to back and 3"): hits on your target in one instant
   do
     Co.Pull()
