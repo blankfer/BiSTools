@@ -47,5 +47,6 @@ Tools\CodexDrive.lua
 Tools\BossData.lua
 Tools\Bosses.lua
 Tools\Alts.lua
+Tools\Combo.lua
 API.lua
 Tools\Hub.lua
