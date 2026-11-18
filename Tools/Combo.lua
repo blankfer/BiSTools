@@ -33,12 +33,12 @@ end
 -- (C.MIN 0, 17 Nov - Arn: "fight under 10 sec should count because lucky procs means it can kill things fast": every
 -- fight counts by default; damage over TIME already weighs a short one by its few seconds. The setting stays.)
 C.MIN, C.KEEP, C.READ_WAIT, C.CARD_FOR, C.CARD_FADE = 0, 300, 1.5, 8, 1
-C.W, C.H, C.ROWS, C.ROW = 330, 236, 7, 16
+C.W, C.H, C.ROWS, C.ROW = 330, 320, 7, 16
 -- THE SIZE AND THE SWITCHES (17 Nov 2026, Arn: "we forgot the rule of letting us resize the window that we did with bis
 -- healing deck" - the family rule: every window a switches panel with its toggles, width and height, RESET): the list's
 -- SET button opens the panel over its lower half; width / height in C.STEP px steps between the bounds, kept in
 -- db.w / db.h; the rows follow the height. RESET puts the look back (never your fights).
-C.W_MIN, C.W_MAX, C.H_MIN, C.H_MAX, C.STEP = 280, 560, 200, 440, 20
+C.W_MIN, C.W_MAX, C.H_MIN, C.H_MAX, C.STEP = 300, 560, 280, 520, 20   -- (17 Nov: taller for the number boxes)
 -- the imbues by enchant id (Classic's numbers; a cast of yours teaches the rest - db.imbueNames)
 C.IMBUE_IDS = {
   [283] = "Windfury Weapon", [284] = "Windfury Weapon", [525] = "Windfury Weapon", [1669] = "Windfury Weapon",
@@ -970,11 +970,17 @@ function C.Size()
   local h = math.max(C.H_MIN, math.min(C.H_MAX, tonumber(d.h) or C.H))
   return w, h
 end
+--[[ THE NUMBER BOXES (17 Nov 2026, Arn, of the text under the list: "can you clean up the text, easier to read - boxes"):
+  three rows of four boxes, each a small label over one big number - the procs (% of your own swings), the fights
+  (count, average, best, the mobs' level), and you now (crit, attack power, weapon speed, damage) - the last fight on one
+  short line under them. Hover a box for what it means. ]]
+C.TILE_H, C.TILE_GAP, C.TILE_COLS, C.TILE_ROWS = 28, 4, 4, 3
+C.TILES_H = C.TILE_ROWS * (C.TILE_H + C.TILE_GAP) + 18
 --- How many rows the height holds (the TRY NEXT strip takes C.TRY_H above the foot).
 C.TRY_H = 20
 function C.RowCount()
   local _, h = C.Size()
-  return math.max(3, math.floor((h - 38 - 62 - 22 - C.TRY_H) / C.ROW))
+  return math.max(3, math.floor((h - 38 - C.TILES_H - 22 - C.TRY_H) / C.ROW))
 end
 --- Lay the list out on its size: the columns on the width, as many rows as the height holds.
 function C.Layout()
@@ -1047,9 +1053,22 @@ function C.Layout()
       end
     end
   end
+  local top = -42 - n * C.ROW
+  local tw = math.floor((w - 16 - (C.TILE_COLS - 1) * C.TILE_GAP) / C.TILE_COLS)
+  f.tiles = f.tiles or {}
+  for i = 1, C.TILE_COLS * C.TILE_ROWS do
+    local t = f.tiles[i] or C.MakeTile(f)
+    f.tiles[i] = t
+    local col, row = (i - 1) % C.TILE_COLS, math.floor((i - 1) / C.TILE_COLS)
+    t:ClearAllPoints()
+    t:SetPoint("TOPLEFT", 8 + col * (tw + C.TILE_GAP), top - row * (C.TILE_H + C.TILE_GAP))
+    t:SetSize(tw, C.TILE_H)
+    t.value:SetWidth(tw - 8)
+  end
   f.detail:ClearAllPoints()
-  f.detail:SetPoint("TOPLEFT", 10, -42 - n * C.ROW)
+  f.detail:SetPoint("TOPLEFT", 10, top - C.TILE_ROWS * (C.TILE_H + C.TILE_GAP) - 1)
   f.detail:SetWidth(w - 20)
+  if f.detail.SetWordWrap then f.detail:SetWordWrap(false) end
   if f.sw then f.sw:SetWidth(w - 16) end
 end
 
@@ -1172,9 +1191,9 @@ function C.Paint()
     r.adj:SetText(g and tostring(math.floor(g.adj + 0.5)) or "")
     C.PaintRow(r)
   end
-  local lines = C.StatLines(C.sel or (list[1] and list[1].combo))
-  f.detail:SetText(#lines > 0 and table.concat(lines, "\n") or (#list > 0 and "click a combo: its numbers" or
-    "no fights yet - fight something with an imbue and totems up"))
+  local tiles, last = C.StatTiles(C.sel or (list[1] and list[1].combo))
+  for i, t in ipairs(f.tiles or {}) do C.PaintTile(t, tiles[i]) end
+  f.detail:SetText(last or (#list > 0 and "click a combo: its numbers" or "no fights yet - fight something with an imbue and totems up"))
   f.foot:SetText(C.Min() > 0 and ("%d fights kept  ·  fights under %d s are not counted"):format(#(db().fights or {}), C.Min())
     or ("%d fights kept  ·  dps over the time you swing"):format(#(db().fights or {})))
   C.PaintTry()
@@ -1236,6 +1255,96 @@ function C.StatLines(combo)
   end
   out[#out + 1] = C.GearLine()
   return out
+end
+function C.MakeTile(f)
+  local K = F()
+  local t = CreateFrame("Frame", nil, f)
+  K.tex(t, "BACKGROUND", "field", 0.85)
+  K.border(t, "edge", 1)
+  t.label = K.fs(t, "", 8, "dim")
+  t.label:SetPoint("TOPLEFT", 4, -3)
+  t.value = K.fs(t, "", 12, "ink")
+  t.value:SetPoint("BOTTOMLEFT", 4, 3)
+  t.value:SetJustifyH("LEFT")
+  if t.value.SetWordWrap then t.value:SetWordWrap(false) end
+  t:EnableMouse(true)
+  t:SetScript("OnEnter", function(self)
+    if not (self.tip and GameTooltip) then return end
+    GameTooltip:SetOwner(self, "ANCHOR_TOP")
+    for k, line in ipairs(self.tip) do
+      if k == 1 then GameTooltip:AddLine(line, 1, 1, 1) else GameTooltip:AddLine(line, 0.8, 0.8, 0.8, true) end
+    end
+    GameTooltip:Show()
+  end)
+  t:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+  return t
+end
+--- One box: { label, value, colour key, tip lines } - nil = an empty box, its frame still there (the grid keeps its shape).
+function C.PaintTile(t, d)
+  if not d then t.label:SetText("") t.value:SetText("") t.tip = nil t:SetAlpha(0.35) return end
+  t:SetAlpha(1)
+  t.label:SetText(d[1])
+  t.value:SetText(d[2])
+  t.value:SetTextColor(F().color(d[3] or "ink"))
+  t.tip = d[4]
+end
+--- The twelve boxes for a combo (nil = the best), and the last fight's line.
+function C.StatTiles(combo)
+  local out = {}
+  local n, dmg, secs, best, wfDmg, sw, wfP, ftP, fbP, lastF, gaps, gn = 0, 0, 0, 0, 0, 0, 0, 0, 0, nil, 0, 0
+  for _, fi in ipairs(combo and db().fights or {}) do
+    if fi.combo == combo and (fi.dur or 0) >= C.Min() then
+      n = n + 1
+      local t = C.Time(fi)
+      dmg, secs = dmg + (fi.dmg or 0), secs + t
+      wfDmg = wfDmg + (fi.dmg or 0) * (fi.wf or 0)
+      if t > 0 and fi.dmg / t > best then best = fi.dmg / t end
+      if fi.swings and fi.swings > 0 and fi.procs then
+        sw = sw + fi.swings
+        wfP = wfP + (fi.procs.extra1 or 0) + (fi.procs.extra2 or 0) + (fi.procs.more or 0)
+        ftP = ftP + (fi.procs.fire or 0)
+        fbP = fbP + (fi.procs.frost or 0)
+      end
+      if fi.gap ~= nil then gaps, gn = gaps + fi.gap, gn + 1 end
+      lastF = fi
+    end
+  end
+  local function pct(x) return sw > 0 and (math.floor(x / sw * 100 + 0.5) .. "%") or "-" end
+  if n > 0 then
+    out[1] = { "WINDFURY", pct(wfP), "gold", { "Windfury procs", "On this share of your own swings, over every fight with this combo since the tape counts your swings.",
+      ("Windfury did %d%% of the damage."):format(math.floor((dmg > 0 and wfDmg / dmg or 0) * 100 + 0.5)) } }
+    out[2] = { "FLAMETONGUE", pct(ftP), "warn", { "Flametongue procs", "On this share of your own swings (the imbue's and the totem's fire hits)." } }
+    out[3] = { "FROSTBRAND", pct(fbP), "accent", { "Frostbrand procs", "On this share of your own swings." } }
+    out[4] = { "SWINGS", tostring(sw), "ink", { "Your swings counted", "Only your own (someone else's hits on your target are left out)." } }
+    out[5] = { "FIGHTS", tostring(n), "ink", { "Fights with this combo" } }
+    out[6] = { "AVERAGE", tostring(math.floor((secs > 0 and dmg / secs or 0) + 0.5)), "good", { "Average dps", "Over the time you were swinging." } }
+    out[7] = { "BEST", tostring(math.floor(best + 0.5)), "good", { "Best fight's dps" } }
+    if gn > 0 then
+      local avg = gaps / gn
+      local P = C.LevelPenalty(math.floor(avg + 0.5))
+      out[8] = { "MOB LEVEL", ("%s%.1f"):format(avg >= 0 and "+" or "", avg), avg > 0.5 and "warn" or "ink",
+        { "Mobs' level against yours, on average", ("Miss %.1f%%, dodge %.1f%%%s (Classic's melee table)."):format(P.miss, P.dodge,
+          P.glance > 0 and (", glancing %d%% for %d%% less"):format(P.glance, P.cut) or ""), "The adj column counts every fight as if the mob were your level." } }
+    else
+      out[8] = { "MOB LEVEL", "-", "muted", { "Mobs' level", "Kept from tonight's fights on." } }
+    end
+  end
+  local g, base = C.Gear(), n > 0 and 8 or 0
+  out[base + 1] = { "CRIT", g.crit and ("%.1f%%"):format(g.crit) or "-", "ink", { "Your melee crit chance now" } }
+  out[base + 2] = { "ATTACK POWER", g.ap and tostring(g.ap) or "-", "ink", { "Your attack power now" } }
+  out[base + 3] = { "WEAPON", g.speed and ("%.1f s"):format(g.speed) or "-", "ink", { "Your weapon's speed now" } }
+  out[base + 4] = { "DAMAGE", g.lo and ("%d-%d"):format(math.floor(g.lo + 0.5), math.floor(g.hi + 0.5)) or "-", "ink", { "Your weapon's damage now" } }
+  local line
+  if lastF then
+    line = ("last: %s  %s  %d dps"):format(lastF.mob or "?", lastF.active and ("%d/%d s"):format(math.floor(lastF.active + 0.5),
+      math.floor(lastF.dur + 0.5)) or ("%d s"):format(math.floor(lastF.dur + 0.5)), math.floor(lastF.dmg / C.Time(lastF) + 0.5))
+    local parts = {}
+    for k = 1, math.min(3, #(lastF.spells or {})) do
+      parts[#parts + 1] = ("%s %d%%"):format(lastF.spells[k].name, math.floor(lastF.spells[k].share * 100 + 0.5))
+    end
+    if #parts > 0 then line = line .. "  -  " .. table.concat(parts, ", ") end
+  end
+  return out, line
 end
 --- You now: melee crit, attack power, the weapon's speed and damage (plain answers only; read out of a fight, kept).
 function C.Gear()

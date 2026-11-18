@@ -5489,8 +5489,10 @@ do
   for _, n in ipairs(_G.UISpecialFrames or {}) do if n == "BiSToolsCombo" then onEsc = true end end
   ok(not onEsc, "the list is never on the Escape list (Arn: Esc closed it while he was not in it)")
   Co.frame.rows[2]:GetScript("OnClick")(Co.frame.rows[2])
-  ok(Co.frame.detail:GetText():find("Bloodsnout", 1, true) and Co.frame.detail:GetText():find("Windfury 30%", 1, true),
-     "a row clicked: its fights, with Windfury's share", Co.frame.detail:GetText())
+  ok(Co.frame.detail:GetText():find("Bloodsnout", 1, true) and table.concat(Co.frame.tiles[1].tip or {}, " "):find("Windfury did 30%", 1, true)
+     and Co.frame.tiles[1].label:GetText() == "WINDFURY" and Co.frame.tiles[6].label:GetText() == "AVERAGE",
+     "a row clicked: its numbers in boxes (Arn: \"easier to read, boxes\") - Windfury's share in its box's tip, the last fight under them",
+     Co.frame.detail:GetText())
   ok(rec.spells and rec.spells[1].name == "Melee" and math.abs(rec.spells[2].share - 0.3) < 1e-9 and Co.frame.detail:GetText():find("Melee 70%", 1, true),
      "each fight keeps its spells' shares (the weapon's Windfury and the totem's stack on Forever now)", Co.frame.detail:GetText())
   -- THE SIZE AND THE SWITCHES (Arn: "we forgot the rule of letting us resize the window")
