@@ -5457,7 +5457,11 @@ do
     _G.InCombatLockdown = keepICL
     _G.BiSHealingAPI = nil
     Co.Paint()
-    ok(not tr.deck:IsShown(), "no BiS Healing (or an older one): no SET DECK button")
+    ok(tr.deck:IsShown() and not Co.SendDeck({ "Grace of Air Totem" }) and Co.DeckMissing():find("Install BiS Healing", 1, true),
+       "no BiS Healing: SET DECK still there (dimmed) - a click says install BiS Healing (Arn)")
+    _G.BiSHealingAPI = { version = 2 }
+    ok(Co.DeckMissing():find("Update BiS Healing", 1, true), "an older BiS Healing: it says update")
+    _G.BiSHealingAPI = nil
     _G.C_Spell.GetSpellInfo, _G.IsPlayerSpell = keepGSI, keepIPS
   end
   -- THE LEVEL PENALTY (Arn: "higher level mobs come with a lot of penalties, like misses and dodges ... an adjusted dps column")

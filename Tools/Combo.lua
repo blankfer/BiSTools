@@ -914,7 +914,11 @@ function C.Build()
     if not GameTooltip then return end
     GameTooltip:SetOwner(self, "ANCHOR_TOP")
     GameTooltip:AddLine("Set these totems on your BiS Healing deck", 1, 0.82, 0)
-    GameTooltip:AddLine("Its totem boxes drop them from your next click. Out of a fight only. Right-click a combo in the list to send that one.", 0.9, 0.9, 0.9, true)
+    if C.DeckCan() then
+      GameTooltip:AddLine("Its totem boxes drop them from your next click. Out of a fight only. Right-click a combo in the list to send that one.", 0.9, 0.9, 0.9, true)
+    else
+      GameTooltip:AddLine(C.DeckMissing(), 1, 0.5, 0.4, true)
+    end
     GameTooltip:Show()
   end)
   tr.deck:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
@@ -1418,8 +1422,13 @@ function C.DeckCan()
   local A = rawget(_G, "BiSHealingAPI")
   return type(A) == "table" and type(A.SetTotems) == "function" and (tonumber(A.version) or 0) >= 3
 end
+--- Why the deck can't take totems: BiS Healing missing, or too old.
+function C.DeckMissing()
+  if type(rawget(_G, "BiSHealingAPI")) ~= "table" then return "Install BiS Healing to send these totems to its deck." end
+  return "Update BiS Healing to send these totems to its deck."
+end
 function C.SendDeck(totems)
-  if not C.DeckCan() then say("combo: BiS Healing's deck isn't there (it needs BiS Healing 1.7.2 or later)") return false end
+  if not C.DeckCan() then say("combo: %s", C.DeckMissing()) return false end
   if InCombatLockdown and InCombatLockdown() then say("combo: out of a fight only") return false end
   local set, words = {}, {}
   for _, name in ipairs(totems or {}) do
@@ -1458,7 +1467,12 @@ function C.PaintTry()
     tr.note:SetText("learn an imbue or a totem first")
   end
   tr.note:SetPoint("LEFT", tr, "LEFT", 62 + #names * (C.TRY_H - 2) + 4, 0)
-  if tr.deck then if c and C.DeckCan() then tr.deck:Show() else tr.deck:Hide() end end
+  -- (18 Nov, Arn: "the button would still be clickable but say install BiS Healing to send to deck" - always there with a
+  -- suggestion, dimmed when the deck can't take it; a click says what to install)
+  if tr.deck then
+    if c then tr.deck:Show() else tr.deck:Hide() end
+    tr.deck.label:SetTextColor(F().color(C.DeckCan() and "gold" or "muted"))
+  end
 end
 function C.IsOpen() return C.frame ~= nil and C.frame:IsShown() end
 -- OPEN STAYS OPEN (17 Nov 2026, Arn: "combo window closes every time I reload and it says on in the options"): the
