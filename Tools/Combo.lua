@@ -1173,6 +1173,7 @@ function C.StatLines(combo)
   local out = {}
   if not combo then out[1] = C.GearLine() return out end
   local n, dmg, secs, best, wfDmg, sw, wfP, ftP, lastF = 0, 0, 0, 0, 0, 0, 0, 0, nil
+  local fbP = 0
   for _, fi in ipairs(db().fights or {}) do
     if fi.combo == combo and (fi.dur or 0) >= C.Min() then
       n = n + 1
@@ -1184,14 +1185,16 @@ function C.StatLines(combo)
         sw = sw + fi.swings
         wfP = wfP + (fi.procs.extra1 or 0) + (fi.procs.extra2 or 0) + (fi.procs.more or 0)
         ftP = ftP + (fi.procs.fire or 0)
+        fbP = fbP + (fi.procs.frost or 0)
       end
       lastF = fi
     end
   end
   if n == 0 then out[1] = C.GearLine() return out end
   if sw > 0 then
-    out[#out + 1] = ("PROCS  Windfury on %d%% of your swings  -  Flametongue %d%%   (%d swings)"):format(
-      math.floor(wfP / sw * 100 + 0.5), math.floor(ftP / sw * 100 + 0.5), sw)
+    out[#out + 1] = ("PROCS  Windfury on %d%% of your swings  -  Flametongue %d%%%s   (%d swings)"):format(
+      math.floor(wfP / sw * 100 + 0.5), math.floor(ftP / sw * 100 + 0.5),
+      fbP > 0 and ("  -  Frostbrand %d%%"):format(math.floor(fbP / sw * 100 + 0.5)) or "", sw)
   else
     out[#out + 1] = "PROCS  counted from your next fight with it"
   end
@@ -1433,15 +1436,20 @@ function C.Hit(action, school)
   stat(cur, action, school, now)
   if cur.gap == nil then cur.gap, cur.skull = C.TargetGap() end
   if action ~= nil and (type(action) ~= "string" or not C.SWING_ACTIONS[action]) then return end   -- (a heal, a plain non-swing)
-  local fire = type(school) == "number" and school == 4
+  -- ONLY A PHYSICAL HIT IS A SWING (17 Nov 2026, Arn on Frostbrand: "+1"s printed with no Windfury - its frost hits were
+  -- counted as swings). Fire (4) is Flametongue's, frost (16) Frostbrand's, any other magic school nobody's swing; a
+  -- hidden school still counts as a swing (it usually is one).
+  local sch = type(school) == "number" and school or nil
   local b = cur.burst
   local win = C.BurstWindow()
   if not b or now - b.at > win then
-    b = { at = now, swings = 0, fire = 0 }
+    b = { at = now, swings = 0, fire = 0, frost = 0 }
     cur.burst = b
     if C_Timer and C_Timer.After then C_Timer.After(win + 0.02, function() C.CloseBurst(cur, b) end) end
   end
-  if fire then b.fire = b.fire + 1 else b.swings = b.swings + 1 end
+  if sch == 4 then b.fire = b.fire + 1
+  elseif sch == 16 then b.frost = (b.frost or 0) + 1
+  elseif sch == nil or sch == 1 then b.swings = b.swings + 1 end
 end
 --[[ THE SWING CADENCE (17 Nov 2026, Arn: "a weak aura used to determine range as idle time in the swings ... as long as I'm in
   combat and my melee is not in cadence it's considered out of range"). Each burst with a swing is a beat; the active time
@@ -1514,6 +1522,7 @@ function C.CloseBurst(cur, b)
   local ftSources = ((type(im) == "string" and im:find("Flametongue", 1, true)) and 1 or 0)
     + ((tot["Flametongue Totem"] or cur.ftAura) and 1 or 0)
   local fireN = math.min(b.fire, ftSources)
+  local frostN = ((type(im) == "string" and im:find("Frostbrand", 1, true)) and math.min(b.frost or 0, 1)) or 0
   if extra == 1 and weapon and not totem then extra = 2 end
   -- ICONS ON THE TAPE (17 Nov 2026, Arn: "on the receipt we can actually save so much space by just using icons"): one line
   -- a swing - the Windfury that procced as its icon and +N, Flametongue's icon and +N beside it (the totem's when one
@@ -1528,6 +1537,11 @@ function C.CloseBurst(cur, b)
     local ft = (cur.nowTot or cur.totems or {})["Flametongue Totem"] and "Flametongue Totem" or "Flametongue Weapon"
     words[#words + 1] = C.Ico(ft, "FT") .. " +" .. fireN
     fireOnly = #words == 1
+  end
+  if frostN > 0 and b.swings > 0 then                            -- (Frostbrand: its frost hit with your swing)
+    cur.procs.frost = (cur.procs.frost or 0) + 1
+    words[#words + 1] = C.Ico("Frostbrand Weapon", "FB") .. " +1"
+    fireOnly = false
   end
   if #words > 0 and db().scroll ~= false then C.Scroll(table.concat(words, "    "), fireOnly) end
 end
@@ -1879,6 +1893,7 @@ function C.TapeBreakdown(cur)
   add(pr.extra2, C.Ico("Windfury Weapon", "WF") .. "  +2")
   add(pr.extra1, totem and (C.Ico("Windfury Totem", "WF totem") .. "  +1") or (C.Ico("Windfury Weapon", "WF") .. "  +1"))
   add(pr.more, C.Ico("Windfury Weapon", "WF") .. "  +3 or more")
+  add(pr.frost, C.Ico("Frostbrand Weapon", "FB") .. "  Frostbrand")
   table.sort(out, function(a, b) return a[1] > b[1] end)
   return out
 end
@@ -1887,7 +1902,7 @@ function C.TapeEnd(cur)
   local t = C.tape
   if not (t and t:IsShown() and cur and cur.procs) then return end
   local pr = cur.procs
-  local n = (pr.extra1 or 0) + (pr.extra2 or 0) + (pr.more or 0) + (pr.fire or 0)
+  local n = (pr.extra1 or 0) + (pr.extra2 or 0) + (pr.more or 0) + (pr.fire or 0) + (pr.frost or 0)
   C.TapePrint("- - - - - - - - - - - - -")
   C.TapePrint(("TOTAL  %d PROC%s"):format(n, n == 1 and "" or "S"))
   for _, row in ipairs(C.TapeBreakdown(cur)) do C.TapePrint(row[2], row[3]) end

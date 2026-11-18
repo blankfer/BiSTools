@@ -5648,6 +5648,15 @@ do
     cur = { imbue = "Flametongue Weapon", totems = {}, wfAura = true }
     Co.CloseBurst(cur, { swings = 2, fire = 1, at = 50 })
     ok(cur.procs.extra1 == 1 and cur.procs.fire == 1, "a party member's Windfury Totem on you: its +1 counts")
+    Co.Pull()
+    Co.cur.nowImbue = "Frostbrand Weapon"
+    local fq = Co.events:GetScript("OnEvent")
+    fq(Co.events, "UNIT_COMBAT", "target", "WOUND", "", 100, 1)
+    fq(Co.events, "UNIT_COMBAT", "target", "WOUND", "", 30, 16)       -- Frostbrand's frost hit with the swing
+    W.runAfters(1)
+    ok(Co.cur.procs.frost == 1 and Co.cur.procs.extra1 == 0 and Co.cur.burst.swings == 1,
+       "Frostbrand: its frost hit is a Frostbrand proc, never a second swing (Arn's +1s with no Windfury)")
+    Co.FightOver() W.runAfters(Co.READ_WAIT + 0.1)
   end
   -- THE BREAKDOWN (Arn: "total 5 procs - break it down: 4 flame, 1 wf imbue")
   do
