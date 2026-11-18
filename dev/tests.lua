@@ -5342,6 +5342,7 @@ do
      "the pull: Windfury on the weapon, Strength of Earth counted (rank dropped), the healing totem not")
   Co.events:GetScript("OnEvent")(Co.events, "UNIT_SPELLCAST_SUCCEEDED", "player", "cast-1", 8512)
   ok(Co.cur.totems["Windfury Totem"], "a totem you drop mid-fight: caught by your own cast's name")
+  W.now = W.now + 29                                            -- (the rest of the fight with it down)
   Co.events:GetScript("OnEvent")(Co.events, "PLAYER_REGEN_ENABLED")
   W.runAfters(Co.READ_WAIT + 0.1)
   local rec = cdb.fights[1]
@@ -5398,6 +5399,9 @@ do
   R:Get("combo"):OnLogin(cdb)
   ok(not Co.IsOpen(), "a reload with it closed: it stays closed")
   Co.Toggle(true)
+  Co.frame.moving = true
+  Co.frame:GetScript("OnDragStop")(Co.frame)
+  ok(type(cdb.listPos) == "table" and cdb.listPos[1], "dragged: its spot kept (Arn: it kept going back to the middle)")
   cdb.open = false                                              -- (Arn, again: something wrote false with the list up)
   Co.events:GetScript("OnEvent")(Co.events, "PLAYER_LOGOUT")
   ok(cdb.open == true, "at the logout the list's own state is written last: up = comes back")
@@ -5507,6 +5511,33 @@ do
     _G.C_Spell.GetSpellInfo = keepGSI
     _G.C_Spell.IsSpellInRange, _G.CheckInteractDistance, _G.UnitExists = keepCS2, keepCID, keepUE
   end
+  -- A SWITCH MID-FIGHT (Arn: "a break in the receipt, a cutoff, so we know when the switch happened"; "(mixed)")
+  do
+    local L = { imbue = "Windfury Weapon", tot = { ["Strength of Earth Totem"] = true }, at = 0 }
+    local M = { imbue = "Flametongue Weapon", tot = { ["Strength of Earth Totem"] = true }, at = 12 }
+    local im, tot, mixed = Co.Longest({ segs = { L, M } }, 20)
+    ok(im == "Windfury Weapon" and tot["Strength of Earth Totem"] and mixed, "12 s of WF then 8 s of FT: filed under WF, (mixed)")
+    im, tot, mixed = Co.Longest({ segs = { { imbue = "Windfury Weapon", tot = {}, at = 0 }, { imbue = "Windfury Weapon", tot = { ["Grace of Air Totem"] = true }, at = 2 } } }, 30)
+    ok(tot["Grace of Air Totem"] and not mixed, "totems dropped 2 s after the pull: the full set, never (mixed)")
+    local cur = { segs = { { imbue = "Windfury Weapon", tot = {}, at = W.now } }, nowImbue = "Windfury Weapon", nowTot = {}, headed = true, start = W.now }
+    W.now = W.now + 21
+    ok(Co.SwitchCheck(cur, "Windfury Weapon", { ["Flametongue Totem"] = true }), "a totem dropped mid-fight: the tape cuts")
+    local rows = Co.tape.rows
+    local n = #rows
+    ok(rows[n - 2]:GetText() == "- - - - CUT 0:21 - - - -" and rows[n - 1]:GetText() == "IMBUE  WF" and rows[n]:GetText() == "TOTEMS  FT",
+       "the cut, when, and the new set under it", rows[n - 2]:GetText() .. " | " .. rows[n - 1]:GetText() .. " | " .. rows[n]:GetText())
+    ok(not Co.SwitchCheck(cur, "Windfury Weapon", {}) and #cur.segs == 3, "a totem gone: a new stretch kept, no cut")
+    -- SCROLL BACK (Arn: "does the receipt keep going or is it scrollable?")
+    for k = 1, 12 do Co.TapePrint("line " .. k) end
+    local tp = Co.tape
+    Co.TapeBack(tp, 1)
+    ok(tp.back == 1 and tp.rows[#tp.rows]:GetText() == "line 11" and tp.hint:IsShown(), "the wheel up: one line back, a note that newer ones wait")
+    Co.TapePrint("line 13")
+    ok(tp.back == 2 and tp.rows[#tp.rows]:GetText() == "line 11", "a new line while you read back: it waits below, the paper stays")
+    Co.TapeBack(tp, -1) Co.TapeBack(tp, -1)
+    ok(tp.back == 0 and tp.rows[#tp.rows]:GetText() == "line 13" and not tp.hint:IsShown(), "the wheel down to the end: the newest line, printing again")
+    Co.TapeClear()
+  end
   -- THE CARD FITS (Arn's shot: five totems ran under the dps)
   do
     local cf = Co.ShowCard({ combo = "WF · FT totem · GoA · SoE · WF totem", dmg = 2900, dur = 29, active = 29, mob = "Twilight Mauler",
@@ -5547,7 +5578,8 @@ do
     ok(Co.tape and Co.tape:IsShown() and last():find("+1 EXTRA HIT", 1, true) and last():find("^%d+:%d%d"),
        "two hits a batch apart: the receipt prints +1 EXTRA HIT at the bottom, with the fight's clock (Arn: a receipt printer)", last())
     hit("WOUND") hit("WOUND") hit("MISS") W.runAfters(1)
-    ok(last():find("+2 EXTRA HITS", 1, true) and #Co.tape.rows == 2, "three at once (a miss counts as a swing): +2 EXTRA HITS printed under the first", last())
+    ok(last():find("+2 EXTRA HITS", 1, true) and #Co.tape.rows == 4 and Co.tape.rows[1]:GetText():find("^IMBUE")
+       and Co.tape.rows[3]:GetText():find("+1 EXTRA HIT", 1, true), "three at once (a miss counts as a swing): +2 EXTRA HITS under the first, the set at the receipt's head", last())
     Co.tape:GetScript("OnUpdate")(Co.tape, 1)
     local y1b, y2 = Co.tape.rows[1].y, Co.tape.rows[2].y
     ok(type(y1b) == "number" and type(y2) == "number" and y1b > y2, "the older line a line higher: the paper rolls bottom to top")

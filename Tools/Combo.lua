@@ -211,18 +211,69 @@ function C.ActiveTick()
   cur.active = cur.active + C.ACTIVE_EVERY
   if reach == true then cur.reachKnown = true cur.reachHow = C.reachHow end
 end
+--[[ A SWITCH MID-FIGHT (17 Nov 2026, Arn swapped imbue and totems in one fight: "if people switch stuff mid fight can we
+  do a break in the receipt, a cutoff, so we know when the switch happened" - and yes to "file it under what was up the
+  longest, with (mixed) on the card"): the fight keeps SEGMENTS - { imbue, tot = set, at } each time what is up changes
+  (a totem dropped, gone, an imbue cast). A new totem or another imbue prints a CUT on the tape and the new set. At the end
+  the fight is filed under the set up the longest; (mixed) when another one held at least C.MIX_SHARE of it (and
+  C.MIX_MIN s) - the totems you drop right after a pull never make a fight "mixed". ]]
+C.MIX_SHARE, C.MIX_MIN = 0.2, 3
+local function now() return GetTime and GetTime() or 0 end
+local function copySet(t) local o = {} for k in pairs(t or {}) do o[k] = true end return o end
 function C.Pull()
-  C.cur = { imbue = C.ImbueNow(), totems = C.ScanTotems({}), active = 0, swing = C.Swinging(), start = GetTime and GetTime() or 0 }
+  local tot = C.ScanTotems({})
+  local imbue = C.ImbueNow()
+  C.cur = { imbue = imbue, totems = copySet(tot), active = 0, swing = C.Swinging(), start = now(),
+            nowImbue = imbue, nowTot = tot, segs = { { imbue = imbue, tot = copySet(tot), at = now() } } }
   C.TapeClear()
   if C.activeTicker and C.activeTicker.Cancel then C.activeTicker:Cancel() end
   if C_Timer and C_Timer.NewTicker then C.activeTicker = C_Timer.NewTicker(C.ACTIVE_EVERY, C.ActiveTick) end
+end
+--- What is up now changed? A new segment; a new totem or another imbue also cuts the tape. Answers true when it cut.
+function C.SwitchCheck(cur, imbue, tot)
+  if not (cur and cur.segs) then return false end
+  if C.Label(imbue, tot) == C.Label(cur.nowImbue, cur.nowTot) then cur.nowTot = tot return false end
+  local added = imbue ~= cur.nowImbue
+  for n in pairs(tot) do if not (cur.nowTot or {})[n] then added = true end end
+  cur.nowImbue, cur.nowTot = imbue, tot
+  cur.segs[#cur.segs + 1] = { imbue = imbue, tot = copySet(tot), at = now() }
+  if added and cur.headed and db().scroll ~= false then
+    local secs = math.max(0, now() - (cur.start or now()))
+    C.TapePrint(("- - - - CUT %d:%02d - - - -"):format(math.floor(secs / 60), math.floor(secs % 60)))
+    C.TapeSet(imbue, tot)
+    return true
+  end
+  return false
+end
+--- The fight's set filed under: the one up the longest (to `endAt`); answers imbue, totem set, mixed.
+function C.Longest(cur, endAt)
+  local segs = cur.segs
+  if not (segs and segs[1]) then return cur.imbue, cur.totems, false end
+  endAt = endAt or now()
+  local by, order = {}, {}
+  for i, g in ipairs(segs) do
+    local to = segs[i + 1] and segs[i + 1].at or endAt
+    local key = C.Label(g.imbue, g.tot)
+    if not by[key] then by[key] = { g = g, secs = 0 } order[#order + 1] = key end
+    by[key].secs = by[key].secs + math.max(0, to - g.at)
+  end
+  table.sort(order, function(a, b) return by[a].secs > by[b].secs end)
+  local best, second = by[order[1]], order[2] and by[order[2]]
+  local total = math.max(0.01, endAt - segs[1].at)
+  local mixed = second and second.secs >= C.MIX_MIN and second.secs >= total * C.MIX_SHARE or false
+  return best.g.imbue, best.g.tot, mixed and true or false
 end
 function C.Cast(spellID)
   if not (C_Spell and C_Spell.GetSpellName) then return end
   local ok, name = pcall(C_Spell.GetSpellName, spellID)
   name = C.Base(ok and plain(name) or nil)
   if not name then return end
-  if C.cur and C.TOTEMS[name] then C.cur.totems[name] = true end
+  if C.cur and C.TOTEMS[name] then
+    C.cur.totems[name] = true
+    local tot = copySet(C.cur.nowTot)
+    tot[name] = true
+    C.SwitchCheck(C.cur, C.cur.nowImbue, tot)
+  end
   if C.IMBUE_SHORT[name] and C_Timer and C_Timer.After then   -- learn this enchant id's name from your own cast
     C_Timer.After(0.5, function()
       if not GetWeaponEnchantInfo then return end
@@ -233,13 +284,14 @@ function C.Cast(spellID)
         d.imbueNames = d.imbueNames or {}
         d.imbueNames[id] = name
       end
+      if C.cur then C.SwitchCheck(C.cur, C.ImbueNow(), copySet(C.cur.nowTot)) end   -- (a new imbue mid-fight: cut)
     end)
   end
 end
 function C.FightOver()
   local cur = C.cur
   C.cur = nil
-  if cur then C.lastHits = cur.hitStats C.TapeEnd(cur) end
+  if cur then cur.endAt = now() C.lastHits = cur.hitStats C.TapeEnd(cur) end
   if C.activeTicker and C.activeTicker.Cancel then C.activeTicker:Cancel() end
   C.activeTicker = nil
   if not cur or not (C_Timer and C_Timer.After) then return end
@@ -297,10 +349,11 @@ function C.Close(cur)
   end
   local d = db()
   d.lastSid = sid
+  local imbue, longTot, mixed = C.Longest(cur, cur.endAt)
   local totems = {}
-  for n in pairs(cur.totems or {}) do totems[#totems + 1] = n end
+  for n in pairs(longTot or {}) do totems[#totems + 1] = n end
   table.sort(totems)
-  local imbue = cur.imbue or C.ImbueNow()
+  imbue = imbue or C.ImbueNow()
   local set = {}
   for _, n in ipairs(totems) do set[n] = true end
   local active, how
@@ -315,7 +368,7 @@ function C.Close(cur)
                 active = active, how = how,
                 imbue = imbue, totems = totems, combo = C.Label(imbue, set),
                 wf = dmg > 0 and wf / dmg or 0, ft = dmg > 0 and ft / dmg or 0, spells = C.TopSpells(spells, dmg),
-                procs = cur.procs }
+                procs = cur.procs, mixed = mixed or nil }
   d.fights = d.fights or {}
   d.fights[#d.fights + 1] = rec
   while #d.fights > C.KEEP do table.remove(d.fights, 1) end
@@ -431,7 +484,7 @@ function C.ShowCard(rec)
   local f = C.BuildCard()
   f.where:SetText(("%s%s"):format(rec.active and ("%d of %d s swinging"):format(math.floor(rec.active + 0.5), math.floor(rec.dur + 0.5))
     or ("%d s"):format(math.floor(rec.dur + 0.5)), rec.mob and (" · " .. rec.mob) or ""))
-  f.combo:SetText(rec.combo)
+  f.combo:SetText(rec.combo .. (rec.mixed and "  (mixed)" or ""))
   f.dps:SetText(("%d dps"):format(math.floor(rec.dmg / C.Time(rec) + 0.5)))
   if rec.dur < C.Min() then
     f.place:SetText(("short fight - not ranked (under %d s)"):format(C.Min()))
@@ -461,7 +514,10 @@ function C.Build()
   local f = CreateFrame("Frame", "BiSToolsCombo", UIParent)
   f:SetSize(C.Size())
   f:SetScale(1.2)                                   -- (small windows read at 1.2 - the family rule)
-  f:SetPoint("CENTER")
+  -- (17 Nov, Arn: "it keeps resetting the combo window to the center of the screen" - its spot was never kept: db.listPos)
+  local lp = db().listPos
+  if type(lp) == "table" and lp[1] then f:SetPoint(lp[1], UIParent, lp[2] or lp[1], lp[3] or 0, lp[4] or 0)
+  else f:SetPoint("CENTER") end
   f:SetFrameStrata("DIALOG")
   f:EnableMouse(true)
   f:SetMovable(true)
@@ -471,8 +527,14 @@ function C.Build()
     if InCombatLockdown and InCombatLockdown() then return end
     self:StartMoving() self.moving = true
   end)
-  f:SetScript("OnDragStop", endDrag)
-  f:SetScript("OnHide", endDrag)
+  local function keep(self)
+    if not self.moving then return end
+    endDrag(self)
+    local ok, pt, _, rp, x, y = pcall(self.GetPoint, self)
+    if ok and pt then db().listPos = { pt, rp, x, y } end
+  end
+  f:SetScript("OnDragStop", keep)
+  f:SetScript("OnHide", keep)
   K.tex(f, "BACKGROUND", "frame", 0.95)
   K.border(f, "edge", 1)
   f.title = K.fs(f, "BiS> combo", 10, "accent")
@@ -920,8 +982,9 @@ function C.CloseBurst(cur, b)
   -- people can have the WF imbue and totem, so it's going to be hard to say for sure"): Forever's batches split the
   -- weapon's two extra swings, so a burst often holds only one of them. With the weapon's Windfury on and no Windfury
   -- Totem down this fight, any extra swing is the weapon's: +2. With both, the count decides as before.
-  local weapon = type(cur.imbue) == "string" and cur.imbue:find("Windfury", 1, true) and true or false
-  local totem = cur.totems and cur.totems["Windfury Totem"] and true or false
+  local im = cur.nowImbue or cur.imbue
+  local weapon = type(im) == "string" and im:find("Windfury", 1, true) and true or false
+  local totem = (cur.nowTot or cur.totems or {})["Windfury Totem"] and true or false
   if extra == 1 and weapon and not totem then extra = 2 end
   if extra == 1 then cur.procs.extra1 = cur.procs.extra1 + 1 words[#words + 1] = "+1 extra hit"
   elseif extra == 2 then cur.procs.extra2 = cur.procs.extra2 + 1 words[#words + 1] = "+2 extra hits"
@@ -938,7 +1001,7 @@ end
   fight it drags anywhere (db.tapePos). Nothing ticks while it is away. ]]
 -- (17 Nov, Arn's first look: "more warm white candle light" - "its so bright" - "30 sec idle time before it fades away":
 -- the paper a dim warm cream, brown ink, and it waits C.TAPE.linger s after the LAST line it printed, in a fight or not)
-C.TAPE = { w = 170, lines = 7, lh = 15, roll = 0.15, linger = 30, fade = 1.5, pad = 5, alpha = 0.82 }
+C.TAPE = { w = 190, lines = 7, lh = 15, roll = 0.15, linger = 30, fade = 1.5, pad = 5, alpha = 0.82, keep = 300 }
 C.PAPER, C.INK, C.INK_FIRE = { 0.78, 0.69, 0.53 }, { 0.20, 0.13, 0.07 }, { 0.62, 0.20, 0.06 }
 local function tapePlace(t, dx, dy)
   dx, dy = dx or 0, dy or 0
@@ -1058,7 +1121,16 @@ function C.Tape()
   t.edge = t:CreateTexture(nil, "BORDER")                       -- the printer's lip at the bottom, where the paper comes out
   t.edge:SetPoint("BOTTOMLEFT") t.edge:SetPoint("BOTTOMRIGHT") t.edge:SetHeight(2)
   t.edge:SetColorTexture(0.25, 0.24, 0.22, 1)
-  t.rows, t.spare, t.shift = {}, {}, 0
+  t.rows, t.spare, t.shift, t.log, t.back = {}, {}, 0, {}, 0
+  -- SCROLL BACK (17 Nov 2026, Arn: "does the receipt keep going or is it scrollable?"): the whole fight is kept (t.log, up
+  -- to C.TAPE.keep lines); the mouse wheel over the paper rolls it back, and new lines wait below while you read
+  if t.EnableMouseWheel then t:EnableMouseWheel(true) end
+  t:SetScript("OnMouseWheel", function(self, delta) C.TapeBack(self, (tonumber(delta) or 0) > 0 and 1 or -1) end)
+  t.hint = t:CreateFontString(nil, "OVERLAY")
+  t.hint:SetFont("Fonts\\ARIALN.TTF", 10, "")
+  t.hint:SetPoint("BOTTOMRIGHT", t, "BOTTOMRIGHT", -T.pad, 2)
+  t.hint:SetTextColor(C.INK_FIRE[1], C.INK_FIRE[2], C.INK_FIRE[3], 1)
+  t.hint:Hide()
   t:SetScript("OnUpdate", function(self, e)
     e = tonumber(e) or 0
     if self.shift > 0 then
@@ -1090,8 +1162,7 @@ function C.TapeLay(t)
   end
 end
 --- Print one line at the bottom; the paper rolls up a line.
-function C.TapePrint(text, fire)
-  local t = C.Tape()
+local function newRow(t)
   local T = C.TAPE
   local r = table.remove(t.spare)
   if not r then
@@ -1102,8 +1173,28 @@ function C.TapePrint(text, fire)
     if r.SetWordWrap then r:SetWordWrap(false) end
     if r.SetMaxLines then r:SetMaxLines(1) end
   end
+  return r
+end
+local function ink(r, fire)
   local col = fire and C.INK_FIRE or C.INK
   r:SetTextColor(col[1], col[2], col[3], 1)
+end
+function C.TapePrint(text, fire)
+  local t = C.Tape()
+  local T = C.TAPE
+  t.log[#t.log + 1] = { text, fire }
+  while #t.log > T.keep do table.remove(t.log, 1) end
+  if t.toss then C.TossReset(t) end                            -- (printing again while it flew off: back in place)
+  t.left = T.linger                                            -- (the idle clock starts again at every line)
+  t:SetAlpha(1)
+  t:Show()
+  if (t.back or 0) > 0 then                                    -- (reading back: the new line waits below)
+    t.back = math.min(t.back + 1, math.max(0, #t.log - T.lines))
+    C.TapeHint(t)
+    return nil
+  end
+  local r = newRow(t)
+  ink(r, fire)
   r:SetText(text)
   r:Show()
   t.rows[#t.rows + 1] = r
@@ -1113,19 +1204,51 @@ function C.TapePrint(text, fire)
     t.spare[#t.spare + 1] = old
   end
   t.shift = T.lh
-  if t.toss then C.TossReset(t) end                            -- (printing again while it flew off: back in place)
-  t.left = T.linger                                            -- (the idle clock starts again at every line)
-  t:SetAlpha(1)
   C.TapeLay(t)
-  t:Show()
   return r
+end
+--- Roll back (+1, older) or forward (-1) a line; the paper shows the log from there, no animation.
+function C.TapeBack(t, step)
+  local T = C.TAPE
+  t.back = math.max(0, math.min((t.back or 0) + step, math.max(0, #t.log - T.lines)))
+  for _, r in ipairs(t.rows) do r:Hide() t.spare[#t.spare + 1] = r end
+  t.rows, t.shift = {}, 0
+  local last = #t.log - t.back
+  for k = math.max(1, last - T.lines + 1), last do
+    local r = newRow(t)
+    ink(r, t.log[k][2])
+    r:SetText(t.log[k][1])
+    r:Show()
+    t.rows[#t.rows + 1] = r
+  end
+  C.TapeLay(t)
+  C.TapeHint(t)
+  t.left = T.linger
+  return t.back
+end
+function C.TapeHint(t)
+  if (t.back or 0) > 0 then
+    t.hint:SetText(("%d newer - scroll down"):format(t.back))
+    t.hint:Show()
+  else
+    t.hint:Hide()
+  end
+end
+--- The set on the tape: the imbue, then the totems (short words), each its own line.
+function C.TapeSet(imbue, tot)
+  local words = {}
+  for n in pairs(tot or {}) do words[#words + 1] = ((C.TOTEMS[n] or n):gsub(" totem$", "")) end
+  table.sort(words)
+  C.TapePrint("IMBUE  " .. string.upper(imbue and (C.IMBUE_SHORT[imbue] or imbue) or "none"))
+  C.TapePrint("TOTEMS  " .. (#words > 0 and string.upper(table.concat(words, " · ")) or "NONE"))
 end
 --- A new fight: a fresh stretch of paper.
 function C.TapeClear()
   local t = C.tape
   if not t then return end
   for _, r in ipairs(t.rows) do r:Hide() t.spare[#t.spare + 1] = r end
-  t.rows, t.shift, t.left = {}, 0, nil
+  t.rows, t.shift, t.left, t.log, t.back = {}, 0, nil, {}, 0
+  if t.hint then t.hint:Hide() end
   if t.toss then C.TossReset(t) end
   t:Hide()
 end
@@ -1156,6 +1279,10 @@ end
 --- One proc line, with the fight's clock.
 function C.Scroll(text, fireOnly)
   local cur = C.cur
+  if cur and not cur.headed then                               -- (the receipt's head: what you started with)
+    cur.headed = true
+    C.TapeSet(cur.nowImbue or cur.imbue, cur.nowTot or cur.totems)
+  end
   local now = GetTime and GetTime() or 0
   local secs = (cur and cur.start) and math.max(0, now - cur.start) or 0
   return C.TapePrint(("%d:%02d  %s"):format(math.floor(secs / 60), math.floor(secs % 60), string.upper(text)), fireOnly)
@@ -1291,7 +1418,8 @@ ev:SetScript("OnEvent", function(_, event, a1, a2, a3, a4, a5)
   end
   if event == "PLAYER_REGEN_DISABLED" then C.Pull()
   elseif event == "PLAYER_REGEN_ENABLED" then C.FightOver()
-  elseif event == "PLAYER_TOTEM_UPDATE" then if C.cur then C.ScanTotems(C.cur.totems) end
+  elseif event == "PLAYER_TOTEM_UPDATE" then
+    if C.cur then C.ScanTotems(C.cur.totems) C.SwitchCheck(C.cur, C.cur.nowImbue, C.ScanTotems({})) end
   elseif event == "PLAYER_ENTER_COMBAT" then if C.cur then C.cur.swing = true end    -- auto-attack on
   elseif event == "PLAYER_LEAVE_COMBAT" then if C.cur then C.cur.swing = false end   -- and off
   elseif event == "UNIT_SPELLCAST_SUCCEEDED" then if a1 == "player" then C.Cast(a3) end
@@ -1330,6 +1458,7 @@ R:Register({
     C.db = d
     if recenter then
       if C.frame then C.frame:ClearAllPoints() C.frame:SetPoint("CENTER") end
+      d.listPos = nil
       if C.card then C.card:ClearAllPoints() C.card:SetPoint("TOP", UIParent, "TOP", 0, -170) d.cardPos = nil end
       d.tapePos = nil
       if C.tape then C.TapePlace(C.tape) end
