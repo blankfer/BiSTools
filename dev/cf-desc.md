@@ -1,4 +1,4 @@
-# BiS Tools — CurseForge page text (1.1.0)
+# BiS Tools — CurseForge page text (1.3.0)
 
 Paste everything below the line into the project description
 (CurseForge → BiS Tools, project 1686340 → Edit → Description), in the Markdown editor.
@@ -9,6 +9,9 @@ and lists stay flat.
 
 **Deliberately NOT on the page: summon** (Forever has no summoning stones, the tool does not load
 there). The threat beta and the pup finder were retired on 9 Nov. The page is for Forever.
+
+Changed for 1.3.0 (17 Nov): two new sections after "Farm" - **Imbue + totem combo** (the card, the ranked list, the
+proc text) and **Griefers** (after Pals) - their commands in the table, and the opener's bold line names them.
 
 Changed for 1.1.0 (9 Nov): two new sections before "Farm" - **BiS> bosses** (the boss finder) and
 **BiS> Codex** (the book, and after dark full screen) - their commands in the table, and the opener's
@@ -23,7 +26,7 @@ a new install, each with its own tick - the "you hear it" and crest lines say so
 
 # BiS Tools
 
-**Your XP buffs in one stop, your disenchanting in one window, every boss in a dungeon marked, a picture book of every creature, what killed you, who to watch for, who heals them, and what to farm. For WoW Forever.**
+**Your XP buffs in one stop, your disenchanting in one window, every boss in a dungeon marked, a picture book of every creature, what killed you, who to watch for (and the griefers on your own side), which imbue and totems hit hardest, and what to farm. For WoW Forever.**
 
 You're dead, and you never saw it coming. BiS Tools opens the game's own record of the hits that killed you: who landed the last one, who helped, with what, and how fast. Click a player on that screen and they're your rival. The next time they walk into view, you'll know.
 
@@ -69,6 +72,10 @@ Click a player on your recap, or right-click an enemy player and pick **BiS: add
 ## Pals
 
 Right-click a friendly player and pick **BiS: add pal**. A small green heart sits over them, out of combat, so you find your people in a crowd. `/bist pal` on your target does the same in a battleground.
+
+## Griefers
+
+Somebody on your own side ninja looted your belt. Right-click them and pick **BiS: Add griefer...**, and type why. From then on, when they come into view, join your group, invite you, or say something near you, you get a red warning, a sound, and a small card with their name, your note, and where you are. Once every five minutes at most per person. A whisper or a channel post from them is a quiet line in chat.
 
 ## A whole surname
 
@@ -124,6 +131,16 @@ Type a mob's name, kill one, or right-click it and pick **BiS: track in farm**.
 - **Spawn timers.** Where you killed it, and when it's back. On the minimap, on the world map, and as a big arrow pointing at the next one up.
 - **RestedXP's targets.** If you run RestedXP, the mobs your guide step wants show in the farm window and wear the purple crosshair too.
 
+## Imbue + totem combo
+
+Which weapon imbue and which totems actually hit hardest? Turn on `/bist combo` and fight.
+
+- **A card after each fight:** your imbue and totems, your damage per second, and where that combo ranks. Click it for the list.
+- **The list, best first,** in columns: imbue, fire, earth, air, how many fights, damage per second. Click a combo for its last fight spell by spell; the weapon's Windfury and the totem's show apart.
+- **Only the time you're swinging counts.** A mob that runs away, or the walk to the next one, doesn't drag the number down: your swing rhythm tells it.
+- **Proc text while you fight:** "+1 extra hit", "+2 extra hits", "Flametongue", as they happen.
+- **Your numbers come from the game's own damage meter**, read once each fight is over. It starts off; SET on the list has its switches, the window's size and a RESET.
+
 ## Zeppelins, boats and the tram
 
 At a zeppelin tower, a boat dock or a Deeprun Tram platform, a small card pops up while your ride waits: the zeppelin master or dockhand in 3D, calling **"All aboard for Grom'gol - we lift off in 0:58!"**. It hides again when the ride leaves.
@@ -159,6 +176,7 @@ The farm's skull, the rival target button, the XP buff buttons, and in battlegro
 | `/bist recap` | your last death |
 | `/bist rival` · `/bist rivals` | add your target as a rival · list them |
 | `/bist pal` · `/bist pals` | add your target as a pal · list them |
+| `/bist rivals grief Name Surname - why` · `/bist rivals griefers` | add a griefer · list them |
 | `/bist surname <word>` | crown everyone with that surname (again: off) |
 | `/bist recap forget <name>` | drop a rival |
 | `/bist recap key F6` | a key that targets a gold rival - `off` to drop it |
@@ -167,6 +185,7 @@ The farm's skull, the rival target button, the XP buff buttons, and in battlegro
 | `/bist social on` · `off` · `group` · `why` | the thank-you emote for buffs |
 | `/bist bosses` · `/bist bosses key F7` | the boss finder · FIND on a key |
 | `/bist codex` · `/bist codex full` · `/bist codex <name>` | the Codex · after dark · look one up |
+| `/bist combo` · `/bist combo why` | the combo list (turns it on) · why a fight wasn't kept |
 | `/bist farm` | the farm window |
 | `/bist farm key F5` | the skull key |
 | `/bist sounds` · `/bist sounds favs` | the sound explorer · your starred sounds |

@@ -1,3 +1,14 @@
+## 1.3.0
+
+- **NEW: which imbue and totems hit hardest.** Turn it on with `/bist combo` (it starts off). After each fight a small card shows your weapon imbue and totems (for example WF · SoE · GoA), your damage per second, and where that combo ranks. Click it for the full list: every combo you've fought with, best first, in columns (imbue, fire, earth, air), with how many fights each is based on. Click a combo to see its last fight spell by spell, so the weapon's Windfury and the totem's show apart now that they stack on Forever.
+  - **Damage per second over the time you're actually swinging**, not the whole fight: a mob that runs away in fear, or a wait between pulls, doesn't drag the number down. Your swing rhythm tells it; the card says "19 of 22 s swinging".
+  - **Proc text while you fight:** "+1 extra hit" (Windfury Totem), "+2 extra hits" (Windfury Weapon) and "Flametongue" rise above the card's spot as they happen. Read from hits landing in the same instant, so in a group another player's hit can now and then read as one.
+  - **SET** on the list: the card and the proc text on or off, the shortest fight counted, the list's width and height, RESET. `/bist combo why` says why a fight wasn't kept.
+- **NEW: griefers.** Right-click a player of your own faction and pick **Add griefer...** - it asks why ("ninja looted the belt"). From then on you're warned when they come into view, join your group, invite you, or talk near you: a red line, a sound, and a small card with who, your note, and where you are. `/bist rivals griefers` lists them; `/bist rivals grief Name Surname - why` adds one by name. Each warning comes at most once every five minutes per person, and each part has its own switch.
+- **Fixed: the farm's voice line was a whisper on Forever.** The skull's spoken mark name now plays at full volume.
+- **The ride card knows Forever's Tanaris - Riverglades boat.**
+- **Fixed: a gamepad could get "action blocked" with BiS Tools running.**
+
 ## 1.2.1
 
 - **The tools box docks around BiS Healing's radar.** With the radar look up, shift-click on the box's header walks it right, below, left and above the radar - clear of it, not on top of it - and it follows when you move or resize the radar. Auto puts it on the right, or the left when the right would run off your screen. Needs BiS Healing 1.4.0; with classic or cockpit it docks to BiS> now as before.

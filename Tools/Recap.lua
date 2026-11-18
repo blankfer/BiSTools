@@ -1716,6 +1716,23 @@ function RC.MenuLines(db, root, ctx, kind)
         NS.Print("%s added to your pals - a little green heart over them, out of combat", T.text("good", name))
       end
     end)
+    -- THE GRIEFER LINE (Arn, 17 Nov: "need a grief for same faction")
+    do
+      local g, gkey = RC.GrieferNamed(db, name)
+      root:CreateButton(g and "Remove griefer" or "Add griefer...", function()
+        if g then
+          RC.Griefers(db)[gkey] = nil
+          NS.Print("%s is no longer on your griefer list", gkey)
+          return
+        end
+        local guid
+        if type(unit) == "string" then
+          local okG, gu = pcall(UnitGUID, unit)
+          if okG and type(gu) == "string" and not hidden(gu) then guid = gu end
+        end
+        RC.AskGriefer(db, name, guid)
+      end)
+    end
     if side == "pal" then return end
     say("both lines for " .. name .. " - nothing here says friend or foe, so you pick")
   else
@@ -2974,16 +2991,234 @@ end
 --- rivals). The rivals tool (Rivals.lua) reads and writes through this, so nothing ever moved.
 function RC.DB() return R:DBFor(R:Get("recap")) end
 
+-- ---------------------------------------------------------------- griefers
+--[[ GRIEFERS (17 Nov 2026, Arn: "we have rivals and pals when right click - need a grief for same faction that alerts when
+  nearby, if someone ninja loots etc"). A same-faction player you put on the list - from their right-click menu ("Add
+  griefer", it asks why: "ninja looted the belt") or /bist rivals grief <name> - <why>. Kept in recap's table with the
+  other lists (db.griefers[name] = { guid, added, why }). THE ALERTS, each once per RC.GRIEF_GAP per griefer and kind,
+  in a fight too (our own alert line, nothing secure): they come into view (a nameplate, your target, the mouse on them),
+  JOIN YOUR GROUP, INVITE YOU, or talk near you (/say, /yell); a whisper or a channel post from them is a quiet chat line.
+  The alert says who, the why, and where you are. db.griefNote false = off; db.griefSound false = no sound. ]]
+RC.GRIEF_GAP = 300
+RC.GRIEF_COL = { 1.0, 0.35, 0.3 }
+RC.griefSeen = {}
+function RC.Griefers(db)
+  db.griefers = type(db.griefers) == "table" and db.griefers or {}
+  return db.griefers
+end
+--- The griefer a name belongs to: whole, or by its first word (a plate or a chat line may give only that).
+function RC.GrieferNamed(db, name)
+  if type(name) ~= "string" or hidden(name) or name == "" then return nil end
+  name = name:gsub("%-.*$", "")                        -- (a chat author's realm)
+  local list = RC.Griefers(db)
+  if list[name] then return list[name], name end
+  if name:find(" ", 1, true) then return nil end
+  for k, e in pairs(list) do if k:match("^(%S+)") == name then return e, k end end
+end
+--- The griefer a unit is, or nil: a whole name first, never a readable GUID that is somebody else's (the pal rules).
+function RC.GrieferFor(db, unit)
+  if next(RC.Griefers(db)) == nil then return nil end
+  local okW, whole = pcall(function() return GetUnitName and GetUnitName(unit, false) end)
+  local name = (okW and type(whole) == "string" and not hidden(whole) and whole ~= "") and whole or (NS.Farm and NS.Farm.Name(unit))
+  local g, key = RC.GrieferNamed(db, name)
+  if g and type(g.guid) == "string" then
+    local okG, guid = pcall(UnitGUID, unit)
+    if okG and type(guid) == "string" and not hidden(guid) and guid ~= g.guid then return nil end
+  end
+  return g, key
+end
+--- The alert: once per griefer per kind per RC.GRIEF_GAP. Answers true when it spoke.
+function RC.GriefAlert(db, key, kind, line)
+  if db.griefNote == false or type(key) ~= "string" then return false end
+  local now = GetTime and GetTime() or 0
+  local k = key .. "|" .. kind
+  if RC.griefSeen[k] and now - RC.griefSeen[k] < RC.GRIEF_GAP then return false end
+  RC.griefSeen[k] = now
+  local g = RC.Griefers(db)[key] or {}
+  local why = (type(g.why) == "string" and g.why ~= "") and (" - " .. g.why) or ""
+  local where = place()
+  local text = ("GRIEFER %s: %s%s"):format(line, key, why)
+  if kind ~= "quiet" and NS.Alert then NS.Alert(text, RC.GRIEF_COL) end
+  NS.Print("%s%s", T.text("warn", text), (where and where ~= "" and kind ~= "quiet") and (" - " .. where) or "")
+  if kind ~= "quiet" and db.griefSound ~= false and PlaySound then
+    pcall(PlaySound, (SOUNDKIT and SOUNDKIT.RAID_WARNING) or 8959, "Master")
+  end
+  if kind ~= "quiet" and db.griefCard ~= false then RC.GriefCard(db, key, line, g.why, where) end
+  return true
+end
+
+--[[ THE GRIEFER CARD (17 Nov 2026, Arn: "a pop up something for a small note" - "build 2"): with the alert, a small card
+  near the top of the screen - GRIEFER NEARBY (or IN YOUR GROUP / INVITED YOU), their name, your note, where you are.
+  An x closes it; it fades after RC.GCARD_FOR s, and holds while the mouse is on it. Dragged anywhere (out of a fight),
+  kept in db.griefPos. db.griefCard false = only the line. ]]
+RC.GCARD_FOR, RC.GCARD_FADE = 10, 1
+function RC.BuildGriefCard(db)
+  if RC.gcard then return RC.gcard end
+  local K = NS.Farm
+  local f = CreateFrame("Frame", "BiSToolsGriefCard", UIParent)
+  f:SetSize(260, 64)
+  local p = db.griefPos
+  if type(p) == "table" and p[1] then f:SetPoint(p[1], UIParent, p[2] or p[1], p[3] or 0, p[4] or 0)
+  else f:SetPoint("TOP", UIParent, "TOP", 0, -110) end
+  f:SetFrameStrata("HIGH")
+  f:EnableMouse(true)
+  f:SetMovable(true)
+  f:SetClampedToScreen(true)
+  f:RegisterForDrag("LeftButton")
+  f:SetScript("OnDragStart", function(self)
+    if InCombatLockdown and InCombatLockdown() then return end
+    self:StartMoving() self.moving = true
+  end)
+  local function stop(self)
+    if not self.moving then return end
+    self.moving = nil
+    self:StopMovingOrSizing()
+    local ok, pt, _, rp, x, y = pcall(self.GetPoint, self)
+    if ok and pt then RC.DB().griefPos = { pt, rp, x, y } end
+  end
+  f:SetScript("OnDragStop", stop)
+  f:SetScript("OnHide", stop)
+  f:SetScript("OnEnter", function(self) self.hold = true self:SetAlpha(1) end)
+  f:SetScript("OnLeave", function(self) self.hold = nil end)
+  K.tex(f, "BACKGROUND", "frame", 0.95)
+  K.border(f, "edge", 1)
+  f.stripe = f:CreateTexture(nil, "ARTWORK")
+  f.stripe:SetPoint("TOPLEFT") f.stripe:SetPoint("BOTTOMLEFT") f.stripe:SetWidth(3)
+  f.stripe:SetColorTexture(RC.GRIEF_COL[1], RC.GRIEF_COL[2], RC.GRIEF_COL[3], 1)
+  f.head = K.fs(f, "", 10, "warn")
+  f.head:SetPoint("TOPLEFT", 10, -6)
+  f.name = K.fs(f, "", 13, "ink")
+  f.name:SetPoint("TOPLEFT", 10, -20)
+  f.note = K.fs(f, "", 10, "gold")
+  f.note:SetPoint("TOPLEFT", 10, -37) f.note:SetWidth(240) f.note:SetJustifyH("LEFT")
+  f.where = K.fs(f, "", 9, "muted")
+  f.where:SetPoint("BOTTOMLEFT", 10, 5)
+  f.close = CreateFrame("Button", nil, f)
+  f.close:SetSize(16, 16)
+  f.close:SetPoint("TOPRIGHT", -3, -3)
+  K.tex(f.close, "BACKGROUND", "field", 0.9)
+  f.close.label = K.fs(f.close, "x", 9, "ink")
+  f.close.label:SetPoint("CENTER")
+  f.close:SetScript("OnClick", function() f:Hide() end)
+  f:SetScript("OnUpdate", function(self, e)
+    if self.hold then self.left = RC.GCARD_FOR return end
+    self.left = (self.left or RC.GCARD_FOR) - (tonumber(e) or 0)
+    if self.left <= 0 then self:Hide() return end
+    if self.left < RC.GCARD_FADE then self:SetAlpha(self.left / RC.GCARD_FADE) end
+  end)
+  f:Hide()
+  RC.gcard = f
+  return f
+end
+function RC.GriefCard(db, key, line, why, where)
+  local f = RC.BuildGriefCard(db)
+  f.head:SetText("GRIEFER " .. tostring(line))
+  f.name:SetText(key)
+  f.note:SetText((type(why) == "string" and why ~= "") and why or "no note - /bist rivals grief " .. key .. " - why")
+  f.where:SetText((type(where) == "string" and where ~= "") and where or "")
+  f.left, f.hold = RC.GCARD_FOR, nil
+  f:SetAlpha(1)
+  f:Show()
+  return f
+end
+--- A unit came into view (a plate, your target, the mouse): a griefer, friendly, a player - the alert.
+function RC.SpotGriefer(db, unit)
+  if type(unit) ~= "string" or next(RC.Griefers(db)) == nil then return false end
+  local okP, isPlayer = pcall(UnitIsPlayer, unit)
+  if not okP or hidden(isPlayer) or isPlayer ~= true then return false end
+  local g, key = RC.GrieferFor(db, unit)
+  if not g then return false end
+  return RC.GriefAlert(db, key, "near", "NEARBY")
+end
+--- Your group changed: a griefer in it - the alert, once each time they come in.
+RC.griefInGroup = {}
+function RC.GriefRoster(db)
+  if next(RC.Griefers(db)) == nil then RC.griefInGroup = {} return false end
+  local now, said = {}, false
+  local n = GetNumGroupMembers and GetNumGroupMembers() or 0
+  local raid = IsInRaid and IsInRaid()
+  for i = 1, n do
+    local unit = raid and ("raid" .. i) or ("party" .. i)
+    local g, key = RC.GrieferFor(db, unit)
+    if g then
+      now[key] = true
+      if not RC.griefInGroup[key] then
+        RC.griefSeen[key .. "|group"] = nil             -- (a new join always speaks)
+        said = RC.GriefAlert(db, key, "group", "IN YOUR GROUP") or said
+      end
+    end
+  end
+  RC.griefInGroup = now
+  return said
+end
+--- The events only the griefers want (chat, an invite). Answers true when it took the event.
+RC.GRIEF_CHAT = { CHAT_MSG_SAY = "near", CHAT_MSG_YELL = "near", CHAT_MSG_WHISPER = "quiet", CHAT_MSG_CHANNEL = "quiet" }
+function RC.GriefEvent(db, event, a1, a2)
+  local kind = RC.GRIEF_CHAT[event]
+  if kind then
+    local g, key = RC.GrieferNamed(db, a2)
+    if g then
+      if kind == "near" then RC.GriefAlert(db, key, "near", "NEARBY (talking)")
+      else RC.GriefAlert(db, key, "quiet", event == "CHAT_MSG_WHISPER" and "whispered you" or "is posting in a channel") end
+    end
+    return true
+  end
+  if event == "PARTY_INVITE_REQUEST" then
+    local g, key = RC.GrieferNamed(db, a1)
+    if g then RC.griefSeen[key .. "|invite"] = nil RC.GriefAlert(db, key, "invite", "INVITED YOU") end
+    return true
+  end
+  return false
+end
+--- Add (or update) a griefer by name, with a why.
+function RC.AddGriefer(db, name, why, guid)
+  if type(name) ~= "string" or name == "" then return false end
+  local list = RC.Griefers(db)
+  local e = list[name] or { added = time and time() or 0 }
+  e.guid = guid or e.guid
+  if type(why) == "string" and why ~= "" then e.why = why end
+  list[name] = e
+  NS.Print("%s is on your griefer list%s - you will be warned when they are near, join your group or invite you",
+    T.text("warn", name), e.why and (" (" .. e.why .. ")") or "")
+  return true
+end
+--- The right-click way: ask why, then add (no popup on this client: added without one).
+function RC.AskGriefer(db, name, guid)
+  if type(StaticPopupDialogs) == "table" and StaticPopup_Show then
+    StaticPopupDialogs.BISTOOLS_GRIEFER = StaticPopupDialogs.BISTOOLS_GRIEFER or {
+      text = "Why is %s a griefer? (optional - ninja looted, griefed a quest...)",
+      button1 = ACCEPT or "Accept", button2 = CANCEL or "Cancel",
+      hasEditBox = true, timeout = 0, whileDead = true, hideOnEscape = true,
+      OnAccept = function(self, data)
+        local eb = self.editBox or self.EditBox
+        local why = eb and eb.GetText and eb:GetText() or nil
+        RC.AddGriefer(data.db, data.name, why, data.guid)
+      end,
+      EditBoxOnEnterPressed = function(self)
+        local parent = self:GetParent()
+        local d = parent and parent.data
+        if d then RC.AddGriefer(d.db, d.name, self:GetText(), d.guid) end
+        if parent then parent:Hide() end
+      end,
+    }
+    local ok = pcall(StaticPopup_Show, "BISTOOLS_GRIEFER", name, nil, { db = db, name = name, guid = guid })
+    if ok then return true end
+  end
+  return RC.AddGriefer(db, name, nil, guid)
+end
+
 -- ---------------------------------------------------------------- events
 -- DIED: read the record, open the window (unless switched off), and keep a measuring snapshot for
 -- /bist recap raw - a player killer on a PvP server is the case nobody has measured yet.
 -- BACK ON YOUR FEET (unghosted at your corpse, or resurrected where you fell): it closes.
-function RC.OnEvent(_, event, unit)
+function RC.OnEvent(_, event, unit, a2)
   -- TWO SWITCHES since 0.7.x (Arn, 14 Oct: rivals and pals "decouple from recap ... be its own
   -- thing"): the tracker - crosshairs, hearts, crowns, the crest - answers to the "rivals" tool, the
   -- death window to "recap". The data stays in recap's saved table (RC.DB), so nothing moves.
   local recapOn, rivalsOn = R:Enabled("recap"), R:Enabled("rivals")
   local db = RC.DB()
+  if rivalsOn and RC.GriefEvent(db, event, unit, a2) then return end   -- (chat and invites: the griefers' alone)
+  if not rivalsOn and RC.GRIEF_CHAT[event] then return end
   -- a plate gone: its marks go, whichever switch is on
   if event == "NAME_PLATE_UNIT_REMOVED" then
     if RC.marks[unit] then RC.UnmarkUnit(unit) end
@@ -3016,6 +3251,7 @@ function RC.OnEvent(_, event, unit)
     RC.ClearCrowns(true)                             -- and so are a friend's crowns
     return
   elseif event == "GROUP_ROSTER_UPDATE" or event == "PLAYER_ENTERING_WORLD" then
+    RC.GriefRoster(db)                               -- a griefer joined your group
     -- the guildmate + is for passing each other alone: a group, a battleground or an arena ends it
     RC.solo = RC.Solo()
     if not RC.solo then RC.ClearMates() end
@@ -3024,14 +3260,17 @@ function RC.OnEvent(_, event, unit)
   elseif event == "NAME_PLATE_UNIT_ADDED" then
     if type(unit) == "string" and not hidden(unit) then
       RC.plates[unit] = true
+      RC.SpotGriefer(db, unit)
       RC.SpotPal(db, unit)
       RC.Spot(db, unit)
     end
     return
   elseif event == "PLAYER_TARGET_CHANGED" then
     RC.PaintAdd()
+    RC.SpotGriefer(db, "target")
     RC.Spot(db, "target") return
   elseif event == "UPDATE_MOUSEOVER_UNIT" then
+    RC.SpotGriefer(db, "mouseover")
     RC.Spot(db, "mouseover") return
   end
   if event == "PLAYER_DEAD" then
@@ -3079,7 +3318,8 @@ end
 RC.frame = CreateFrame("Frame")
 for _, e in ipairs({ "PLAYER_DEAD", "PLAYER_REGEN_ENABLED", "PLAYER_UNGHOST", "PLAYER_ALIVE",
                      "NAME_PLATE_UNIT_ADDED", "NAME_PLATE_UNIT_REMOVED", "PLAYER_TARGET_CHANGED", "UPDATE_MOUSEOVER_UNIT",
-                     "GROUP_ROSTER_UPDATE", "PLAYER_ENTERING_WORLD", "PLAYER_REGEN_DISABLED" }) do
+                     "GROUP_ROSTER_UPDATE", "PLAYER_ENTERING_WORLD", "PLAYER_REGEN_DISABLED",
+                     "CHAT_MSG_SAY", "CHAT_MSG_YELL", "CHAT_MSG_WHISPER", "CHAT_MSG_CHANNEL", "PARTY_INVITE_REQUEST" }) do
   RC.frame:RegisterEvent(e)
 end
 RC.frame:SetScript("OnEvent", RC.OnEvent)
@@ -3103,6 +3343,32 @@ NS.Registry:Register({
   OnDisable = function() if RC.win then RC.win:Hide() end end,
   OnSlash = function(_, db, args)
     if args == "why" then return RC.Why(db) end
+    if args == "griefers" then
+      local lines = {}
+      for name, e in pairs(RC.Griefers(db)) do lines[#lines + 1] = name .. ((type(e.why) == "string" and e.why ~= "") and (" - " .. e.why) or "") end
+      table.sort(lines)
+      if #lines == 0 then return NS.Print("griefers: nobody yet - right-click a player: Add griefer..., or /bist rivals grief Name Surname - why") end
+      for _, l in ipairs(lines) do NS.Print("griefer: %s", T.text("warn", l)) end
+      return
+    end
+    local gforget = args:match("^grief%s+forget%s+(.+)$")
+    if gforget then
+      local g, key = RC.GrieferNamed(db, gforget)
+      if not g then return NS.Print("no griefer called %s", gforget) end
+      RC.Griefers(db)[key] = nil
+      return NS.Print("%s is no longer on your griefer list", key)
+    end
+    local gname = args:match("^grief%s*(.*)$")
+    if gname then
+      local who, why = gname:match("^(.-)%s+%-%s+(.+)$")
+      who = (who or gname):gsub("^%s+", ""):gsub("%s+$", "")
+      if who == "" then                                -- no name: your target
+        local okW, n = pcall(function() return GetUnitName and GetUnitName("target", false) end)
+        if not (okW and type(n) == "string" and not hidden(n) and n ~= "") then return NS.Print("grief: target the player, or /bist rivals grief Name Surname - why") end
+        who = n
+      end
+      return RC.AddGriefer(db, who, why)
+    end
     if args == "rival" then return RC.RivalFromTarget(db) end
     if args == "pal" then return RC.PalFromTarget(db) end
     local named = args:match("^pal%s+(.+)$")

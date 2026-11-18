@@ -213,7 +213,14 @@ function W.tick() for _, t in ipairs(W.tickers) do if t.alive then t.fn() end en
 W.binds = {}
 W.sounds = {} W.spoken = {}
 _G.PlaySound = function(id) W.sounds[#W.sounds + 1] = id end
-_G.C_VoiceChat = { SpeakText = function(_, text) W.spoken[#W.spoken + 1] = text end }
+-- Forever's real order (17 Nov 2026, heard): (voice, text, rate, volume); a quiet volume or a wrong-shaped call errors.
+_G.C_VoiceChat = { SpeakText = function(voice, text, rate, volume, extra)
+  assert(type(voice) == "number" and type(text) == "string", "SpeakText(voice, text, ...)")
+  assert(type(rate) == "number" and rate >= -10 and rate <= 10, "SpeakText rate out of range")
+  assert(type(volume) == "number" and volume >= 50 and volume <= 100, "SpeakText volume too low - wrong argument order?")
+  assert(extra == nil or type(extra) == "boolean", "SpeakText takes no fifth number")
+  W.spoken[#W.spoken + 1] = text
+end }
 _G.ClearOverrideBindings = function(owner) W.binds[owner] = nil end
 _G.SetOverrideBindingClick = function(owner, prio, key, btn) W.binds[owner] = { key = key, btn = btn } end
 _G.CombatLogGetCurrentEventInfo = function() return unpack(W.cleu) end
@@ -801,7 +808,7 @@ do
     if sv.enabled[key] ~= want then wrong[#wrong + 1] = key .. "=" .. tostring(sv.enabled[key]) end
     wrote = wrote + 1
   end
-  ok(sv.forever10 == true and wrote == 16 and #wrong == 0, "an existing save at the 1.0 load: every tool frozen as it was, written out", table.concat(wrong, " "))
+  ok(sv.forever10 == true and wrote == 17 and #wrong == 0, "an existing save at the 1.0 load: every tool frozen as it was, written out", table.concat(wrong, " "))
   -- a tool 0.20.2 never had is not "as it was" - it was nothing (Arn, 8 Nov: his cousin's pups came up on)
   ok(sv.enabled.codex == false, "the codex, new in 1.0, starts OFF on an existing save too", tostring(sv.enabled.codex))
   ok(R:DBFor(R:Get("farm")).shown == true and R:DBFor(R:Get("summon")).nag == true, "and the farm window and the summon nag as they were (on)")
@@ -2193,7 +2200,7 @@ do
   -- left click: the Hub, one row per tool
   mm.scripts.OnClick(mm, "LeftButton")
   local hub = BiSToolsHub
-  ok(hub and hub:IsShown() and #hub.rows == 16 and hub.rows[14].key == "codex" and hub.rows[15].key == "bosses" and hub.rows[16].key == "alts", "left click opens the Hub with a row per registered tool")   -- +disenchant, +processing, 6 Nov; threat and pups retired 9 Nov
+  ok(hub and hub:IsShown() and #hub.rows == 17 and hub.rows[14].key == "codex" and hub.rows[15].key == "bosses" and hub.rows[16].key == "alts" and hub.rows[17].key == "combo", "left click opens the Hub with a row per registered tool")   -- +disenchant, +processing, 6 Nov; threat and pups retired 9 Nov
   ok(hub.scale == 1.2, "the Tools list is 20% bigger (Arn: \"lets make this 20% bigger\")")
   ok(hub.rows[1].key == "farm" and hub.rows[2].key == "summon" and hub.rows[3].key == "recap" and hub.rows[4].key == "rivals"
      and hub.rows[5].key == "social" and hub.rows[6].key == "bg" and hub.rows[7].key == "map" and hub.rows[8].key == "party"
@@ -2202,10 +2209,10 @@ do
   -- RIVALS & PALS, their own tool (Arn, 14 Oct: "decouple from recap ... be its own thing")
   ok(hub.rows[4].name.text == "rivals & pals", "the rivals tool's row is titled rivals & pals")
   ok(hub.rows[1].name.text == "farm" and hub.rows[1].state.text:find("on", 1, true), "row: name + on")
-  ok(hub.con.slots.count and hub.con.slots.count.text == "12 of 16 on", "prompt slot counts the tools that are on (party, codex, bosses and alts - new in 1.0 - start off; rides, sounds, xp, disenchant and processing on)", hub.con.slots.count.text)
+  ok(hub.con.slots.count and hub.con.slots.count.text == "12 of 17 on", "prompt slot counts the tools that are on (party, codex, bosses and alts - new in 1.0 - start off; rides, sounds, xp, disenchant and processing on)", hub.con.slots.count.text)
   ok(hub.con:Width() <= H.W - 15 - 8, "hub prompt fits its header budget")
   ok(hub.closeBtn.point[4] == -3, "only an x in the header, at -3")
-  ok(hub.foot and hub.foot.label.text == "options" and hub.h == 16 + 16 * 16 + 4 + 16, "footer 'options' button; height = header + rows + footer")
+  ok(hub.foot and hub.foot.label.text == "options" and hub.h == 16 + 17 * 16 + 4 + 16, "footer 'options' button; height = header + rows + footer")
   -- row click opens the tool window; shift-click drags it to the middle
   BiSToolsFarm:Hide() F.db.pos = { "TOPLEFT", 400, -300, "TOPLEFT" }
   hub.rows[1].scripts.OnClick(hub.rows[1], "LeftButton")
@@ -2255,7 +2262,7 @@ do
   for _, r in ipairs(BiSToolsOptions and BiSToolsOptions.rows or {}) do end
   -- right click toggles the tool; opening an off tool switches it on first
   hub.rows[2].scripts.OnClick(hub.rows[2], "RightButton")
-  ok(not R:Enabled("summon") and hub.rows[2].state.text:find("off", 1, true) and hub.con.slots.count.text == "11 of 16 on", "right click: summon off, row and count follow", hub.con.slots.count.text)
+  ok(not R:Enabled("summon") and hub.rows[2].state.text:find("off", 1, true) and hub.con.slots.count.text == "11 of 17 on", "right click: summon off, row and count follow", hub.con.slots.count.text)
   ok(lib:Enabled(), "and the lib is untouched by it")
   hub.rows[2].scripts.OnClick(hub.rows[2], "LeftButton")
   ok(R:Enabled("summon") and BiSToolsSummon:IsShown() and db_summon().mode == "on", "click on an off tool: switched on and its window pinned open")
@@ -2294,7 +2301,9 @@ do
   -- (+ bosses (3), 8 Nov: open in a dungeon, the box button, the list's open button - and its section header)
   -- (threat (2) and pups (2), each with its section header, retired 9 Nov)
   -- (+ alts (1), 14 Nov: the main & alts window's open button - and its section header)
-  ok(#opt.rows == 11 + 3 + 5 + 7 + 1 + 8 + 2 + 4 + 7 + 4 + 4 + 5 + 1 + 1 + 1 + 1 + 3 + 2 + 4 + 2, "one row per section header and per option", #opt.rows)
+  -- (+ combo (4), 17 Nov: the card switch, the proc text, the shortest fight counted, the list's open button - and its header)
+  -- (+3 in rivals, 17 Nov: griefer alerts, griefer card, griefer sound)
+  ok(#opt.rows == 11 + 3 + 5 + 7 + 1 + 8 + 2 + 4 + 7 + 4 + 4 + 5 + 1 + 1 + 1 + 1 + 3 + 2 + 4 + 2 + 5 + 3, "one row per section header and per option", #opt.rows)
   -- THE BiSTheme STANDARD, 1.43:1 (Arn, 14 Oct): its sections poured into columns, the window that shape
   ok(math.abs(opt.w / opt.h - 1.43) < 0.01 and (opt.columns or 1) >= 2, "options: 1.43:1, in columns", opt.w .. "x" .. opt.h)
   local function find(label) for _, r in ipairs(opt.rows) do if r.name and r.name.text == label then return r end end end
@@ -2381,7 +2390,7 @@ do
   local farmHdr = opt.rows[5]
   ok(farmHdr.ctl and farmHdr.ctl.on == true, "farm section box shows on")
   farmHdr.ctl.scripts.OnClick(farmHdr.ctl)
-  ok(not R:Enabled("farm") and farmHdr.ctl.on == false and hub.con.slots.count.text == "11 of 16 on", "box off: farm off, hub count follows", hub.con.slots.count.text)
+  ok(not R:Enabled("farm") and farmHdr.ctl.on == false and hub.con.slots.count.text == "11 of 17 on", "box off: farm off, hub count follows", hub.con.slots.count.text)
   farmHdr.ctl.scripts.OnClick(farmHdr.ctl)
   ok(R:Enabled("farm"), "and back on")
   -- toggle: nag
@@ -2497,7 +2506,7 @@ do
     local spec = page.spec
     ok(spec.title == "Tools" and spec.api and spec.api.name == "BiSToolsAPI" and spec.open and spec.open.label == "the tools list",
        "titled Tools, the API named, a big button to the tools")
-    ok(spec.status() == H.Status() and spec.status():find("of 16 tools on", 1, true), "its status line: N of 16 tools on", spec.status())
+    ok(spec.status() == H.Status() and spec.status():find("of 17 tools on", 1, true), "its status line: N of 17 tools on", spec.status())
     -- THE DASHBOARD (Arn, 7 Nov live: "dont just shrink remake them all"): the page draws itself and never takes
     -- the options window in
     ok(spec.build and spec.refresh and spec.window == nil, "the page is a dashboard, not the options window in a box")
@@ -2506,7 +2515,7 @@ do
     local optParent = BiSToolsOptions.parent
     ok(optParent ~= page.frame.body and not BiSToolsOptions:IsShown(), "the options window stays where it lives, hidden")
     local d = page.frame.body.dash
-    ok(d and #d.rows == 17 and d.rows[1].entry.general, "the list: BiS Tools itself, then all 16 tools", d and #d.rows)
+    ok(d and #d.rows == 18 and d.rows[1].entry.general, "the list: BiS Tools itself, then all 17 tools", d and #d.rows)
     -- THE FAMILY RULE (Arn, 8 Nov: "its a theme so itll keep all the pages looking the same"): the page is the kit's
     -- BiSTheme.Dashboard, fed the Registry's own tables; the hand-built copy in Hub.lua is gone
     ok(d.model and d.model.list == "TOOLS" and d.list.head.text == "TOOLS" and type(d.Paint) == "function"
@@ -2622,7 +2631,7 @@ do
         if r.isSection and r.ctl and r.name and r.name.text == want then found[#found + 1] = key break end
       end
     end
-    ok(#found == 16, "all 16 tools have an on/off tick in the options window", #found)
+    ok(#found == 17, "all 17 tools have an on/off tick in the options window", #found)
     -- the minimap's right-click: the OWN options window, and again closes it (Arn, 7 Nov live); the open button: the Hub
     BiSToolsHub:Hide()
     BiSToolsOptions:Hide()
@@ -2694,8 +2703,8 @@ do
   for _, tool in R:Each() do if tool.__real then tool.OnLogin, tool.__real = tool.__real, nil end end
   ok(logins == 0, "at login no tool wakes: nothing hooks, nothing opens, nothing plays", logins)
   NS.Hub.ToggleHub(true)
-  ok(BiSToolsHub.con.slots.count.text == "0 of 16 on", "the Hub, the main page: 0 of 16 on", BiSToolsHub.con.slots.count.text)
-  ok(NS.Hub.Status() == "0 of 16 tools on", "the BiS> page's status line says it", NS.Hub.Status())
+  ok(BiSToolsHub.con.slots.count.text == "0 of 17 on", "the Hub, the main page: 0 of 17 on", BiSToolsHub.con.slots.count.text)
+  ok(NS.Hub.Status() == "0 of 17 tools on", "the BiS> page's status line says it", NS.Hub.Status())
   -- the user chooses: a switch writes TRUE (not nil) and off writes FALSE
   R:SetEnabled("social", true)
   ok(fresh.enabled.social == true and R:Enabled("social"), "switched on: stored as true")
@@ -3959,15 +3968,15 @@ do
     local root = { lines = {} }
     function root:CreateButton(t) self.lines[#self.lines + 1] = t end
     RC.MenuLines(rdb2, root, { unit = "target", name = "Pal Guy" })
-    ok(root.lines[1] == "Add pal" and #root.lines == 1 and RC.menuDecision:find("friendly", 1, true),
-       "the right-click menu offers 'add pal' on them, never 'add rival'", RC.menuDecision)
+    ok(root.lines[1] == "Add pal" and root.lines[2] == "Add griefer..." and #root.lines == 2 and RC.menuDecision:find("friendly", 1, true),
+       "the right-click menu offers 'add pal' (and 'add griefer...') on them, never 'add rival'", RC.menuDecision)
     -- PALS (Arn: "a freindly list too ... puts a tiny little heart green ... only works out of combat")
     local pals = RC.Pals(rdb2)
     root.click = nil
-    function root:CreateButton(t, fn) self.lines[#self.lines + 1] = t self.click = fn end
+    function root:CreateButton(t, fn) self.lines[#self.lines + 1] = t self.click = fn self.clicks = self.clicks or {} self.clicks[t] = fn end
     root.lines = {}
     RC.MenuLines(rdb2, root, { unit = "target", name = "Pal Guy" })
-    root.click()
+    root.clicks["Add pal"]()
     ok(pals["Pal Guy"] and pals["Pal Guy"].guid == "Player-1-PAL", "clicked: a pal, GUID and all")
     -- THE FRIENDS LIST (Arn, 14 Oct: "it thinks is a rival when its the same faction as me"): a
     -- Battle.net friend's menu has no unit and names the BattleTag nickname; the character comes
@@ -4001,11 +4010,11 @@ do
     -- A NAME IN CHAT opens FRIEND too: nothing says friend or foe - BOTH lines, you pick
     -- (Arn, 14 Oct: "if we cant see we add both?")
     RC.MenuLines(rdb2, root, { name = "Charfriend" }, "FRIEND")
-    ok(root.lines[1] == "Add pal" and root.lines[2] == "Add rival" and #root.lines == 2,
-      "can't tell: both lines", table.concat(root.lines, " / "))
+    ok(root.lines[1] == "Add pal" and root.lines[2] == "Add griefer..." and root.lines[3] == "Add rival" and #root.lines == 3,
+      "can't tell: both lines (and the griefer line - he may be your own faction)", table.concat(root.lines, " / "))
     root.lines = {}
     RC.MenuLines(rdb2, root, { name = "Chatty" }, "CHAT_ROSTER")
-    ok(#root.lines == 2, "a name in chat, no unit: both lines too")
+    ok(#root.lines == 3, "a name in chat, no unit: both lines too")
     _G.C_BattleNet, _G.UnitFactionGroup = keepBN, keepFac
     pals["Darthsidiouz Sithlord"] = nil
     -- and in the rivals & pals window's right column
@@ -4029,6 +4038,52 @@ do
     RC.frame.scripts.OnEvent(RC.frame, "NAME_PLATE_UNIT_ADDED", "nameplate10")
     local noted = table.concat(saidP, " | ")
     ok(noted:find("Pal Guy", 1, true) and noted:find("is nearby", 1, true), "a pal in view: a small green line in chat", noted)
+    -- GRIEFERS (Arn, 17 Nov: "need a grief for same faction that alerts when nearby, if someone ninja loots etc")
+    do
+      local gl = RC.Griefers(rdb2)
+      for k in pairs(gl) do gl[k] = nil end
+      RC.griefSeen, RC.griefInGroup = {}, {}
+      local keepT2 = W.target
+      W.target = { name = "Ninja Looter", player = true, hostile = false, guid = "Player-1-NIN" }
+      local groot = { lines = {}, clicks = {} }
+      function groot:CreateButton(txt, fn) self.lines[#self.lines + 1] = txt self.clicks[txt] = fn end
+      RC.MenuLines(rdb2, groot, { unit = "target", name = "Ninja Looter" })
+      ok(groot.clicks["Add griefer..."] ~= nil, "a friendly player's menu: Add griefer...")
+      groot.clicks["Add griefer..."]()
+      ok(gl["Ninja Looter"] and gl["Ninja Looter"].guid == "Player-1-NIN", "added (no popup on this client: straight on, GUID kept)")
+      RC.AddGriefer(rdb2, "Ninja Looter", "ninja looted the belt")
+      ok(gl["Ninja Looter"].why == "ninja looted the belt", "the why kept")
+      local nA0 = #(W.alerts or {})
+      RC.frame.scripts.OnEvent(RC.frame, "PLAYER_TARGET_CHANGED")
+      local al = W.alerts and W.alerts[#W.alerts]
+      ok(#(W.alerts or {}) == nA0 + 1 and al.text:find("GRIEFER NEARBY: Ninja Looter - ninja looted the belt", 1, true),
+         "they come into view (your target): the alert, who and why", al and al.text)
+      -- THE CARD (Arn: "a pop up something for a small note" - "build 2")
+      local gc = RC.gcard
+      ok(gc and gc:IsShown() and gc.name:GetText() == "Ninja Looter" and gc.note:GetText() == "ninja looted the belt"
+         and gc.head:GetText() == "GRIEFER NEARBY", "and the card pops up: who, your note")
+      gc:GetScript("OnEnter")(gc) gc:GetScript("OnUpdate")(gc, 30)
+      ok(gc:IsShown(), "the mouse on it: it stays")
+      gc:GetScript("OnLeave")(gc) gc:GetScript("OnUpdate")(gc, 30)
+      ok(not gc:IsShown(), "then it fades away")
+      RC.frame.scripts.OnEvent(RC.frame, "UPDATE_MOUSEOVER_UNIT")
+      RC.frame.scripts.OnEvent(RC.frame, "PLAYER_TARGET_CHANGED")
+      ok(#W.alerts == nA0 + 1, "once per five minutes, not every time you look")
+      RC.frame.scripts.OnEvent(RC.frame, "PARTY_INVITE_REQUEST", "Ninja Looter")
+      ok(W.alerts[#W.alerts].text:find("GRIEFER INVITED YOU", 1, true), "they invite you: the alert")
+      RC.griefSeen = {}
+      RC.frame.scripts.OnEvent(RC.frame, "CHAT_MSG_SAY", "anyone need the chest?", "Ninja Looter-Forever")
+      ok(W.alerts[#W.alerts].text:find("NEARBY (talking)", 1, true), "they /say near you (a realm on the name): the alert")
+      local nA1 = #W.alerts
+      RC.frame.scripts.OnEvent(RC.frame, "CHAT_MSG_CHANNEL", "LFG RFC", "Ninja Looter")
+      ok(#W.alerts == nA1, "a channel post: a quiet chat line only, no alert")
+      W.target = keepT2
+      R:Get("recap").OnSlash(R:Get("recap"), rdb2, "grief Shady Person - griefed my quest mob")
+      ok(gl["Shady Person"] and gl["Shady Person"].why == "griefed my quest mob", "/bist rivals grief Name Surname - why")
+      R:Get("recap").OnSlash(R:Get("recap"), rdb2, "grief forget Shady")
+      ok(gl["Shady Person"] == nil, "/bist rivals grief forget <name> (a first name will do)")
+      for k in pairs(gl) do gl[k] = nil end
+    end
     local n1 = #saidP
     RC.UnmarkPal("nameplate10")
     RC.frame.scripts.OnEvent(RC.frame, "NAME_PLATE_UNIT_ADDED", "nameplate10")
@@ -5237,6 +5292,271 @@ do
   W.combat = true hint.action() W.combat = false
   ok(cvars.nameplateShowEnemies == nil, "never in a fight")
   _G.C_CVar = keepCV
+end
+
+-- ------------------------------------------------------------ the imbue + totem combo: the probe (17 Nov 2026)
+-- Arn: "after fight want to see what imbue and totem combo is best". First what only the game can answer.
+do
+  local Co = NS.Combo
+  ok(Co and R:Get("combo") and R:Get("cmb") == R:Get("combo") and not R:Enabled("combo"), "the combo tool: off until asked, short word cmb")
+  local keepDM, keepWE = _G.C_DamageMeter, _G.GetWeaponEnchantInfo
+  _G.C_DamageMeter = nil
+  _G.GetWeaponEnchantInfo = function() return true, 1500000, 0, 283, false, nil, nil, nil end
+  local lines = Co.Probe()
+  local all = table.concat(lines, " | ")
+  ok(all:find("main hand true (id 283", 1, true) and all:find("no C_DamageMeter", 1, true), "the probe without the game's meter: the imbue, then says so", all)
+  _G.C_DamageMeter = {
+    IsDamageMeterAvailable = function() return true end,
+    GetAvailableCombatSessions = function() return { { sessionID = 7 } } end,
+    GetCombatSessionFromID = function(id) return { sessionID = id, combatSources = { { sourceGUID = UnitGUID("player"), isLocalPlayer = true, totalAmount = 900 } } } end,
+    GetSessionDurationSeconds = function() return 30 end,
+    GetCombatSessionSourceFromID = function() return { combatSpells = { { spellID = 25584, totalAmount = 400 } } } end,
+  }
+  lines = Co.Probe()
+  all = table.concat(lines, " | ")
+  ok(all:find("you in it: yes", 1, true) and all:find("spell 1:", 1, true) and all:find("total 400", 1, true),
+     "with the meter: the newest fight, you in it, your spells and their totals", all)
+  ok(pcall(function() R:Get("combo"):OnSlash(R:DBFor(R:Get("combo")), "probe") end), "/bist combo probe runs")
+  -- THE RECORDER (Arn picked C: a card after each fight, the ranked list behind it)
+  local cdb = R:DBFor(R:Get("combo"))
+  Co.db = cdb
+  cdb.fights, cdb.lastSid = {}, nil
+  R:SetEnabled("combo", true)
+  local keepTI, keepCS = _G.GetTotemInfo, _G.C_Spell
+  local keepSN = keepCS and keepCS.GetSpellName
+  local totems = { [2] = "Strength of Earth Totem III", [3] = "Healing Stream Totem" }
+  _G.GetTotemInfo = function(slot) return true, totems[slot] or "" end
+  _G.C_Spell = _G.C_Spell or {}
+  local names = { [8512] = "Windfury Totem", [25584] = "Windfury Attack", [1] = "Melee" }
+  _G.C_Spell.GetSpellName = function(id) return names[id] end
+  local sid, mySpells, dur, total = 10, nil, 30, 3000
+  _G.C_DamageMeter = {
+    GetAvailableCombatSessions = function() return { { sessionID = sid, name = "Bloodsnout", durationSeconds = dur } } end,
+    GetCombatSessionFromID = function(id) return { durationSeconds = dur, combatSources = { { isLocalPlayer = false, totalAmount = 9 }, { isLocalPlayer = true, totalAmount = total } } } end,
+    GetCombatSessionSourceFromID = function() return { combatSpells = mySpells } end,
+  }
+  mySpells = { { spellID = 1, totalAmount = 2100 }, { spellID = 25584, totalAmount = 900 } }
+  _G.GetWeaponEnchantInfo = function() return true, 1500000, 0, 284 end
+  Co.events:GetScript("OnEvent")(Co.events, "PLAYER_REGEN_DISABLED")
+  ok(Co.cur and Co.cur.imbue == "Windfury Weapon" and Co.cur.totems["Strength of Earth Totem"] and not Co.cur.totems["Healing Stream Totem"],
+     "the pull: Windfury on the weapon, Strength of Earth counted (rank dropped), the healing totem not")
+  Co.events:GetScript("OnEvent")(Co.events, "UNIT_SPELLCAST_SUCCEEDED", "player", "cast-1", 8512)
+  ok(Co.cur.totems["Windfury Totem"], "a totem you drop mid-fight: caught by your own cast's name")
+  Co.events:GetScript("OnEvent")(Co.events, "PLAYER_REGEN_ENABLED")
+  W.runAfters(Co.READ_WAIT + 0.1)
+  local rec = cdb.fights[1]
+  ok(rec and rec.combo == "WF · SoE · WF totem" and rec.dmg == 3000 and rec.dur == 30 and math.abs(rec.wf - 0.3) < 1e-9 and rec.mob == "Bloodsnout",
+     "after the fight: the game's newest fight read once - combo, your damage, Windfury's 30%", rec and rec.combo)
+  ok(Co.card and Co.card:IsShown() and Co.card.dps:GetText() == "100 dps" and Co.card.place:GetText():find("#1 of 1", 1, true),
+     "the card: the combo, 100 dps, #1 of 1", Co.card and Co.card.place:GetText())
+  ok(Co.Close({ totems = {} }) == nil and #cdb.fights == 1, "the same fight never read twice")
+  -- a second combo, better: it goes to the top
+  sid, total, mySpells = 11, 4500, { { spellID = 1, totalAmount = 4500 } }
+  _G.GetWeaponEnchantInfo = function() return true, 1500000, 0, 5 end
+  totems = { [2] = "Strength of Earth Totem" }
+  Co.Pull()
+  Co.FightOver()
+  W.runAfters(Co.READ_WAIT + 0.1)
+  local rank = Co.Rank()
+  ok(#rank == 2 and rank[1].combo == "FT · SoE" and math.floor(rank[1].dps) == 150 and rank[2].combo == "WF · SoE · WF totem",
+     "two combos ranked by damage over time: Flametongue + SoE (150) above", rank[1] and rank[1].combo)
+  -- A SHORT FIGHT COUNTS (Arn: "fight under 10 sec should count because lucky procs means it can kill things fast"),
+  -- weighed by its few seconds; with a minimum set, it is kept but not ranked
+  sid, dur, total = 12, 6, 900
+  Co.Pull() Co.FightOver() W.runAfters(Co.READ_WAIT + 0.1)
+  ok(#cdb.fights == 3 and Co.Rank()[1].n == 2 and Co.card.place:GetText():find("#1 of 2", 1, true),
+     "a 6 s fight: counted (weighed by its 6 s) - FT · SoE now on two fights", Co.card.place:GetText())
+  cdb.min = 10
+  ok(Co.Rank()[1].n == 1, "with a 10 s minimum set: the 6 s fight kept but not ranked")
+  Co.ShowCard(cdb.fights[3])
+  ok(Co.card.place:GetText():find("short fight", 1, true), "and the card says so")
+  cdb.min = nil
+  -- the card fades on its own; the mouse on it holds it
+  Co.card:GetScript("OnEnter")(Co.card)
+  Co.card:GetScript("OnUpdate")(Co.card, 20)
+  ok(Co.card:IsShown(), "the mouse on the card: it stays")
+  Co.card:GetScript("OnLeave")(Co.card)
+  Co.card:GetScript("OnUpdate")(Co.card, 20)
+  ok(not Co.card:IsShown(), "mouse gone: it fades away")
+  -- the list
+  Co.card:GetScript("OnMouseUp")(Co.card)
+  ok(Co.IsOpen() and Co.frame.rows[1].name.combo == "FT · SoE" and Co.frame.rows[1].n:GetText() == "2",
+     "a click on the card opens the list, best first")
+  -- THE COLUMNS (Arn: "can you make the imbue and totems line up")
+  local r1, r2 = Co.frame.rows[1].cells, Co.frame.rows[2].cells
+  ok(r1.imbue:GetText() == "FT" and r1.earth:GetText() == "SoE" and r1.fire:GetText() == "-" and r1.air:GetText() == "-",
+     "the list in columns: imbue FT, earth SoE, fire and air empty", r1.imbue:GetText() .. "|" .. r1.fire:GetText() .. "|" .. r1.earth:GetText() .. "|" .. r1.air:GetText())
+  ok(r2.imbue:GetText() == "WF" and r2.air:GetText() == "WF" and r2.earth:GetText() == "SoE", "Windfury on the weapon and the Windfury Totem each in their own column")
+  ok(Co.Cells("Windfury Weapon", { "Grace of Air Totem", "Windfury Totem" }).air == "GoA+WF", "two of one element (they stack now): joined with +")
+  local onEsc = false
+  for _, n in ipairs(_G.UISpecialFrames or {}) do if n == "BiSToolsCombo" then onEsc = true end end
+  ok(not onEsc, "the list is never on the Escape list (Arn: Esc closed it while he was not in it)")
+  Co.frame.rows[2]:GetScript("OnClick")(Co.frame.rows[2])
+  ok(Co.frame.detail:GetText():find("Bloodsnout", 1, true) and Co.frame.detail:GetText():find("Windfury 30%", 1, true),
+     "a row clicked: its fights, with Windfury's share", Co.frame.detail:GetText())
+  ok(rec.spells and rec.spells[1].name == "Melee" and math.abs(rec.spells[2].share - 0.3) < 1e-9 and Co.frame.detail:GetText():find("last fight: Melee 70%", 1, true),
+     "each fight keeps its spells' shares (the weapon's Windfury and the totem's stack on Forever now)", Co.frame.detail:GetText())
+  -- THE SIZE AND THE SWITCHES (Arn: "we forgot the rule of letting us resize the window")
+  ok(Co.ToggleSet() and Co.frame.sw:IsShown() and Co.frame.sw.card.value:GetText() == "ON", "SET: the switches panel over the list")
+  local rows0 = Co.RowCount()
+  Co.frame.sw.hei.plus:GetScript("OnClick")(Co.frame.sw.hei.plus)
+  Co.frame.sw.hei.plus:GetScript("OnClick")(Co.frame.sw.hei.plus)
+  ok(cdb.h == Co.H + 2 * Co.STEP and Co.frame.h == Co.H + 2 * Co.STEP and Co.RowCount() > rows0, "height +: the list grows and holds more rows", Co.RowCount())
+  Co.frame.sw.wid.minus:GetScript("OnClick")(Co.frame.sw.wid.minus)
+  ok(cdb.w == Co.W - Co.STEP and Co.frame.sw.wid.value:GetText() == (Co.W - Co.STEP) .. " px", "width -: narrower, the number says so")
+  for _ = 1, 40 do Co.frame.sw.wid.minus:GetScript("OnClick")(Co.frame.sw.wid.minus) end
+  ok(cdb.w == Co.W_MIN, "never narrower than the floor")
+  Co.frame.sw.card:GetScript("OnClick")(Co.frame.sw.card)
+  ok(cdb.card == false and Co.frame.sw.card.value:GetText() == "OFF", "the card switch: off")
+  local nf = #cdb.fights
+  Co.frame.sw.reset:GetScript("OnClick")(Co.frame.sw.reset)
+  ok(cdb.w == nil and cdb.h == nil and cdb.card == nil and #cdb.fights == nf and Co.frame.h == Co.H, "RESET: the look back, the fights kept")
+  Co.ToggleSet(false)
+  -- off: nothing recorded
+  R:SetEnabled("combo", false)
+  Co.events:GetScript("OnEvent")(Co.events, "PLAYER_REGEN_DISABLED")
+  ok(Co.cur == nil, "the tool off: nothing recorded")
+  R:Get("combo"):OnSlash(cdb, "forget")
+  ok(#cdb.fights == 0, "/bist combo forget: every fight gone")
+  -- ARN'S FIRST TRY ("had a fight nothing"): the list opened with the tool off - opening it now turns recording on
+  ok(not R:Enabled("combo"), "(the tool off)")
+  Co.Toggle(false)
+  R:Get("combo"):OnSlash(cdb, "")
+  ok(R:Enabled("combo") and Co.IsOpen(), "/bist combo with the tool off: recording on, the list open")
+  sid = 13
+  Co.Pull() Co.FightOver() W.runAfters(Co.READ_WAIT + 0.1)
+  ok(Co.lastWhy and Co.lastWhy:find("kept fight 13", 1, true), "/bist combo why: says the last fight was kept", Co.lastWhy)
+  Co.Pull() Co.FightOver() W.runAfters(Co.READ_WAIT + 0.1)
+  ok(Co.lastWhy:find("no new fight", 1, true), "and why one was not (no new fight in the meter)", Co.lastWhy)
+  _G.C_DamageMeter.GetAvailableCombatSessions = function() return { { sessionID = 20, name = "New" }, { sessionID = 14, name = "Old" } } end
+  Co.Pull() Co.FightOver() W.runAfters(Co.READ_WAIT + 0.1)
+  ok(cdb.lastSid == 20, "the newest fight is the highest id, whatever the list's order")
+  -- THE LIVE PROBE (Arn: "a scrolling proc text ... during combat"): armed for one fight, the meter read while you fight
+  do
+    local amt = 100
+    _G.C_DamageMeter.GetCombatSessionSourceFromType = function() return { combatSpells = { { spellID = 25584, totalAmount = amt } } } end
+    local hadEnum = _G.Enum
+    _G.Enum = _G.Enum or {}
+    local keepEnum = { _G.Enum.DamageMeterSessionType, _G.Enum.DamageMeterType }
+    _G.Enum.DamageMeterSessionType = { Current = 1 }
+    _G.Enum.DamageMeterType = { DamageDone = 0 }
+    R:Get("combo"):OnSlash(cdb, "live")
+    Co.events:GetScript("OnEvent")(Co.events, "PLAYER_REGEN_DISABLED")
+    amt = 250
+    for _ = 1, 3 do W.tick() end
+    amt = 400
+    W.tick()
+    Co.events:GetScript("OnEvent")(Co.events, "PLAYER_REGEN_ENABLED")
+    local all = table.concat(Co.liveLines or {}, " | ")
+    ok(all:find("Windfury Attack (25584): total plain", 1, true) and all:find("moved 2 times", 1, true) and Co.live == nil,
+       "the live probe: reads the meter through one fight, says whether Windfury's total moved, then disarms", all)
+    _G.Enum.DamageMeterSessionType, _G.Enum.DamageMeterType = keepEnum[1], keepEnum[2]
+    _G.Enum = hadEnum
+  end
+  -- ONLY THE TIME YOU SWING (Arn: "sometimes these mobs run away and it hurts a dps number")
+  do
+    local keepCS2, keepCID = _G.C_Spell.IsSpellInRange, _G.CheckInteractDistance
+    local reach = true
+    _G.C_Spell.IsSpellInRange = function() return reach end
+    W.units = W.units or {}
+    local keepUE = _G.UnitExists
+    _G.UnitExists = function(u) if u == "target" then return true end return keepUE and keepUE(u) end
+    sid, dur, total = 30, 20, 2000
+    _G.C_DamageMeter.GetAvailableCombatSessions = function() return { { sessionID = sid, name = "Runner", durationSeconds = dur } } end
+    Co.Pull()
+    Co.events:GetScript("OnEvent")(Co.events, "PLAYER_ENTER_COMBAT")
+    for _ = 1, 40 do W.tick() end                      -- 10 s swinging in reach
+    reach = false
+    for _ = 1, 40 do W.tick() end                      -- 10 s: it ran away
+    Co.FightOver() W.runAfters(Co.READ_WAIT + 0.1)
+    local r = cdb.fights[#cdb.fights]
+    ok(r and math.abs((r.active or 0) - 10) < 0.01 and r.how:find("swinging in reach", 1, true) and math.floor(cdb.fights[#cdb.fights].dmg / Co.Time(r) + 0.5) == 200,
+       "a 20 s fight, the mob fled for 10: dps over the 10 s you swung - 200, not 100", r and r.active)
+    ok(Co.card.dps:GetText() == "200 dps" and Co.card.where:GetText():find("10 of 20 s swinging", 1, true), "the card: 200 dps, 10 of 20 s swinging", Co.card.where:GetText())
+    -- auto-attack never on (a caster): the whole fight
+    sid = 31
+    Co.Pull()
+    for _ = 1, 40 do W.tick() end
+    Co.FightOver() W.runAfters(Co.READ_WAIT + 0.1)
+    r = cdb.fights[#cdb.fights]
+    ok(r and r.active == nil and r.how == "the whole fight" and Co.Time(r) == 20, "never swinging: the whole fight counts")
+    -- THE HONEST REACH (Arn: "some of those were not in range and it said I was"): a melee spell you know first,
+    -- the 10 yd duel distance only last
+    local keepGSI = _G.C_Spell.GetSpellInfo
+    _G.C_Spell.GetSpellInfo = function(n) if n == "Stormstrike" then return { spellID = 17364 } end return nil end
+    _G.C_Spell.IsSpellInRange = function(sp) if sp == "Stormstrike" then return false end return true end
+    _G.CheckInteractDistance = function() return true end
+    ok(Co.InReach() == false and Co.reachHow == "Stormstrike", "Stormstrike known: its melee range decides (out), not the 10 yd check (in)")
+    _G.C_Spell.GetSpellInfo = function() return nil end
+    _G.C_Spell.IsSpellInRange = function() return nil end
+    ok(Co.InReach() == true and Co.reachHow:find("10 yd", 1, true), "nothing else answers: the 10 yd check, and it says so")
+    ok(Co.ReachProbe():find("interact3=true", 1, true), "/bist combo reach: every check's answer")
+    _G.C_Spell.GetSpellInfo = keepGSI
+    _G.C_Spell.IsSpellInRange, _G.CheckInteractDistance, _G.UnitExists = keepCS2, keepCID, keepUE
+  end
+  -- THE PROC TEXT (Arn: "can we just see when we got 2 melee hits back to back and 3"): hits on your target in one instant
+  do
+    Co.Pull()
+    local fire = Co.events:GetScript("OnEvent")
+    local function hit(action, school) fire(Co.events, "UNIT_COMBAT", "target", action, "", 100, school or 1) end
+    hit("WOUND") W.runAfters(0.5)                                        -- a plain swing: nothing
+    ok(not (Co.scrollHost and Co.scrollHost:IsShown()), "one swing: no word")
+    hit("WOUND") hit("WOUND") W.runAfters(0.5)
+    ok(Co.scrollHost and Co.scrollHost:IsShown() and Co.scrollHost.pool[1]:GetText() == "+1 extra hit", "two hits at once: +1 extra hit (the totem's)")
+    hit("WOUND") hit("WOUND") hit("MISS") W.runAfters(0.5)
+    local said = {}
+    for _, w in ipairs(Co.scrollHost.pool) do if w.left and w.left > 0 then said[#said + 1] = w:GetText() end end
+    ok(table.concat(said, "|"):find("+2 extra hits", 1, true), "three at once (a miss counts as a swing): +2 extra hits (the weapon's)", table.concat(said, "|"))
+    hit("WOUND") hit("WOUND", 4) W.runAfters(0.5)
+    said = {}
+    for _, w in ipairs(Co.scrollHost.pool) do if w.left and w.left > 0 then said[#said + 1] = w:GetText() end end
+    ok(table.concat(said, "|"):find("Flametongue", 1, true), "a fire hit with the swing: Flametongue")
+    fire(Co.events, "UNIT_COMBAT", "nameplate1", "WOUND", "", 100, 1)
+    ok(Co.cur.burst and Co.cur.burst.swings == 1, "the same mob as a nameplate: never counted twice (target only)")
+    Co.scrollHost:GetScript("OnUpdate")(Co.scrollHost, 5)
+    ok(not Co.scrollHost:IsShown(), "the words rise, fade and go")
+    ok(Co.cur.procs.extra1 == 1 and Co.cur.procs.extra2 == 1 and Co.cur.procs.fire == 1, "the fight counts its procs")
+    -- A HIDDEN ACTION WORD (Arn: "still not seeing the live procs"): counted as a swing, never dropped
+    local hidden = function() return W.secret and W.secret() or setmetatable({}, { __secret = true }) end
+    local keepSec = _G.issecretvalue
+    local S = {}
+    _G.issecretvalue = function(v) return v == S or (keepSec and keepSec(v)) or false end
+    fire(Co.events, "UNIT_COMBAT", "target", S, "", 100, S)
+    fire(Co.events, "UNIT_COMBAT", "target", S, "", 100, S)
+    W.runAfters(0.5)
+    ok(Co.cur.procs.extra1 == 2, "two hidden hits at once: still +1 extra hit")
+    _G.issecretvalue = keepSec
+    Co.FightOver()
+    W.runAfters(Co.READ_WAIT + 0.1)                    -- (that fight's read done before the next one's meter is set up)
+    ok(Co.HitLine(Co.lastHits):find("hidden 2", 1, true) and Co.HitLine(Co.lastHits):find("hits heard", 1, true),
+       "/bist combo why: what the game sent (hits, plain/hidden, schools, gaps)", Co.HitLine(Co.lastHits))
+    -- THE SWING CADENCE (Arn: "as long as I'm in combat and my melee is not in cadence it's considered out of range")
+    do
+      local keepAS = _G.UnitAttackSpeed
+      _G.UnitAttackSpeed = function() return 2.0, nil end
+      sid, dur, total = 40, 24, 2480
+      _G.C_DamageMeter.GetAvailableCombatSessions = function() return { { sessionID = sid, name = "Scout", durationSeconds = dur } } end
+      Co.Pull()
+      local f2 = Co.events:GetScript("OnEvent")
+      local function swing() f2(Co.events, "UNIT_COMBAT", "target", "WOUND", "", 100, 1) end
+      swing() W.runAfters(2) swing() W.runAfters(2) swing() W.runAfters(2) swing()   -- 4 swings on a 2 s beat: 6 s
+      W.runAfters(10)                                                              -- it ran away for 10 s
+      swing() W.runAfters(2) swing() W.runAfters(1)                                 -- back: 2 more
+      Co.FightOver() W.runAfters(Co.READ_WAIT + 0.1)
+      local r = cdb.fights[#cdb.fights]
+      ok(r and r.how:find("swing cadence", 1, true) and math.abs(r.active - 12.5) < 0.01,
+         "6 swings, a 10 s flee in the middle: active = the beats (6 s + 2.5 s capped gap + 2 s) + one swing = 12.5 s, not 24", r and r.active)
+      ok(math.floor(r.dmg / Co.Time(r) + 0.5) == 198, "dps over that time", math.floor(r.dmg / Co.Time(r) + 0.5))
+      _G.UnitAttackSpeed = keepAS
+    end
+  end
+  R:SetEnabled("combo", false)
+  cdb.fights = {}
+  Co.Toggle(false)
+  _G.GetTotemInfo = keepTI
+  if keepCS then keepCS.GetSpellName = keepSN end
+  _G.C_Spell = keepCS
+  _G.C_DamageMeter, _G.GetWeaponEnchantInfo = keepDM, keepWE
 end
 
 -- leaked globals
@@ -6578,7 +6898,7 @@ do
       if tostring(l):find("^title:") then titles = titles + 1 end
     end
     ok(dividers == 1 and titles == 1 and f.lines[2]:find("BiS", 1, true), "one BiS section: one divider, one title", table.concat(f.lines, " | "))
-    ok(f.lines[#f.lines] == "Add to party list" and #f.lines == 5, "pal, rival (no faction seen: both) and the party line, together under it", table.concat(f.lines, " | "))
+    ok(f.lines[#f.lines] == "Add to party list" and #f.lines == 6, "pal, griefer, rival (no faction seen: both) and the party line, together under it", table.concat(f.lines, " | "))
     f["fn" .. #f.lines]()
     ok(P.Has(pdb, "Darthsidiouz Sithlord"), "a friend goes on the list, surname and all")
     sent.invite, sent.full, sent.raid, P.out = {}, {}, 0, {}
