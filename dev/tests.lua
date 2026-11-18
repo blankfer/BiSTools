@@ -5636,6 +5636,19 @@ do
        "a long combo: the card grows past it and the dps; the procs split WF / FT", cf:GetWidth() .. " " .. cf.place:GetText())
     cf:Hide()
   end
+  -- NO WINDFURY, NO WINDFURY PROC (Arn: "I don't have Windfury but it's counting ... like I have Windfury")
+  do
+    local cur = { imbue = "Rockbiter Weapon", totems = { ["Strength of Earth Totem"] = true } }
+    Co.CloseBurst(cur, { swings = 3, fire = 2, at = 50 })
+    ok(cur.procs.extra1 + cur.procs.extra2 + cur.procs.more == 0 and cur.procs.fire == 0,
+       "no Windfury and no Flametongue up: three hits at once count nothing (someone else's)")
+    cur = { imbue = "Flametongue Weapon", totems = { ["Flametongue Totem"] = true } }
+    Co.CloseBurst(cur, { swings = 1, fire = 3, at = 50 })
+    ok(cur.procs.fire == 1, "the Flametongue imbue and totem: a fire proc (at most two fire hits counted, one per source)")
+    cur = { imbue = "Flametongue Weapon", totems = {}, wfAura = true }
+    Co.CloseBurst(cur, { swings = 2, fire = 1, at = 50 })
+    ok(cur.procs.extra1 == 1 and cur.procs.fire == 1, "a party member's Windfury Totem on you: its +1 counts")
+  end
   -- THE BREAKDOWN (Arn: "total 5 procs - break it down: 4 flame, 1 wf imbue")
   do
     local rows = Co.TapeBreakdown({ procs = { extra1 = 0, extra2 = 1, more = 0, fire = 4 }, totems = {} })
@@ -5662,13 +5675,15 @@ do
     local keepAS0 = _G.UnitAttackSpeed
     _G.UnitAttackSpeed = function() return 1.2, nil end         -- (a 1.2 s weapon: these hits come a second apart)
     Co.Pull()
+    Co.cur.nowImbue = "Windfury Weapon"                          -- (both Windfurys and the Flametongue Totem up: every word can print)
+    Co.cur.nowTot["Windfury Totem"], Co.cur.nowTot["Flametongue Totem"] = true, true
     local fire = Co.events:GetScript("OnEvent")
     local function hit(action, school) fire(Co.events, "UNIT_COMBAT", "target", action, "", 100, school or 1) end
     hit("WOUND") W.runAfters(1)                                          -- a plain swing: nothing
     ok(not (Co.tape and Co.tape:IsShown()), "one swing: nothing printed")
     hit("WOUND") W.runAfters(0.4) hit("WOUND") W.runAfters(1)                  -- the extra hit a batch later (Arn's gaps: 0.3-0.6 s)
     local function last() local rows = Co.tape and Co.tape.rows or {} return rows[#rows] and rows[#rows]:GetText() or "" end
-    local WFI, FTI = "Spell_Nature_Cyclone", "Spell_Fire_FlameTounge"
+    local WFI, FTI = "Spell_Nature_Windfury", "Spell_Nature_GuardianWard"   -- (a +1 is the totem's; the Flametongue Totem's fire)
     ok(Co.tape and Co.tape:IsShown() and last():find(WFI, 1, true) and last():find(" +1", 1, true) and last():find("^%d+:%d%d"),
        "two hits a batch apart: the receipt prints Windfury's icon +1 at the bottom, with the fight's clock (Arn: a receipt printer, icons)", last())
     hit("WOUND") hit("WOUND") hit("MISS") W.runAfters(1)
@@ -5733,6 +5748,7 @@ do
       local keepAS = _G.UnitAttackSpeed
       _G.UnitAttackSpeed = function() return 2.0, nil end
       Co.Pull()
+      Co.cur.nowTot["Windfury Totem"] = true
       local f3 = Co.events:GetScript("OnEvent")
       local function h() f3(Co.events, "UNIT_COMBAT", "target", "WOUND", "", 100, 1) end
       h() W.runAfters(0.3) h() W.runAfters(0.6)                   -- your swing + an extra hit: +1

@@ -368,12 +368,20 @@ function C.TargetGap()
   if mob <= 0 then return 3, true end
   return mob - me
 end
+--- A buff on you by name (a party member's totem), plain answers only.
+function C.AuraUp(name)
+  if not (C_UnitAuras and C_UnitAuras.GetAuraDataBySpellName) then return false end
+  local ok, a = pcall(C_UnitAuras.GetAuraDataBySpellName, "player", name, "HELPFUL")
+  if not ok or a == nil or (issecretvalue and issecretvalue(a)) then return false end
+  return type(a) == "table"
+end
 function C.Pull()
   local tot = C.ScanTotems({})
   local imbue = C.ImbueNow()
   C.cur = { imbue = imbue, totems = copySet(tot), active = 0, swing = C.Swinging(), start = now(),
             nowImbue = imbue, nowTot = tot, segs = { { imbue = imbue, tot = copySet(tot), at = now() } } }
   C.cur.gap, C.cur.skull = C.TargetGap()
+  C.cur.wfAura, C.cur.ftAura = C.AuraUp("Windfury Totem"), C.AuraUp("Flametongue Totem")   -- (a party member's totems)
   C.TapeClear()
   if C.activeTicker and C.activeTicker.Cancel then C.activeTicker:Cancel() end
   if C_Timer and C_Timer.NewTicker then C.activeTicker = C_Timer.NewTicker(C.ACTIVE_EVERY, C.ActiveTick) end
@@ -1495,7 +1503,17 @@ function C.CloseBurst(cur, b)
   -- Totem down this fight, any extra swing is the weapon's: +2. With both, the count decides as before.
   local im = cur.nowImbue or cur.imbue
   local weapon = type(im) == "string" and im:find("Windfury", 1, true) and true or false
-  local totem = (cur.nowTot or cur.totems or {})["Windfury Totem"] and true or false
+  local tot = cur.nowTot or cur.totems or {}
+  local totem = (tot["Windfury Totem"] or cur.wfAura) and true or false
+  -- NO WINDFURY, NO WINDFURY PROC (17 Nov 2026, Arn's tape: "I don't have Windfury but it's counting ... like I have
+  -- Windfury" - and the meter agreed none were his): two hits in one moment with no Windfury up (your imbue, your totem,
+  -- or a party member's Windfury Totem buff on you - cur.wfAura) were someone else's - nothing counted. Flametongue the
+  -- same: no more fire hits counted on a swing than Flametongue sources you have up (the imbue, the totem: Forever stacks
+  -- them, so two can be real).
+  if not (weapon or totem) then extra = 0 end
+  local ftSources = ((type(im) == "string" and im:find("Flametongue", 1, true)) and 1 or 0)
+    + ((tot["Flametongue Totem"] or cur.ftAura) and 1 or 0)
+  local fireN = math.min(b.fire, ftSources)
   if extra == 1 and weapon and not totem then extra = 2 end
   -- ICONS ON THE TAPE (17 Nov 2026, Arn: "on the receipt we can actually save so much space by just using icons"): one line
   -- a swing - the Windfury that procced as its icon and +N, Flametongue's icon and +N beside it (the totem's when one
@@ -1505,10 +1523,10 @@ function C.CloseBurst(cur, b)
   elseif extra == 2 then cur.procs.extra2 = cur.procs.extra2 + 1 words[#words + 1] = C.Ico("Windfury Weapon", "WF") .. " +2"
   elseif extra > 2 then cur.procs.more = cur.procs.more + 1 words[#words + 1] = C.Ico("Windfury Weapon", "WF") .. " +" .. extra end
   local fireOnly = false
-  if b.fire > 0 and b.swings > 0 then
+  if fireN > 0 and b.swings > 0 then
     cur.procs.fire = cur.procs.fire + 1
     local ft = (cur.nowTot or cur.totems or {})["Flametongue Totem"] and "Flametongue Totem" or "Flametongue Weapon"
-    words[#words + 1] = C.Ico(ft, "FT") .. " +" .. b.fire
+    words[#words + 1] = C.Ico(ft, "FT") .. " +" .. fireN
     fireOnly = #words == 1
   end
   if #words > 0 and db().scroll ~= false then C.Scroll(table.concat(words, "    "), fireOnly) end
