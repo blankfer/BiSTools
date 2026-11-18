@@ -291,7 +291,7 @@ end
 function C.FightOver()
   local cur = C.cur
   C.cur = nil
-  if cur then cur.endAt = now() C.lastHits = cur.hitStats C.TapeEnd(cur) end
+  if cur then cur.endAt = now() C.lastHits, C.lastForeign = cur.hitStats, cur.foreign C.TapeEnd(cur) end
   if C.activeTicker and C.activeTicker.Cancel then C.activeTicker:Cancel() end
   C.activeTicker = nil
   if not cur or not (C_Timer and C_Timer.After) then return end
@@ -374,11 +374,27 @@ function C.Close(cur)
   while #d.fights > C.KEEP do table.remove(d.fights, 1) end
   C.lastWhy = ("kept fight %d: %s, %d s (%s %s), %d dps"):format(sid, rec.combo, math.floor(dur + 0.5),
     active and math.floor(active + 0.5) .. " s" or "-", rec.how, math.floor(dmg / C.Time(rec) + 0.5))
+  rec.foreign = cur.foreign
+  C.MeterCheck(rec)
   if d.card ~= false then C.ShowCard(rec) end
   if C.IsOpen() then C.Paint() end
   return rec
 end
 
+--- After the fight the meter is plain: no Windfury in YOUR damage but Windfury procs on the tape = they were someone
+--- else's swings landing on your clock. Said on the tape while it is still up.
+function C.MeterCheck(rec)
+  local pr = rec.procs or {}
+  local wfProcs = (pr.extra1 or 0) + (pr.extra2 or 0) + (pr.more or 0)
+  if (rec.wf or 0) > 0 or wfProcs == 0 then return false end
+  rec.notMine = true
+  local t = C.tape
+  if t and t:IsShown() and db().scroll ~= false then
+    C.TapePrint("METER: NO WINDFURY OF YOURS", true)
+    C.TapePrint("THOSE WERE SOMEONE ELSE'S")
+  end
+  return true
+end
 --- A fight's biggest spells as shares, at most C.TOP_SPELLS (kept small in the save). (17 Nov, Arn: "they let you stack
 --- totems and imbue now" - "totem is 1 extra hit, imbue is 2": Windfury Weapon and Windfury Totem both proc on Forever
 --- since the 11-12 Nov hotfix; if the game names their hits apart, the list shows each one's share.)
@@ -971,9 +987,36 @@ function C.Beat(cur, at)
   if cur.lastBeat then cur.cadence = (cur.cadence or 0) + math.min(at - cur.lastBeat, sp * C.CADENCE) end
   cur.lastBeat, cur.lastSpeed = at, sp
 end
+--[[ ONLY YOUR OWN SWINGS (17 Nov 2026, Arn: "I think the tape is reading other shaman hits"; his save: 30 s fights with 29
+  "swings", 20 Windfury procs - and the meter after them said none of his damage was Windfury). UNIT_COMBAT says what your
+  target took, never from whom, so a burst is yours only if it lands on YOUR swing clock: at least C.OWN_K x your weapon's
+  speed after your last one (each hand its own clock when you hold two). Anything sooner is someone else's - no proc, no
+  beat - counted in cur.foreign for /bist combo why. In a group a stranger's swing can still land on your clock now and
+  then; after the fight the meter checks (C.MeterCheck). ]]
+C.OWN_K = 0.75
+function C.Speeds()
+  if not UnitAttackSpeed then return C.SPEED_GUESS, nil end
+  local ok, mh, oh = pcall(UnitAttackSpeed, "player")
+  if not ok then return C.SPEED_GUESS, nil end
+  mh, oh = plain(mh), plain(oh)
+  if not (type(mh) == "number" and mh > 0.5 and mh < 6) then mh = C.SPEED_GUESS end
+  if not (type(oh) == "number" and oh > 0.5 and oh < 6) then oh = nil end
+  return mh, oh
+end
+--- Is this burst on your swing clock? (and if so the clock moves to it)
+function C.OwnSwing(cur, at)
+  local mh, oh = C.Speeds()
+  if not cur.lastMH or at - cur.lastMH >= mh * C.OWN_K then cur.lastMH = at return true end
+  if oh and (not cur.lastOH or at - cur.lastOH >= oh * C.OWN_K) then cur.lastOH = at return true end
+  return false
+end
 function C.CloseBurst(cur, b)
   if b.done then return end
   b.done = true
+  if b.swings > 0 and not C.OwnSwing(cur, b.at) then
+    cur.foreign = (cur.foreign or 0) + 1
+    return
+  end
   if b.swings > 0 then C.Beat(cur, b.at) end
   cur.procs = cur.procs or { extra1 = 0, extra2 = 0, more = 0, fire = 0 }
   local extra = b.swings - 1
@@ -1282,6 +1325,8 @@ function C.Scroll(text, fireOnly)
   if cur and not cur.headed then                               -- (the receipt's head: what you started with)
     cur.headed = true
     C.TapeSet(cur.nowImbue or cur.imbue, cur.nowTot or cur.totems)
+    local okG, grouped = pcall(function() return IsInGroup and IsInGroup() end)
+    if okG and plain(grouped) == true then C.TapePrint("IN A GROUP: OTHERS MAY SLIP IN") end
   end
   local now = GetTime and GetTime() or 0
   local secs = (cur and cur.start) and math.max(0, now - cur.start) or 0
@@ -1478,6 +1523,7 @@ R:Register({
     if cmd == "why" then
       say("combo: recording %s - last fight: %s", R:Enabled("combo") and "ON" or "OFF (/bist on combo)", C.lastWhy or "none since the reload")
       say("combo: hits - %s", C.HitLine(C.lastHits))
+      say("combo: last fight - %d bursts too soon after your own swing (someone else's) were left out", C.lastForeign or 0)
       say("combo: list %s, comes back after a reload: %s%s", C.IsOpen() and "open" or "closed", db().open and "yes" or "no",
         C.closedBy and (" - last closed by " .. C.closedBy) or "")
       return

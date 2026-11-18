@@ -5568,6 +5568,8 @@ do
   end
   -- THE PROC TEXT (Arn: "can we just see when we got 2 melee hits back to back and 3"): hits on your target in one instant
   do
+    local keepAS0 = _G.UnitAttackSpeed
+    _G.UnitAttackSpeed = function() return 1.2, nil end         -- (a 1.2 s weapon: these hits come a second apart)
     Co.Pull()
     local fire = Co.events:GetScript("OnEvent")
     local function hit(action, school) fire(Co.events, "UNIT_COMBAT", "target", action, "", 100, school or 1) end
@@ -5633,6 +5635,31 @@ do
     W.runAfters(Co.READ_WAIT + 0.1)                    -- (that fight's read done before the next one's meter is set up)
     ok(Co.HitLine(Co.lastHits):find("hidden 2", 1, true) and Co.HitLine(Co.lastHits):find("hits heard", 1, true),
        "/bist combo why: what the game sent (hits, plain/hidden, schools, gaps)", Co.HitLine(Co.lastHits))
+    _G.UnitAttackSpeed = keepAS0
+    -- ONLY YOUR OWN SWINGS (Arn: "I think the tape is reading other shaman hits")
+    do
+      local keepAS = _G.UnitAttackSpeed
+      _G.UnitAttackSpeed = function() return 2.0, nil end
+      Co.Pull()
+      local f3 = Co.events:GetScript("OnEvent")
+      local function h() f3(Co.events, "UNIT_COMBAT", "target", "WOUND", "", 100, 1) end
+      h() W.runAfters(0.3) h() W.runAfters(0.6)                   -- your swing + an extra hit: +1
+      h() W.runAfters(0.3) h() W.runAfters(0.6)                   -- 0.9 s after it, on a 2 s weapon: someone else's
+      ok(Co.cur.procs.extra1 == 1 and Co.cur.foreign == 1 and Co.cur.beats == 1,
+         "a burst 0.9 s after your swing on a 2 s weapon is someone else's: no proc, no beat", Co.cur.procs.extra1, Co.cur.foreign)
+      W.runAfters(0.6) h() W.runAfters(1)                         -- 2.4 s after your swing: yours again
+      ok(Co.cur.beats == 2, "your next swing, on your clock: counted")
+      _G.UnitAttackSpeed = function() return 2.0, 1.4 end         -- two weapons: each hand its own clock
+      local c2 = { procs = { extra1 = 0, extra2 = 0, more = 0, fire = 0 } }
+      Co.CloseBurst(c2, { swings = 1, fire = 0, at = 100 })
+      Co.CloseBurst(c2, { swings = 1, fire = 0, at = 100.7 })
+      Co.CloseBurst(c2, { swings = 1, fire = 0, at = 101.0 })
+      ok(c2.beats == 2 and c2.foreign == 1, "dual wield: the off hand's swing is yours, a third one that soon is not", c2.beats, c2.foreign)
+      Co.FightOver() W.runAfters(Co.READ_WAIT + 0.1)
+      ok(Co.MeterCheck({ wf = 0, procs = { extra1 = 0, extra2 = 3, more = 0, fire = 0 } }) and not Co.MeterCheck({ wf = 0.2, procs = { extra2 = 3 } }),
+         "after the fight: Windfury procs on the tape but none in your damage = the meter says they were someone else's")
+      _G.UnitAttackSpeed = keepAS
+    end
     -- THE SWING CADENCE (Arn: "as long as I'm in combat and my melee is not in cadence it's considered out of range")
     do
       local keepAS = _G.UnitAttackSpeed
