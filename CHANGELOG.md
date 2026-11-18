@@ -1,3 +1,9 @@
+## 1.3.1
+
+- **Proc text is now a receipt tape.** A small strip of paper beside the card prints each proc as it happens (`0:12  +1 EXTRA HIT`), newest at the bottom, the paper rolling up and the oldest lines going off the top. When the fight ends it prints the total, waits a few seconds (longer while your mouse is on it) and fades. Drag it anywhere out of a fight.
+- **Fixed: proc text often stayed blank.** Forever hands out hits in small batches, so the extra swings land up to half a second after the swing. Hits that close now count as one proc.
+- **Fixed: the combo list closed on every reload.** It now comes back if it was open.
+
 ## 1.3.0
 
 - **NEW: which imbue and totems hit hardest.** Turn it on with `/bist combo` (it starts off). After each fight a small card shows your weapon imbue and totems (for example WF · SoE · GoA), your damage per second, and where that combo ranks. Click it for the full list: every combo you've fought with, best first, in columns (imbue, fire, earth, air), with how many fights each is based on. Click a combo to see its last fight spell by spell, so the weapon's Windfury and the totem's show apart now that they stack on Forever.

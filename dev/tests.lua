@@ -5510,22 +5510,25 @@ do
     local fire = Co.events:GetScript("OnEvent")
     local function hit(action, school) fire(Co.events, "UNIT_COMBAT", "target", action, "", 100, school or 1) end
     hit("WOUND") W.runAfters(1)                                          -- a plain swing: nothing
-    ok(not (Co.scrollHost and Co.scrollHost:IsShown()), "one swing: no word")
+    ok(not (Co.tape and Co.tape:IsShown()), "one swing: nothing printed")
     hit("WOUND") W.runAfters(0.4) hit("WOUND") W.runAfters(1)                  -- the extra hit a batch later (Arn's gaps: 0.3-0.6 s)
-    ok(Co.scrollHost and Co.scrollHost:IsShown() and Co.scrollHost.pool[1]:GetText() == "+1 extra hit", "two hits a batch apart: +1 extra hit (the totem's)")
+    local function last() local rows = Co.tape and Co.tape.rows or {} return rows[#rows] and rows[#rows]:GetText() or "" end
+    ok(Co.tape and Co.tape:IsShown() and last():find("+1 EXTRA HIT", 1, true) and last():find("^%d+:%d%d"),
+       "two hits a batch apart: the receipt prints +1 EXTRA HIT at the bottom, with the fight's clock (Arn: a receipt printer)", last())
     hit("WOUND") hit("WOUND") hit("MISS") W.runAfters(1)
-    local said = {}
-    for _, w in ipairs(Co.scrollHost.pool) do if w.left and w.left > 0 then said[#said + 1] = w:GetText() end end
-    ok(table.concat(said, "|"):find("+2 extra hits", 1, true), "three at once (a miss counts as a swing): +2 extra hits (the weapon's)", table.concat(said, "|"))
+    ok(last():find("+2 EXTRA HITS", 1, true) and #Co.tape.rows == 2, "three at once (a miss counts as a swing): +2 EXTRA HITS printed under the first", last())
+    Co.tape:GetScript("OnUpdate")(Co.tape, 1)
+    local y1b, y2 = Co.tape.rows[1].y, Co.tape.rows[2].y
+    ok(type(y1b) == "number" and type(y2) == "number" and y1b > y2, "the older line a line higher: the paper rolls bottom to top")
     hit("WOUND") W.runAfters(0.45) hit("WOUND", 4) W.runAfters(1)            -- (the fire hit a batch later: 0.45 s, Arn's log)
-    said = {}
-    for _, w in ipairs(Co.scrollHost.pool) do if w.left and w.left > 0 then said[#said + 1] = w:GetText() end end
-    ok(table.concat(said, "|"):find("Flametongue", 1, true), "a fire hit with the swing: Flametongue")
+    ok(last():find("FLAMETONGUE", 1, true), "a fire hit with the swing: FLAMETONGUE", last())
     fire(Co.events, "UNIT_COMBAT", "nameplate1", "WOUND", "", 100, 1)
     ok(Co.cur.burst and Co.cur.burst.swings == 1, "the same mob as a nameplate: never counted twice (target only)")
-    Co.scrollHost:GetScript("OnUpdate")(Co.scrollHost, 5)
-    ok(not Co.scrollHost:IsShown(), "the words rise, fade and go")
-    ok(Co.cur.procs.extra1 == 1 and Co.cur.procs.extra2 == 1 and Co.cur.procs.fire == 1, "the fight counts its procs")
+    for _ = 1, 8 do hit("WOUND") W.runAfters(0.4) hit("WOUND") W.runAfters(1) end
+    ok(#Co.tape.rows <= Co.TAPE.lines + 1, "a long fight: the oldest lines roll off the top", #Co.tape.rows)
+    Co.tape:GetScript("OnUpdate")(Co.tape, 5)
+    ok(Co.tape:IsShown(), "in the fight it stays (no fading while it prints)")
+    ok(Co.cur.procs.extra1 == 9 and Co.cur.procs.extra2 == 1 and Co.cur.procs.fire == 1, "the fight counts its procs")
     -- A HIDDEN ACTION WORD (Arn: "still not seeing the live procs"): counted as a swing, never dropped
     local hidden = function() return W.secret and W.secret() or setmetatable({}, { __secret = true }) end
     local keepSec = _G.issecretvalue
@@ -5534,9 +5537,12 @@ do
     fire(Co.events, "UNIT_COMBAT", "target", S, "", 100, S)
     fire(Co.events, "UNIT_COMBAT", "target", S, "", 100, S)
     W.runAfters(1)
-    ok(Co.cur.procs.extra1 == 2, "two hidden hits at once: still +1 extra hit")
+    ok(Co.cur.procs.extra1 == 10, "two hidden hits at once: still +1 extra hit")
     _G.issecretvalue = keepSec
     Co.FightOver()
+    ok(last():find("TOTAL", 1, true) and last():find("PROCS", 1, true), "the fight over: a rule and the TOTAL", last())
+    Co.tape:GetScript("OnUpdate")(Co.tape, 30)
+    ok(not Co.tape:IsShown(), "then it lingers and fades")
     W.runAfters(Co.READ_WAIT + 0.1)                    -- (that fight's read done before the next one's meter is set up)
     ok(Co.HitLine(Co.lastHits):find("hidden 2", 1, true) and Co.HitLine(Co.lastHits):find("hits heard", 1, true),
        "/bist combo why: what the game sent (hits, plain/hidden, schools, gaps)", Co.HitLine(Co.lastHits))

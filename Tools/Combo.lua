@@ -212,7 +212,8 @@ function C.ActiveTick()
   if reach == true then cur.reachKnown = true cur.reachHow = C.reachHow end
 end
 function C.Pull()
-  C.cur = { imbue = C.ImbueNow(), totems = C.ScanTotems({}), active = 0, swing = C.Swinging() }
+  C.cur = { imbue = C.ImbueNow(), totems = C.ScanTotems({}), active = 0, swing = C.Swinging(), start = GetTime and GetTime() or 0 }
+  C.TapeClear()
   if C.activeTicker and C.activeTicker.Cancel then C.activeTicker:Cancel() end
   if C_Timer and C_Timer.NewTicker then C.activeTicker = C_Timer.NewTicker(C.ACTIVE_EVERY, C.ActiveTick) end
 end
@@ -238,7 +239,7 @@ end
 function C.FightOver()
   local cur = C.cur
   C.cur = nil
-  if cur then C.lastHits = cur.hitStats end
+  if cur then C.lastHits = cur.hitStats C.TapeEnd(cur) end
   if C.activeTicker and C.activeTicker.Cancel then C.activeTicker:Cancel() end
   C.activeTicker = nil
   if not cur or not (C_Timer and C_Timer.After) then return end
@@ -812,12 +813,12 @@ end
   (the totem's), 3 = "+2 extra hits" (the weapon's; Arn: "totem is 1 extra hit, imbue is 2"), more = "+N extra hits";
   a fire hit inside a burst with a swing = "Flametongue". Nothing compared but the action word and the school, and only
   when plain; a hidden school counts as a swing. In a group, others hitting your target in the same instant can read as a
-  proc (it is a solo tool first). Each fight counts its procs (rec.procs). The words rise beside the card's spot and fade;
-  db.scroll turns them off. ]]
+  proc (it is a solo tool first). Each fight counts its procs (rec.procs). Each one prints on the receipt tape (below);
+  db.scroll turns it off. ]]
 -- (C.BURST 0.25, 17 Nov - Arn: "still not seeing the live procs": 0.12 s may be shorter than the gap the extra swings
 -- arrive with; a swing is 1.5 s or more, so a quarter second is still one instant. A HIDDEN action word now counts as a
 -- swing (it was dropped); C.hitStats is what the game sent, for /bist combo why.)
-C.BURST, C.SCROLL_FOR, C.SCROLL_RISE, C.SCROLL_MAX = 0.25, 1.6, 46, 8
+C.BURST = 0.25
 -- THE BATCH (17 Nov 2026, Arn's /bist combo why after two fights: 57 hits heard, all plain - but the gaps sat at 0.3-0.6 s
 -- (19), only one under 0.05 s, and fire hits (his Flametongue Totem) about one per swing): Forever hands combat results
 -- out in batches, so the extra hits land a batch after the swing, not in its instant. A burst is now C.BURST_MAX s, or
@@ -903,55 +904,136 @@ function C.CloseBurst(cur, b)
   if b.fire > 0 and b.swings > 0 then cur.procs.fire = cur.procs.fire + 1 words[#words + 1] = "Flametongue" end
   if #words > 0 and db().scroll ~= false then C.Scroll(table.concat(words, "  "), b.fire > 0 and b.swings < 2) end
 end
---- One word rising beside the card's spot.
-function C.Scroll(text, fireOnly)
-  local K = F()
-  local host = C.scrollHost
-  if not host then
-    host = CreateFrame("Frame", "BiSToolsComboScroll", UIParent)
-    host:SetSize(200, 120)
-    host:SetFrameStrata("MEDIUM")
-    host.pool = {}
-    host:SetScript("OnUpdate", function(self, e)
-      local live = 0
-      for _, w in ipairs(self.pool) do
-        if w.left and w.left > 0 then
-          w.left = w.left - (tonumber(e) or 0)
-          local k = 1 - math.max(0, w.left) / C.SCROLL_FOR
-          w:ClearAllPoints()
-          w:SetPoint("BOTTOM", self, "BOTTOM", 0, k * C.SCROLL_RISE + (w.lane or 0) * 14)
-          w:SetAlpha(math.min(1, math.max(0, w.left) / (C.SCROLL_FOR * 0.4)))
-          if w.left <= 0 then w:Hide() else live = live + 1 end
-        end
+--[[ THE RECEIPT TAPE (17 Nov 2026, Arn: "make it like a receipt calculator printer, it scrolling from bottom to top"): a
+  small strip of paper beside the card's spot. Each proc prints a line at the bottom - the fight's clock, then the words
+  ("0:12  +1 EXTRA HIT") - and the paper rolls up a line, the oldest going off the top. When the fight ends it prints a
+  rule and the total ("TOTAL  7 PROCS"), lingers C.TAPE.linger s (held while the mouse is on it) and fades. Out of a
+  fight it drags anywhere (db.tapePos). Nothing ticks while it is away. ]]
+C.TAPE = { w = 170, lines = 7, lh = 15, roll = 0.15, linger = 8, fade = 1.5, pad = 5 }
+C.PAPER, C.INK, C.INK_FIRE = { 0.95, 0.94, 0.88 }, { 0.13, 0.12, 0.11 }, { 0.72, 0.22, 0.10 }
+local function tapePlace(t)
+  t:ClearAllPoints()
+  local p = db().tapePos
+  if type(p) == "table" and p[1] then t:SetPoint(p[1], UIParent, p[2] or p[1], p[3] or 0, p[4] or 0) return end
+  local cp = db().cardPos
+  if type(cp) == "table" and cp[1] then t:SetPoint("BOTTOM", UIParent, cp[2] or cp[1], cp[3] or 0, (cp[4] or 0) + 4)
+  else t:SetPoint("BOTTOM", UIParent, "TOP", 0, -170 + 4) end
+end
+function C.Tape()
+  if C.tape then return C.tape end
+  local T = C.TAPE
+  local t = CreateFrame("Frame", "BiSToolsComboTape", UIParent)
+  t:SetSize(T.w, T.lines * T.lh + 2 * T.pad)
+  t:SetFrameStrata("MEDIUM")
+  if t.SetClipsChildren then t:SetClipsChildren(true) end    -- (the paper's top edge cuts the oldest line off)
+  t:EnableMouse(true)
+  t:SetMovable(true)
+  t:SetClampedToScreen(true)
+  t:RegisterForDrag("LeftButton")
+  t:SetScript("OnDragStart", function(self)
+    if InCombatLockdown and InCombatLockdown() then return end
+    self:StartMoving() self.moving = true
+  end)
+  local function stop(self)
+    if not self.moving then return end
+    self.moving = nil
+    self:StopMovingOrSizing()
+    local ok, pt, _, rp, x, y = pcall(self.GetPoint, self)
+    if ok and pt then db().tapePos = { pt, rp, x, y } end
+  end
+  t:SetScript("OnDragStop", stop)
+  t:SetScript("OnHide", stop)
+  t:SetScript("OnEnter", function(self) self.hold = true self:SetAlpha(1) end)
+  t:SetScript("OnLeave", function(self) self.hold = nil end)
+  t.paper = t:CreateTexture(nil, "BACKGROUND")
+  t.paper:SetAllPoints(t)
+  t.paper:SetColorTexture(C.PAPER[1], C.PAPER[2], C.PAPER[3], 0.97)
+  t.edge = t:CreateTexture(nil, "BORDER")                       -- the printer's lip at the bottom, where the paper comes out
+  t.edge:SetPoint("BOTTOMLEFT") t.edge:SetPoint("BOTTOMRIGHT") t.edge:SetHeight(2)
+  t.edge:SetColorTexture(0.25, 0.24, 0.22, 1)
+  t.rows, t.spare, t.shift = {}, {}, 0
+  t:SetScript("OnUpdate", function(self, e)
+    e = tonumber(e) or 0
+    if self.shift > 0 then
+      self.shift = math.max(0, self.shift - e * (T.lh / T.roll))
+      C.TapeLay(self)
+    end
+    if self.left then
+      if self.hold then self.left = T.linger
+      else
+        self.left = self.left - e
+        if self.left <= 0 then self:Hide() self.left = nil return end
+        if self.left < T.fade then self:SetAlpha(self.left / T.fade) end
       end
-      if live == 0 then self:Hide() end
-    end)
-    C.scrollHost = host
+    end
+  end)
+  t:Hide()
+  tapePlace(t)
+  C.tape = t
+  return t
+end
+--- Every printed line in its place: the newest at the bottom, each older one a line up (plus the roll still running).
+function C.TapeLay(t)
+  local T = C.TAPE
+  local n = #t.rows
+  for i, r in ipairs(t.rows) do
+    r:ClearAllPoints()
+    r.y = T.pad + (n - i) * T.lh - t.shift
+    r:SetPoint("BOTTOMLEFT", t, "BOTTOMLEFT", T.pad + 2, r.y)
   end
-  host:ClearAllPoints()
-  if C.card and C.card:GetPoint() then host:SetPoint("BOTTOM", C.card, "TOP", 0, 4)
-  else
-    local p = db().cardPos
-    if type(p) == "table" and p[1] then host:SetPoint("BOTTOM", UIParent, p[2] or p[1], p[3] or 0, (p[4] or 0) + 4)
-    else host:SetPoint("BOTTOM", UIParent, "TOP", 0, -170 + 4) end
+end
+--- Print one line at the bottom; the paper rolls up a line.
+function C.TapePrint(text, fire)
+  local t = C.Tape()
+  local T = C.TAPE
+  local r = table.remove(t.spare)
+  if not r then
+    r = t:CreateFontString(nil, "OVERLAY")
+    r:SetFont("Fonts\\ARIALN.TTF", 12, "")
+    r:SetWidth(T.w - 2 * T.pad - 4)
+    r:SetJustifyH("LEFT")
   end
-  local w
-  for _, x in ipairs(host.pool) do if not (x.left and x.left > 0) then w = x break end end
-  if not w then
-    if #host.pool >= C.SCROLL_MAX then w = host.pool[1] else w = K.fs(host, "", 14, "gold") host.pool[#host.pool + 1] = w end
+  local col = fire and C.INK_FIRE or C.INK
+  r:SetTextColor(col[1], col[2], col[3], 1)
+  r:SetText(text)
+  r:Show()
+  t.rows[#t.rows + 1] = r
+  while #t.rows > T.lines + 1 do                               -- (one spare line rides off the top as the paper rolls)
+    local old = table.remove(t.rows, 1)
+    old:Hide()
+    t.spare[#t.spare + 1] = old
   end
-  local lanes = {}
-  for _, x in ipairs(host.pool) do if x ~= w and x.left and x.left > C.SCROLL_FOR * 0.6 then lanes[x.lane or 0] = true end end
-  local lane = 0
-  while lanes[lane] do lane = lane + 1 end
-  w.lane = lane
-  w:SetText(text)
-  w:SetTextColor(F().color(fireOnly and "warn" or "gold"))
-  w.left = C.SCROLL_FOR
-  w:SetAlpha(1)
-  w:Show()
-  host:Show()
-  return w
+  t.shift = T.lh
+  t.left = nil                                                 -- (printing: no fading)
+  t:SetAlpha(1)
+  C.TapeLay(t)
+  t:Show()
+  return r
+end
+--- A new fight: a fresh stretch of paper.
+function C.TapeClear()
+  local t = C.tape
+  if not t then return end
+  for _, r in ipairs(t.rows) do r:Hide() t.spare[#t.spare + 1] = r end
+  t.rows, t.shift, t.left = {}, 0, nil
+  t:Hide()
+end
+--- The fight over: a rule and the total, then it lingers and fades.
+function C.TapeEnd(cur)
+  local t = C.tape
+  if not (t and t:IsShown() and cur and cur.procs) then return end
+  local pr = cur.procs
+  local n = (pr.extra1 or 0) + (pr.extra2 or 0) + (pr.more or 0) + (pr.fire or 0)
+  C.TapePrint("- - - - - - - - - - - - -")
+  C.TapePrint(("TOTAL  %d PROC%s"):format(n, n == 1 and "" or "S"))
+  t.left = C.TAPE.linger
+end
+--- One proc line, with the fight's clock.
+function C.Scroll(text, fireOnly)
+  local cur = C.cur
+  local now = GetTime and GetTime() or 0
+  local secs = (cur and cur.start) and math.max(0, now - cur.start) or 0
+  return C.TapePrint(("%d:%02d  %s"):format(math.floor(secs / 60), math.floor(secs % 60), string.upper(text)), fireOnly)
 end
 
 -- ---------------------------------------------------------------- the LIVE probe (/bist combo live)
@@ -1099,7 +1181,7 @@ R:Register({
       help = "A small card after a fight: your imbue + totems, your DPS, and where that combo ranks. Click it for the list.",
       get = function(d) return d.card ~= false end, set = function(d, v) d.card = v and true or false end },
     { kind = "toggle", label = "proc text in a fight",
-      help = "Words rising beside the card while you fight: +1 extra hit (Windfury Totem), +2 extra hits (Windfury Weapon), Flametongue. Read from hits landing in the same instant.",
+      help = "A receipt tape beside the card prints each proc as you fight, newest at the bottom: +1 extra hit (Windfury Totem), +2 extra hits (Windfury Weapon), Flametongue, then the fight's total.",
       get = function(d) return d.scroll ~= false end, set = function(d, v) d.scroll = v and true or false end },
     { kind = "step", label = "shortest fight counted", help = "0 = every fight counts (a long fight weighs more than a short one). Above 0, shorter fights are kept but not ranked.",
       min = 0, max = 60, step = 5, get = function(d) return tonumber(d.min) or C.MIN end,
