@@ -1,3 +1,14 @@
+## 1.4.0
+
+- **The combo list in icons you can click.** Every imbue and totem shows as its spell icon (names on hover). Out of a fight, click an icon to cast it: the imbue goes on your weapon, the totem drops.
+- **TRY NEXT:** the list suggests the combo you have the fewest fights with, from the imbues and totems you know (Flametongue Totem for fire, so every suggestion is a set of 5-minute totems). Its icons are clickable too.
+- **The numbers in boxes:** for the combo you click (or the best one) - Windfury, Flametongue and Frostbrand procs as a share of your own swings, your swings, fights, average and best dps, the mobs' level, and you now (crit, attack power, weapon speed and damage). Hover a box for what it means.
+- **Higher and lower level mobs:** a new "adj" column - each fight's dps as if the mob were your level (Classic's miss, dodge and glancing rules) - and the list ranks by it.
+- **Only your own swings count.** Another player's hits on your target no longer show up as your procs; with no Windfury source up, nothing counts as Windfury; Frostbrand's frost hits are their own proc. After the fight, the damage meter double-checks.
+- **The receipt tape in icons:** one short line a swing (Windfury +2, Flametongue +1), your setup as a line of icons, a "BiS> Procs" footer, a small grip to make it bigger, and one CUT per burst of totem drops.
+- **Resize the list by its corner.**
+- **Fixed:** an error when resizing the list during a fight.
+
 ## 1.3.1
 
 - **Proc text is now a receipt tape.** A small strip of warm paper under the combo card prints each proc as it happens (`0:12  +1 EXTRA HIT`, `FLAMETONGUE`), newest at the bottom, the paper rolling up. It starts with your imbue and totems; when the fight ends it prints the total and what it was made of (`4  FLAMETONGUE`, `1  WF IMBUE`). After 30 seconds with nothing new it tears off and is tossed aside (and once in a while it jams). Scroll back through the whole fight with the mouse wheel; drag it anywhere out of a fight.
