@@ -5444,6 +5444,15 @@ do
     _G.BiSHealingAPI = { version = 3, SetTotems = function(set) sent = set return true end }
     Co.Paint()
     ok(tr.deck:IsShown(), "BiS Healing's deck can take totems: SET DECK on the TRY NEXT strip")
+    tr.deck:GetScript("OnEnter")(tr.deck)
+    local cb2 = _G.BiSToolsComboCast
+    ok(cb2:IsShown() and cb2.attrs.spell == tr.c.imbue and cb2.deckTotems == tr.c.totems,
+       "pointing at SET DECK: the secure button over it casts the suggestion's imbue (Arn: \"it casts the imbue\")", cb2.attrs.spell)
+    sent = nil
+    cb2:GetScript("PostClick")(cb2)
+    ok(sent and sent.fire == "Flametongue Totem", "and the click then sends the totems to the deck")
+    cb2:GetScript("OnLeave")(cb2)
+    sent = nil
     tr.deck:GetScript("OnClick")(tr.deck)
     ok(sent and sent.fire == "Flametongue Totem" and sent.earth == "Strength of Earth Totem" and (sent.air == "Grace of Air Totem" or sent.air == "Windfury Totem") and not sent.water,
        "SET DECK sends the suggestion's totems, each under its element (water left alone)")

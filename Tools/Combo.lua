@@ -117,6 +117,8 @@ function C.CastButton()
   c.hl:SetAllPoints(c)
   c.hl:SetColorTexture(1, 1, 1, 0.25)
   c:SetScript("OnEnter", function(self) C.CastTip(self) end)
+  -- (SET DECK sat under it: the imbue is cast by the click, the totems go to the deck right after - C.AimDeck)
+  c:SetScript("PostClick", function(self) if self.deckTotems then C.SendDeck(self.deckTotems) end end)
   c:SetScript("OnLeave", function(self)
     if GameTooltip then GameTooltip:Hide() end
     C.CastAway()
@@ -134,14 +136,33 @@ function C.CastAway()
   c:Hide()
   c:ClearAllPoints()
   c:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", -200, -200)
-  c.spell = nil
+  c.spell, c.deckTotems = nil, nil
 end
 function C.CastTip(c)
   if not (GameTooltip and c.spell) then return end
   GameTooltip:SetOwner(c, "ANCHOR_RIGHT")
   GameTooltip:AddLine(c.spell, 1, 1, 1)
   GameTooltip:AddLine(c.spell:find("Weapon", 1, true) and "click: put it on your weapon" or "click: drop it", 0.4, 1, 0.4)
+  if c.deckTotems then
+    GameTooltip:AddLine("and these totems onto your BiS Healing deck:", 1, 0.82, 0, true)
+    for _, n in ipairs(c.deckTotems) do GameTooltip:AddLine(n, 0.8, 0.8, 0.8) end
+  end
   GameTooltip:Show()
+end
+--[[ SET DECK CASTS THE IMBUE TOO (18 Nov 2026, Arn: "when they click SET DECK it casts the imbue on that test strip and sends
+  the deck to BiS Healing"): pointing at SET DECK out of a fight puts the secure cast button over it with the suggestion's
+  imbue; the click casts it (the game's own click - an addon may not cast any other way) and PostClick sends the totems.
+  With no imbue to cast (none known, or a fight), SET DECK's own click just sends the totems. ]]
+function C.AimDeck(b, imbue, totems)
+  if fighting() or not (imbue and C.Knows(imbue)) then return false end
+  local c = C.CastButton()
+  c:ClearAllPoints()
+  c:SetAllPoints(b)
+  c:SetAttribute("spell", imbue)
+  c.spell, c.deckTotems = imbue, totems
+  c:Show()
+  C.CastTip(c)
+  return true
 end
 --- The mouse on an icon: out of a fight, the secure cast button over it with its spell; in one, its name.
 function C.IconEnter(b)
@@ -911,9 +932,10 @@ function C.Build()
   tr.deck.label:SetPoint("CENTER")
   tr.deck:SetScript("OnClick", function() if tr.c then C.SendDeck(tr.c.totems) end end)
   tr.deck:SetScript("OnEnter", function(self)
+    if tr.c and C.AimDeck(self, tr.c.imbue, tr.c.totems) then return end   -- (the imbue cast with it)
     if not GameTooltip then return end
     GameTooltip:SetOwner(self, "ANCHOR_TOP")
-    GameTooltip:AddLine("Set these totems on your BiS Healing deck", 1, 0.82, 0)
+    GameTooltip:AddLine("Set these totems on your BiS Healing deck" .. ((tr.c and tr.c.imbue) and " (the imbue: out of a fight)" or ""), 1, 0.82, 0)
     if C.DeckCan() then
       GameTooltip:AddLine("Its totem boxes drop them from your next click. Out of a fight only. Right-click a combo in the list to send that one.", 0.9, 0.9, 0.9, true)
     else
