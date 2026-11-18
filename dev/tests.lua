@@ -2301,8 +2301,8 @@ do
   -- (+ bosses (3), 8 Nov: open in a dungeon, the box button, the list's open button - and its section header)
   -- (threat (2) and pups (2), each with its section header, retired 9 Nov)
   -- (+ alts (1), 14 Nov: the main & alts window's open button - and its section header)
-  -- (+ combo (0), 17 Nov: the imbue + totem probe - its section header only)
-  ok(#opt.rows == 11 + 3 + 5 + 7 + 1 + 8 + 2 + 4 + 7 + 4 + 4 + 5 + 1 + 1 + 1 + 1 + 3 + 2 + 4 + 2 + 1, "one row per section header and per option", #opt.rows)
+  -- (+ combo (3), 17 Nov: the card switch, the shortest fight counted, the list's open button - and its section header)
+  ok(#opt.rows == 11 + 3 + 5 + 7 + 1 + 8 + 2 + 4 + 7 + 4 + 4 + 5 + 1 + 1 + 1 + 1 + 3 + 2 + 4 + 2 + 4, "one row per section header and per option", #opt.rows)
   -- THE BiSTheme STANDARD, 1.43:1 (Arn, 14 Oct): its sections poured into columns, the window that shape
   ok(math.abs(opt.w / opt.h - 1.43) < 0.01 and (opt.columns or 1) >= 2, "options: 1.43:1, in columns", opt.w .. "x" .. opt.h)
   local function find(label) for _, r in ipairs(opt.rows) do if r.name and r.name.text == label then return r end end end
@@ -5261,7 +5261,7 @@ do
   _G.C_DamageMeter = {
     IsDamageMeterAvailable = function() return true end,
     GetAvailableCombatSessions = function() return { { sessionID = 7 } } end,
-    GetCombatSessionFromID = function(id) return { sessionID = id, combatSources = { { sourceGUID = UnitGUID("player"), totalAmount = 900 } } } end,
+    GetCombatSessionFromID = function(id) return { sessionID = id, combatSources = { { sourceGUID = UnitGUID("player"), isLocalPlayer = true, totalAmount = 900 } } } end,
     GetSessionDurationSeconds = function() return 30 end,
     GetCombatSessionSourceFromID = function() return { combatSpells = { { spellID = 25584, totalAmount = 400 } } } end,
   }
@@ -5270,6 +5270,77 @@ do
   ok(all:find("you in it: yes", 1, true) and all:find("spell 1:", 1, true) and all:find("total 400", 1, true),
      "with the meter: the newest fight, you in it, your spells and their totals", all)
   ok(pcall(function() R:Get("combo"):OnSlash(R:DBFor(R:Get("combo")), "probe") end), "/bist combo probe runs")
+  -- THE RECORDER (Arn picked C: a card after each fight, the ranked list behind it)
+  local cdb = R:DBFor(R:Get("combo"))
+  Co.db = cdb
+  cdb.fights, cdb.lastSid = {}, nil
+  R:SetEnabled("combo", true)
+  local keepTI, keepCS = _G.GetTotemInfo, _G.C_Spell
+  local keepSN = keepCS and keepCS.GetSpellName
+  local totems = { [2] = "Strength of Earth Totem III", [3] = "Healing Stream Totem" }
+  _G.GetTotemInfo = function(slot) return true, totems[slot] or "" end
+  _G.C_Spell = _G.C_Spell or {}
+  local names = { [8512] = "Windfury Totem", [25584] = "Windfury Attack", [1] = "Melee" }
+  _G.C_Spell.GetSpellName = function(id) return names[id] end
+  local sid, mySpells, dur, total = 10, nil, 30, 3000
+  _G.C_DamageMeter = {
+    GetAvailableCombatSessions = function() return { { sessionID = sid, name = "Bloodsnout", durationSeconds = dur } } end,
+    GetCombatSessionFromID = function(id) return { durationSeconds = dur, combatSources = { { isLocalPlayer = false, totalAmount = 9 }, { isLocalPlayer = true, totalAmount = total } } } end,
+    GetCombatSessionSourceFromID = function() return { combatSpells = mySpells } end,
+  }
+  mySpells = { { spellID = 1, totalAmount = 2100 }, { spellID = 25584, totalAmount = 900 } }
+  _G.GetWeaponEnchantInfo = function() return true, 1500000, 0, 284 end
+  Co.events:GetScript("OnEvent")(Co.events, "PLAYER_REGEN_DISABLED")
+  ok(Co.cur and Co.cur.imbue == "Windfury Weapon" and Co.cur.totems["Strength of Earth Totem"] and not Co.cur.totems["Healing Stream Totem"],
+     "the pull: Windfury on the weapon, Strength of Earth counted (rank dropped), the healing totem not")
+  Co.events:GetScript("OnEvent")(Co.events, "UNIT_SPELLCAST_SUCCEEDED", "player", "cast-1", 8512)
+  ok(Co.cur.totems["Windfury Totem"], "a totem you drop mid-fight: caught by your own cast's name")
+  Co.events:GetScript("OnEvent")(Co.events, "PLAYER_REGEN_ENABLED")
+  W.runAfters(Co.READ_WAIT + 0.1)
+  local rec = cdb.fights[1]
+  ok(rec and rec.combo == "WF · SoE · WF totem" and rec.dmg == 3000 and rec.dur == 30 and math.abs(rec.wf - 0.3) < 1e-9 and rec.mob == "Bloodsnout",
+     "after the fight: the game's newest fight read once - combo, your damage, Windfury's 30%", rec and rec.combo)
+  ok(Co.card and Co.card:IsShown() and Co.card.dps:GetText() == "100 dps" and Co.card.place:GetText():find("#1 of 1", 1, true),
+     "the card: the combo, 100 dps, #1 of 1", Co.card and Co.card.place:GetText())
+  ok(Co.Close({ totems = {} }) == nil and #cdb.fights == 1, "the same fight never read twice")
+  -- a second combo, better: it goes to the top
+  sid, total, mySpells = 11, 4500, { { spellID = 1, totalAmount = 4500 } }
+  _G.GetWeaponEnchantInfo = function() return true, 1500000, 0, 5 end
+  totems = { [2] = "Strength of Earth Totem" }
+  Co.Pull()
+  Co.FightOver()
+  W.runAfters(Co.READ_WAIT + 0.1)
+  local rank = Co.Rank()
+  ok(#rank == 2 and rank[1].combo == "FT · SoE" and math.floor(rank[1].dps) == 150 and rank[2].combo == "WF · SoE · WF totem",
+     "two combos ranked by damage over time: Flametongue + SoE (150) above", rank[1] and rank[1].combo)
+  -- a short fight: kept, not ranked
+  sid, dur, total = 12, 6, 900
+  Co.Pull() Co.FightOver() W.runAfters(Co.READ_WAIT + 0.1)
+  ok(#cdb.fights == 3 and #Co.Rank() == 2 and Co.card.place:GetText():find("short fight", 1, true), "a 6 s fight: kept, not ranked, the card says so")
+  -- the card fades on its own; the mouse on it holds it
+  Co.card:GetScript("OnEnter")(Co.card)
+  Co.card:GetScript("OnUpdate")(Co.card, 20)
+  ok(Co.card:IsShown(), "the mouse on the card: it stays")
+  Co.card:GetScript("OnLeave")(Co.card)
+  Co.card:GetScript("OnUpdate")(Co.card, 20)
+  ok(not Co.card:IsShown(), "mouse gone: it fades away")
+  -- the list
+  Co.card:GetScript("OnMouseUp")(Co.card)
+  ok(Co.IsOpen() and Co.frame.rows[1].name:GetText() == "FT · SoE" and Co.frame.rows[1].n:GetText() == "1",
+     "a click on the card opens the list, best first")
+  Co.frame.rows[2]:GetScript("OnClick")(Co.frame.rows[2])
+  ok(Co.frame.detail:GetText():find("Bloodsnout", 1, true) and Co.frame.detail:GetText():find("Windfury 30%", 1, true),
+     "a row clicked: its fights, with Windfury's share", Co.frame.detail:GetText())
+  -- off: nothing recorded
+  R:SetEnabled("combo", false)
+  Co.events:GetScript("OnEvent")(Co.events, "PLAYER_REGEN_DISABLED")
+  ok(Co.cur == nil, "the tool off: nothing recorded")
+  R:Get("combo"):OnSlash(cdb, "forget")
+  ok(#cdb.fights == 0, "/bist combo forget: every fight gone")
+  Co.Toggle(false)
+  _G.GetTotemInfo = keepTI
+  if keepCS then keepCS.GetSpellName = keepSN end
+  _G.C_Spell = keepCS
   _G.C_DamageMeter, _G.GetWeaponEnchantInfo = keepDM, keepWE
 end
 

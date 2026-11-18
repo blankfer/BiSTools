@@ -1,30 +1,394 @@
 --[[
   BiSTools / Tools / Combo.lua - THE IMBUE + TOTEM COMBO (17 Nov 2026, Arn: "after fight want to see what imbue and
-  totem combo is best"). Step one is the PROBE (the new-feature rule: what only the game can answer, first):
+  totem combo is best" - picked C of https://claude.ai/artifact/NgaCjSTrXU5HcZ6qqtFWee: a card after each fight, the
+  ranked list behind it).
 
-    /bist combo probe      - after a fight: what an addon can read on Forever
+  THE PROBE first (/bist combo probe, kept), answered live the same day: GetWeaponEnchantInfo is plain (the main hand's
+  enchant id - 284 for Windfury Weapon rank 2); GetTotemInfo answers true, "" with nothing down (a fight's totems still
+  unprobed - so they are ALSO caught by name from your own casts); Blizzard's damage meter (C_DamageMeter) keeps the last
+  30 fights, each {sessionID, name = the mob, durationSeconds}; a fight's sources carry isLocalPlayer, totalAmount,
+  amountPerSecond; YOUR breakdown (GetCombatSessionSourceFromID) carries combatSpells {spellID, totalAmount}. All plain
+  once the fight is over.
 
-  It prints, each value as plain / secret / nil (never compared, never added):
-    - your weapon imbues: GetWeaponEnchantInfo (main hand, off hand - the enchant id says which imbue)
-    - your totems: GetTotemInfo 1-4 (the names)
-    - the game's own damage meter: C_DamageMeter - is it on, which fights it kept, the newest one's sources (you), and
-      YOUR spells in it (Windfury Attack, Flametongue Attack, Stormstrike ...) with their totals
-  The feature (each fight's combo and its damage per second, the best combo per fight length) is built on what this
-  answers - nothing guessed.
+  THE RECORDER (only while the tool is on): at the pull, your imbue and the totems already standing; in the fight, every
+  totem you drop (PLAYER_TOTEM_UPDATE's name, else the name of your own cast); C.READ_WAIT s after the fight, the game's
+  newest fight - if it is a new one - read once: its length, your damage, your Windfury / Flametongue share. One record
+  in db.fights (at most C.KEEP). Only the totems that change damage count toward a combo (C.TOTEMS); the imbue by kind,
+  not rank (Windfury rank 2 and 3 are one Windfury).
+  THE RANKING: fights at least db.min s long (C.MIN 10), grouped by combo, damage over time (a long fight weighs more).
+  THE CARD after each fight (db.card, on with the tool): the combo, your DPS, its place in the ranking; fades after
+  C.CARD_FOR s, holds while the mouse is on it; a click opens THE LIST (/bist combo): every combo, fights, DPS; a click on
+  a row shows its last fights. Nothing ticks while nothing shows.
 ]]
 local _, NS = ...
 local R = NS.Registry
 local C = {}
 NS.Combo = C
 
+C.MIN, C.KEEP, C.READ_WAIT, C.CARD_FOR, C.CARD_FADE = 10, 300, 1.5, 8, 1
+C.W, C.H, C.ROWS, C.ROW = 330, 236, 7, 16
+-- the imbues by enchant id (Classic's numbers; a cast of yours teaches the rest - db.imbueNames)
+C.IMBUE_IDS = {
+  [283] = "Windfury Weapon", [284] = "Windfury Weapon", [525] = "Windfury Weapon", [1669] = "Windfury Weapon",
+  [5] = "Flametongue Weapon", [4] = "Flametongue Weapon", [3] = "Flametongue Weapon", [523] = "Flametongue Weapon",
+  [1665] = "Flametongue Weapon", [1666] = "Flametongue Weapon",
+  [29] = "Rockbiter Weapon", [6] = "Rockbiter Weapon", [1] = "Rockbiter Weapon", [503] = "Rockbiter Weapon",
+  [1663] = "Rockbiter Weapon", [683] = "Rockbiter Weapon", [1664] = "Rockbiter Weapon",
+  [2] = "Frostbrand Weapon", [12] = "Frostbrand Weapon", [524] = "Frostbrand Weapon", [1667] = "Frostbrand Weapon",
+  [1668] = "Frostbrand Weapon",
+}
+C.IMBUE_SHORT = { ["Windfury Weapon"] = "WF", ["Flametongue Weapon"] = "FT", ["Rockbiter Weapon"] = "RB", ["Frostbrand Weapon"] = "FB" }
+-- the totems that change your damage, and their short words (the rest - healing, mana, cleansing - never split a combo)
+C.TOTEMS = {
+  ["Strength of Earth Totem"] = "SoE", ["Grace of Air Totem"] = "GoA", ["Windfury Totem"] = "WF totem",
+  ["Flametongue Totem"] = "FT totem", ["Searing Totem"] = "Searing", ["Magma Totem"] = "Magma", ["Fire Nova Totem"] = "Nova",
+}
+
+local function plain(v)
+  if v == nil then return nil end
+  if issecretvalue and issecretvalue(v) then return nil end
+  return v
+end
+local function say(fmt, ...) NS.Print(fmt, ...) end
+local function F() return NS.Farm end
+local function db() return C.db or {} end
+
+--- A spell's name without its rank ("Strength of Earth Totem III", "... (Rank 3)" -> "Strength of Earth Totem").
+function C.Base(name)
+  if type(name) ~= "string" then return nil end
+  name = name:gsub("%s*%(Rank %d+%)", ""):gsub("%s+Rank %d+$", ""):gsub("%s+[IVX]+$", "")
+  return name
+end
+--- Your main hand's imbue by kind ("Windfury Weapon"), or nil.
+function C.ImbueNow()
+  if not GetWeaponEnchantInfo then return nil end
+  local ok, has, _, _, id = pcall(GetWeaponEnchantInfo)
+  if not ok then return nil end
+  has = plain(has)
+  id = plain(id)
+  if not has or type(id) ~= "number" then return nil end
+  local learned = db().imbueNames and db().imbueNames[id]
+  return learned or C.IMBUE_IDS[id] or ("imbue " .. id)
+end
+--- The damage totems standing now (plain names only), into the set `into`.
+function C.ScanTotems(into)
+  if not GetTotemInfo then return into end
+  for slot = 1, 4 do
+    local ok, have, name = pcall(GetTotemInfo, slot)
+    name = ok and plain(have) and C.Base(plain(name)) or nil
+    if name and name ~= "" and C.TOTEMS[name] then into[name] = true end
+  end
+  return into
+end
+--- A combo's words: the imbue's short word, then the totems' in order ("WF · GoA · SoE").
+function C.Label(imbue, totems)
+  local parts = { (imbue and (C.IMBUE_SHORT[imbue] or imbue)) or "no imbue" }
+  local t = {}
+  for name in pairs(totems or {}) do t[#t + 1] = C.TOTEMS[name] or name end
+  table.sort(t)
+  for _, w in ipairs(t) do parts[#parts + 1] = w end
+  return table.concat(parts, " · ")
+end
+
+-- ---------------------------------------------------------------- the recorder
+function C.Pull()
+  C.cur = { imbue = C.ImbueNow(), totems = C.ScanTotems({}) }
+end
+function C.Cast(spellID)
+  if not (C_Spell and C_Spell.GetSpellName) then return end
+  local ok, name = pcall(C_Spell.GetSpellName, spellID)
+  name = C.Base(ok and plain(name) or nil)
+  if not name then return end
+  if C.cur and C.TOTEMS[name] then C.cur.totems[name] = true end
+  if C.IMBUE_SHORT[name] and C_Timer and C_Timer.After then   -- learn this enchant id's name from your own cast
+    C_Timer.After(0.5, function()
+      if not GetWeaponEnchantInfo then return end
+      local ok2, has, _, _, id = pcall(GetWeaponEnchantInfo)
+      id = ok2 and plain(has) and plain(id)
+      if type(id) == "number" then
+        local d = db()
+        d.imbueNames = d.imbueNames or {}
+        d.imbueNames[id] = name
+      end
+    end)
+  end
+end
+function C.FightOver()
+  local cur = C.cur
+  C.cur = nil
+  if not cur or not (C_Timer and C_Timer.After) then return end
+  C.token = (C.token or 0) + 1
+  local tok = C.token
+  C_Timer.After(C.READ_WAIT, function() if C.token == tok then C.Close(cur) end end)
+end
+--- The game's newest fight, read once: answers the record it kept, or nil.
+function C.Close(cur)
+  local D = C_DamageMeter
+  if not (D and D.GetAvailableCombatSessions) then return nil end
+  local okS, sessions = pcall(D.GetAvailableCombatSessions)
+  if not (okS and type(sessions) == "table" and #sessions > 0) then return nil end
+  local last = sessions[#sessions]
+  local sid = type(last) == "table" and plain(last.sessionID) or nil
+  if not sid or sid == db().lastSid then return nil end
+  local dmgType = (Enum and Enum.DamageMeterType and Enum.DamageMeterType.DamageDone) or 0
+  local ok, s = pcall(D.GetCombatSessionFromID, sid, dmgType)
+  if not (ok and type(s) == "table") then return nil end
+  local mine
+  pcall(function()
+    for _, src in ipairs(s.combatSources or {}) do
+      if plain(src.isLocalPlayer) == true then mine = src break end
+    end
+  end)
+  local dmg = mine and plain(mine.totalAmount)
+  local dur = plain(s.durationSeconds) or plain(last.durationSeconds)
+  if type(dmg) ~= "number" or type(dur) ~= "number" or dur <= 0 then return nil end
+  -- what Windfury and Flametongue added (your breakdown, by the spells' names)
+  local wf, ft = 0, 0
+  local guid = UnitGUID and plain(UnitGUID("player"))
+  local okB, br = pcall(D.GetCombatSessionSourceFromID, sid, dmgType, guid)
+  if okB and type(br) == "table" then
+    pcall(function()
+      for _, sp in ipairs(br.combatSpells or {}) do
+        local id, amt = plain(sp.spellID), plain(sp.totalAmount)
+        local okN, name = false, nil
+        if id and C_Spell and C_Spell.GetSpellName then okN, name = pcall(C_Spell.GetSpellName, id) end
+        name = okN and plain(name) or ""
+        if type(amt) == "number" and type(name) == "string" then
+          if name:find("Windfury", 1, true) then wf = wf + amt elseif name:find("Flametongue", 1, true) then ft = ft + amt end
+        end
+      end
+    end)
+  end
+  local d = db()
+  d.lastSid = sid
+  local totems = {}
+  for n in pairs(cur.totems or {}) do totems[#totems + 1] = n end
+  table.sort(totems)
+  local imbue = cur.imbue or C.ImbueNow()
+  local set = {}
+  for _, n in ipairs(totems) do set[n] = true end
+  local rec = { at = (time and time()) or 0, sid = sid, mob = plain(last.name) or plain(s.name), dur = dur, dmg = dmg,
+                imbue = imbue, totems = totems, combo = C.Label(imbue, set),
+                wf = dmg > 0 and wf / dmg or 0, ft = dmg > 0 and ft / dmg or 0 }
+  d.fights = d.fights or {}
+  d.fights[#d.fights + 1] = rec
+  while #d.fights > C.KEEP do table.remove(d.fights, 1) end
+  if d.card ~= false then C.ShowCard(rec) end
+  if C.IsOpen() then C.Paint() end
+  return rec
+end
+
+-- ---------------------------------------------------------------- the ranking
+function C.Min() return tonumber(db().min) or C.MIN end
+--- Every combo with enough fight in it, best first: { combo, n, dmg, dur, dps }.
+function C.Rank()
+  local by, list = {}, {}
+  for _, f in ipairs(db().fights or {}) do
+    if (f.dur or 0) >= C.Min() then
+      local g = by[f.combo]
+      if not g then g = { combo = f.combo, n = 0, dmg = 0, dur = 0 } by[f.combo] = g list[#list + 1] = g end
+      g.n, g.dmg, g.dur = g.n + 1, g.dmg + f.dmg, g.dur + f.dur
+    end
+  end
+  for _, g in ipairs(list) do g.dps = g.dur > 0 and g.dmg / g.dur or 0 end
+  table.sort(list, function(a, b) return a.dps > b.dps end)
+  return list
+end
+function C.Place(combo)
+  local list = C.Rank()
+  for i, g in ipairs(list) do if g.combo == combo then return i, #list end end
+  return nil, #list
+end
+
+-- ---------------------------------------------------------------- the card
+local function endDrag(f) if f and f.moving then f.moving = nil f:StopMovingOrSizing() end end
+function C.BuildCard()
+  if C.card then return C.card end
+  local K = F()
+  local f = CreateFrame("Frame", "BiSToolsComboCard", UIParent)
+  f:SetSize(250, 58)
+  local p = db().cardPos
+  if type(p) == "table" and p[1] then f:SetPoint(p[1], UIParent, p[2] or p[1], p[3] or 0, p[4] or 0)
+  else f:SetPoint("TOP", UIParent, "TOP", 0, -170) end
+  f:SetFrameStrata("MEDIUM")
+  f:EnableMouse(true)
+  f:SetMovable(true)
+  f:SetClampedToScreen(true)
+  f:RegisterForDrag("LeftButton")
+  f:SetScript("OnDragStart", function(self)
+    if InCombatLockdown and InCombatLockdown() then return end
+    self:StartMoving() self.moving, self.dragged = true, true
+  end)
+  f:SetScript("OnDragStop", function(self)
+    endDrag(self)
+    local ok, pt, _, rp, x, y = pcall(self.GetPoint, self)
+    if ok and pt then db().cardPos = { pt, rp, x, y } end
+  end)
+  f:SetScript("OnHide", endDrag)
+  f:SetScript("OnMouseUp", function(self)
+    if self.dragged then self.dragged = nil return end
+    C.Toggle(true)
+  end)
+  f:SetScript("OnEnter", function(self) self.hold = true self:SetAlpha(1) end)
+  f:SetScript("OnLeave", function(self) self.hold = nil end)
+  K.tex(f, "BACKGROUND", "frame", 0.94)
+  K.border(f, "edge", 1)
+  f.title = K.fs(f, "BiS> combo", 9, "accent")
+  f.title:SetPoint("TOPLEFT", 6, -5)
+  f.where = K.fs(f, "", 9, "muted")
+  f.where:SetPoint("TOPRIGHT", -6, -5)
+  f.combo = K.fs(f, "", 11, "ink")
+  f.combo:SetPoint("LEFT", f, "LEFT", 6, 2)
+  f.dps = K.fs(f, "", 16, "good")
+  f.dps:SetPoint("RIGHT", f, "RIGHT", -6, 2)
+  f.place = K.fs(f, "", 9, "gold")
+  f.place:SetPoint("BOTTOMLEFT", 6, 5)
+  f:SetScript("OnUpdate", function(self, e)
+    if self.hold then self.left = C.CARD_FOR return end
+    self.left = (self.left or C.CARD_FOR) - (tonumber(e) or 0)
+    if self.left <= 0 then self:Hide() return end
+    if self.left < C.CARD_FADE then self:SetAlpha(self.left / C.CARD_FADE) end
+  end)
+  f:Hide()
+  C.card = f
+  return f
+end
+function C.ShowCard(rec)
+  local f = C.BuildCard()
+  f.where:SetText(("%d s%s"):format(math.floor(rec.dur + 0.5), rec.mob and (" · " .. rec.mob) or ""))
+  f.combo:SetText(rec.combo)
+  f.dps:SetText(("%d dps"):format(math.floor(rec.dmg / rec.dur + 0.5)))
+  if rec.dur < C.Min() then
+    f.place:SetText(("short fight - not ranked (under %d s)"):format(C.Min()))
+  else
+    local k, n = C.Place(rec.combo)
+    local wf = rec.wf and rec.wf > 0 and ("  ·  Windfury %d%%"):format(math.floor(rec.wf * 100 + 0.5)) or ""
+    f.place:SetText(("#%d of %d combos · click for the list%s"):format(k or 1, n, wf))
+  end
+  f.left, f.hold = C.CARD_FOR, nil
+  f:SetAlpha(1)
+  f:Show()
+  return f
+end
+
+-- ---------------------------------------------------------------- the list
+function C.Build()
+  if C.frame then return C.frame end
+  local K = F()
+  local f = CreateFrame("Frame", "BiSToolsCombo", UIParent)
+  f:SetSize(C.W, C.H)
+  f:SetScale(1.2)                                   -- (small windows read at 1.2 - the family rule)
+  f:SetPoint("CENTER")
+  f:SetFrameStrata("DIALOG")
+  f:EnableMouse(true)
+  f:SetMovable(true)
+  f:SetClampedToScreen(true)
+  f:RegisterForDrag("LeftButton")
+  f:SetScript("OnDragStart", function(self)
+    if InCombatLockdown and InCombatLockdown() then return end
+    self:StartMoving() self.moving = true
+  end)
+  f:SetScript("OnDragStop", endDrag)
+  f:SetScript("OnHide", endDrag)
+  K.tex(f, "BACKGROUND", "frame", 0.95)
+  K.border(f, "edge", 1)
+  f.title = K.fs(f, "BiS> combo", 10, "accent")
+  f.title:SetPoint("TOPLEFT", 8, -6)
+  f.close = CreateFrame("Button", nil, f)
+  f.close:SetSize(16, 16)
+  f.close:SetPoint("TOPRIGHT", -4, -4)
+  K.tex(f.close, "BACKGROUND", "field", 0.9)
+  f.close.label = K.fs(f.close, "x", 9, "ink")
+  f.close.label:SetPoint("CENTER")
+  f.close:SetScript("OnClick", function() C.Toggle(false) end)
+  local function head(text, x, w, right)
+    local h = K.fs(f, text, 9, "dim")
+    h:SetPoint("TOPLEFT", x, -24)
+    h:SetWidth(w)
+    h:SetJustifyH(right and "RIGHT" or "LEFT")
+    return h
+  end
+  head("imbue · totems", 10, 200) head("fights", 210, 50, true) head("dps", 262, 56, true)
+  f.rows = {}
+  for i = 1, C.ROWS do
+    local r = CreateFrame("Button", nil, f)
+    r:SetSize(C.W - 16, C.ROW)
+    r:SetPoint("TOPLEFT", 8, -38 - (i - 1) * C.ROW)
+    r.lit = K.tex(r, "BACKGROUND", "accent", 0)                 -- rows glow on hover (the family rule): a wash + a bar
+    r.bar = r:CreateTexture(nil, "ARTWORK")
+    r.bar:SetPoint("TOPLEFT") r.bar:SetPoint("BOTTOMLEFT") r.bar:SetWidth(3)
+    do local rr, g, b = K.color("accent") r.bar:SetColorTexture(rr, g, b, 1) end
+    r.bar:SetAlpha(0)
+    r.name = K.fs(r, "", 9, "ink") r.name:SetPoint("LEFT", 4, 0) r.name:SetWidth(196) r.name:SetJustifyH("LEFT")
+    r.n = K.fs(r, "", 9, "muted") r.n:SetPoint("LEFT", 202, 0) r.n:SetWidth(50) r.n:SetJustifyH("RIGHT")
+    r.dps = K.fs(r, "", 9, "good") r.dps:SetPoint("LEFT", 254, 0) r.dps:SetWidth(56) r.dps:SetJustifyH("RIGHT")
+    r:SetScript("OnClick", function(self) if self.g then C.sel = self.g.combo C.Paint() end end)
+    r:SetScript("OnEnter", function(self) self.hover = true C.PaintRow(self) end)
+    r:SetScript("OnLeave", function(self) self.hover = nil C.PaintRow(self) end)
+    f.rows[i] = r
+  end
+  f.detail = K.fs(f, "", 9, "muted")
+  f.detail:SetPoint("TOPLEFT", 10, -42 - C.ROWS * C.ROW)
+  f.detail:SetWidth(C.W - 20)
+  f.detail:SetJustifyH("LEFT")
+  f.foot = K.fs(f, "", 9, "dim")
+  f.foot:SetPoint("BOTTOMLEFT", 8, 7)
+  if type(UISpecialFrames) == "table" then table.insert(UISpecialFrames, "BiSToolsCombo") end   -- Escape closes it
+  f:Hide()
+  C.frame = f
+  return f
+end
+function C.PaintRow(r)
+  local sel = r.g and r.g.combo == C.sel
+  r.lit:SetAlpha(sel and 0.35 or ((r.hover and r.g) and 0.16 or 0))
+  r.bar:SetAlpha((sel or (r.hover and r.g)) and 1 or 0)
+end
+function C.Paint()
+  local f = C.frame
+  if not f then return end
+  local list = C.Rank()
+  for i, r in ipairs(f.rows) do
+    local g = list[i]
+    r.g = g
+    r.name:SetText(g and g.combo or "")
+    r.n:SetText(g and tostring(g.n) or "")
+    r.dps:SetText(g and tostring(math.floor(g.dps + 0.5)) or "")
+    if g and i == 1 then r.name:SetTextColor(F().color("gold")) elseif g then r.name:SetTextColor(F().color("ink")) end
+    C.PaintRow(r)
+  end
+  local lines = {}
+  if C.sel then
+    local n = 0
+    local fights = db().fights or {}
+    for k = #fights, 1, -1 do
+      local fi = fights[k]
+      if fi.combo == C.sel and (fi.dur or 0) >= C.Min() then
+        n = n + 1
+        if n > 4 then break end
+        lines[#lines + 1] = ("%s  %d s  %d dps%s"):format(fi.mob or "?", math.floor(fi.dur + 0.5), math.floor(fi.dmg / fi.dur + 0.5),
+          (fi.wf or 0) > 0 and ("  Windfury %d%%"):format(math.floor(fi.wf * 100 + 0.5)) or
+          ((fi.ft or 0) > 0 and ("  Flametongue %d%%"):format(math.floor(fi.ft * 100 + 0.5)) or ""))
+      end
+    end
+  end
+  f.detail:SetText(#lines > 0 and table.concat(lines, "\n") or (#list > 0 and "click a combo: its last fights" or
+    "no fights yet - fight something with an imbue and totems up"))
+  f.foot:SetText(("%d fights kept  ·  fights under %d s are not counted"):format(#(db().fights or {}), C.Min()))
+end
+function C.IsOpen() return C.frame ~= nil and C.frame:IsShown() end
+function C.Toggle(want)
+  local f = C.Build()
+  if want == nil then want = not f:IsShown() end
+  if want then f:Show() C.Paint() else f:Hide() end
+  return f:IsShown()
+end
+
+-- ---------------------------------------------------------------- the probe (kept: /bist combo probe)
 local function kind(v)
   if v == nil then return "nil" end
   if issecretvalue and issecretvalue(v) then return "SECRET" end
   return tostring(v)
 end
-local function say(fmt, ...) NS.Print(fmt, ...) end
-
---- One table's keys and the kinds of their values, on one line (to learn the shape the game hands back).
 local function shape(t, max)
   if type(t) ~= "table" then return kind(t) end
   local parts, n = {}, 0
@@ -38,22 +402,15 @@ local function shape(t, max)
   if not ok then return "(refused)" end
   return "{" .. table.concat(parts, ", ") .. "}"
 end
-
 function C.Probe()
   local lines = {}
   local function out(fmt, ...) local l = string.format(fmt, ...) lines[#lines + 1] = l say("%s", l) end
-  -- the imbues
   if GetWeaponEnchantInfo then
-    local ok, mh, mhExp, mhCh, mhId, oh, ohExp, ohCh, ohId = pcall(GetWeaponEnchantInfo)
+    local ok, mh, mhExp, mhCh, mhId, oh, _, _, ohId = pcall(GetWeaponEnchantInfo)
     if ok then
       out("imbue: main hand %s (id %s, %s ms left, charges %s) | off hand %s (id %s)", kind(mh), kind(mhId), kind(mhExp), kind(mhCh), kind(oh), kind(ohId))
-    else
-      out("imbue: GetWeaponEnchantInfo refused")
-    end
-  else
-    out("imbue: no GetWeaponEnchantInfo")
-  end
-  -- the totems
+    else out("imbue: GetWeaponEnchantInfo refused") end
+  else out("imbue: no GetWeaponEnchantInfo") end
   if GetTotemInfo then
     local t = {}
     for slot = 1, 4 do
@@ -62,14 +419,12 @@ function C.Probe()
     end
     out("totems: %s", table.concat(t, "  "))
   end
-  -- the game's damage meter
   local D = C_DamageMeter
   if not D then out("damage meter: no C_DamageMeter") return lines end
   local okA, avail = pcall(D.IsDamageMeterAvailable)
   out("damage meter: available %s", okA and kind(avail) or "refused")
   local E = Enum or {}
-  local T = E.DamageMeterType or {}
-  local ST = E.DamageMeterSessionType or {}
+  local T, ST = E.DamageMeterType or {}, E.DamageMeterSessionType or {}
   out("enums: type %s | session %s", shape(T, 10), shape(ST, 6))
   local okS, sessions = pcall(D.GetAvailableCombatSessions)
   out("sessions: %s", okS and (type(sessions) == "table" and ("#" .. #sessions .. " " .. shape(sessions[#sessions] or sessions[1], 8)) or kind(sessions)) or "refused")
@@ -87,20 +442,16 @@ function C.Probe()
   end
   out("newest fight (%s): %s", tostring(how), shape(s, 10))
   if type(s) ~= "table" then return lines end
-  local okD, dur = pcall(D.GetSessionDurationSeconds, s.sessionID or s.combatSessionID)
-  if okD then out("duration: %s s", kind(dur)) end
   local me = UnitGUID and UnitGUID("player")
   local mine
   local okL = pcall(function()
     for i, src in ipairs(s.combatSources or {}) do
       if i <= 5 then out("source %d: %s", i, shape(src, 10)) end
-      local g = src.sourceGUID or src.guid
-      if g ~= nil and not (issecretvalue and issecretvalue(g)) and g == me then mine = src end
+      if plain(src.isLocalPlayer) == true then mine = src end
     end
   end)
   if not okL then out("sources: refused") end
   out("you in it: %s", mine and "yes" or "not found")
-  -- YOUR spells in that fight
   local okP, mineSpells
   if s.sessionID or s.combatSessionID then
     okP, mineSpells = pcall(D.GetCombatSessionSourceFromID, s.sessionID or s.combatSessionID, dmg, me)
@@ -123,20 +474,61 @@ function C.Probe()
   return lines
 end
 
+-- ---------------------------------------------------------------- events (heard always, acted on only while the tool is on)
+local ev = CreateFrame("Frame")
+for _, e in ipairs({ "PLAYER_REGEN_DISABLED", "PLAYER_REGEN_ENABLED", "PLAYER_TOTEM_UPDATE", "UNIT_SPELLCAST_SUCCEEDED" }) do
+  pcall(ev.RegisterEvent, ev, e)
+end
+ev:SetScript("OnEvent", function(_, event, a1, _, a3)
+  if event == "PLAYER_REGEN_DISABLED" then             -- a drag still on ends before the fight takes the mouse
+    endDrag(C.frame) endDrag(C.card)
+  end
+  if not R:Enabled("combo") then return end
+  if event == "PLAYER_REGEN_DISABLED" then C.Pull()
+  elseif event == "PLAYER_REGEN_ENABLED" then C.FightOver()
+  elseif event == "PLAYER_TOTEM_UPDATE" then if C.cur then C.ScanTotems(C.cur.totems) end
+  elseif event == "UNIT_SPELLCAST_SUCCEEDED" then if a1 == "player" then C.Cast(a3) end
+  end
+end)
+C.events = ev
+
 R:Register({
   name = "combo",
   short = "cmb",
-  desc = "which weapon imbue and totems did the most damage (first: the probe)",
-  usage = "/bist combo probe  (short: cmb)",
+  desc = "after each fight: your weapon imbue + totems and the damage they did; which combo is best",
+  usage = "/bist combo  (short: cmb)  |  /bist combo probe",
   slashWhenOff = true,
   defaultOff = true,
-  defaults = {},
-  OnSlash = function(_, _, args)
-    local cmd = tostring(args or ""):match("^(%S*)") or ""
-    if cmd == "probe" then
-      C.Probe()
+  defaults = { fights = {}, card = true, min = C.MIN },
+  options = {
+    { kind = "toggle", label = "card after each fight",
+      help = "A small card after a fight: your imbue + totems, your DPS, and where that combo ranks. Click it for the list.",
+      get = function(d) return d.card ~= false end, set = function(d, v) d.card = v and true or false end },
+    { kind = "step", label = "shortest fight counted", help = "Fights shorter than this are kept but not ranked - too short to compare.",
+      min = 5, max = 60, step = 5, get = function(d) return tonumber(d.min) or C.MIN end,
+      set = function(d, v) d.min = v if C.IsOpen() then C.Paint() end end, show = function(d) return (tonumber(d.min) or C.MIN) .. " s" end },
+    { kind = "button", label = "the combo list", button = "open",
+      help = "Every imbue + totem combo you fought with, ranked by damage per second, with how many fights each is based on.",
+      action = function(d) C.db = d C.Toggle(true) end },
+  },
+  OnInit = function(_, d) C.db = d end,
+  OnOpen = function(_, d, recenter)
+    C.db = d
+    if recenter then
+      if C.frame then C.frame:ClearAllPoints() C.frame:SetPoint("CENTER") end
+      if C.card then C.card:ClearAllPoints() C.card:SetPoint("TOP", UIParent, "TOP", 0, -170) d.cardPos = nil end
       return
     end
-    say("combo: /bist combo probe - after a fight, what the game lets an addon read (imbues, totems, the damage meter)")
+    C.Toggle(true)
+  end,
+  IsOpen = function() return C.IsOpen() end,
+  OnClose = function() C.Toggle(false) end,
+  OnDisable = function() C.cur = nil if C.frame then C.frame:Hide() end if C.card then C.card:Hide() end end,
+  OnSlash = function(_, d, args)
+    C.db = d
+    local cmd = tostring(args or ""):match("^(%S*)") or ""
+    if cmd == "probe" then C.Probe() return end
+    if cmd == "forget" then d.fights, d.lastSid = {}, nil if C.IsOpen() then C.Paint() end say("combo: every fight forgotten") return end
+    C.Toggle()
   end,
 })
