@@ -1,3 +1,8 @@
+## 1.6.0
+
+- **SET DECK: try a combo on BiS Healing's deck.** On the combo list's TRY NEXT strip, SET DECK puts the suggestion's imbue on your weapon and sends its totems to BiS Healing's totem boxes, each under its element (fire, earth, air; water is left alone). Right-click any combo in the list to send that combo's totems the same way. Out of a fight only; a chat line says what the boxes now drop, or why it couldn't.
+- Needs a BiS Healing that can take totems (its next update). Until then the button is dimmed and a click says so.
+
 ## 1.5.0
 
 - **Clean proc text.** For a calm screen: no paper - each swing's procs float up on one line in big letters and fade (WINDFURY +2 in gold, FT +1 in orange, FB +1 in blue, with their icons). No setup, cut or total lines. Switch it in the combo list's SET (proc text style), in the options, or with `/bist combo clean` (`/bist combo receipt` for the paper tape).

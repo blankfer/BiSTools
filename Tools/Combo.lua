@@ -117,6 +117,8 @@ function C.CastButton()
   c.hl:SetAllPoints(c)
   c.hl:SetColorTexture(1, 1, 1, 0.25)
   c:SetScript("OnEnter", function(self) C.CastTip(self) end)
+  -- (SET DECK sat under it: the imbue is cast by the click, the totems go to the deck right after - C.AimDeck)
+  c:SetScript("PostClick", function(self) if self.deckTotems then C.SendDeck(self.deckTotems) end end)
   c:SetScript("OnLeave", function(self)
     if GameTooltip then GameTooltip:Hide() end
     C.CastAway()
@@ -134,14 +136,33 @@ function C.CastAway()
   c:Hide()
   c:ClearAllPoints()
   c:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", -200, -200)
-  c.spell = nil
+  c.spell, c.deckTotems = nil, nil
 end
 function C.CastTip(c)
   if not (GameTooltip and c.spell) then return end
   GameTooltip:SetOwner(c, "ANCHOR_RIGHT")
   GameTooltip:AddLine(c.spell, 1, 1, 1)
   GameTooltip:AddLine(c.spell:find("Weapon", 1, true) and "click: put it on your weapon" or "click: drop it", 0.4, 1, 0.4)
+  if c.deckTotems then
+    GameTooltip:AddLine("and these totems onto your BiS Healing deck:", 1, 0.82, 0, true)
+    for _, n in ipairs(c.deckTotems) do GameTooltip:AddLine(n, 0.8, 0.8, 0.8) end
+  end
   GameTooltip:Show()
+end
+--[[ SET DECK CASTS THE IMBUE TOO (18 Nov 2026, Arn: "when they click SET DECK it casts the imbue on that test strip and sends
+  the deck to BiS Healing"): pointing at SET DECK out of a fight puts the secure cast button over it with the suggestion's
+  imbue; the click casts it (the game's own click - an addon may not cast any other way) and PostClick sends the totems.
+  With no imbue to cast (none known, or a fight), SET DECK's own click just sends the totems. ]]
+function C.AimDeck(b, imbue, totems)
+  if fighting() or not (imbue and C.Knows(imbue)) then return false end
+  local c = C.CastButton()
+  c:ClearAllPoints()
+  c:SetAllPoints(b)
+  c:SetAttribute("spell", imbue)
+  c.spell, c.deckTotems = imbue, totems
+  c:Show()
+  C.CastTip(c)
+  return true
 end
 --- The mouse on an icon: out of a fight, the secure cast button over it with its spell; in one, its name.
 function C.IconEnter(b)
@@ -902,6 +923,28 @@ function C.Build()
   end
   tr.note = K.fs(tr, "", 9, "muted")
   tr.note:SetPoint("LEFT", tr, "LEFT", 62 + 4 * (C.TRY_H - 2) + 4, 0)
+  -- SET DECK: the suggestion's totems onto BiS Healing's deck boxes (C.SendDeck), shown only when the deck can take them
+  tr.deck = CreateFrame("Button", nil, tr)
+  tr.deck:SetSize(62, C.TRY_H - 6)
+  tr.deck:SetPoint("RIGHT", tr, "RIGHT", -4, 0)
+  K.tex(tr.deck, "BACKGROUND", "field", 0.9)
+  tr.deck.label = K.fs(tr.deck, "SET DECK", 8, "gold")
+  tr.deck.label:SetPoint("CENTER")
+  tr.deck:SetScript("OnClick", function() if tr.c then C.SendDeck(tr.c.totems) end end)
+  tr.deck:SetScript("OnEnter", function(self)
+    if tr.c and C.AimDeck(self, tr.c.imbue, tr.c.totems) then return end   -- (the imbue cast with it)
+    if not GameTooltip then return end
+    GameTooltip:SetOwner(self, "ANCHOR_TOP")
+    GameTooltip:AddLine("Set these totems on your BiS Healing deck" .. ((tr.c and tr.c.imbue) and " (the imbue: out of a fight)" or ""), 1, 0.82, 0)
+    if C.DeckCan() then
+      GameTooltip:AddLine("Its totem boxes drop them from your next click. Out of a fight only. Right-click a combo in the list to send that one.", 0.9, 0.9, 0.9, true)
+    else
+      GameTooltip:AddLine(C.DeckMissing(), 1, 0.5, 0.4, true)
+    end
+    GameTooltip:Show()
+  end)
+  tr.deck:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+  tr.deck:Hide()
   tr:SetScript("OnEnter", function(self)
     self.lit:SetAlpha(0.2)
     local c = self.c
@@ -1026,7 +1069,12 @@ function C.Layout()
       r.n = K.fs(r, "", 9, "muted") r.n:SetJustifyH("RIGHT")
       r.dps = K.fs(r, "", 9, "muted") r.dps:SetJustifyH("RIGHT")
       r.adj = K.fs(r, "", 9, "good") r.adj:SetJustifyH("RIGHT")
-      r:SetScript("OnClick", function(self) if self.g then C.sel = self.g.combo C.Paint() end end)
+      if r.RegisterForClicks then r:RegisterForClicks("LeftButtonUp", "RightButtonUp") end
+      r:SetScript("OnClick", function(self, button)
+        if not self.g then return end
+        if button == "RightButton" then C.SendDeck(self.g.totems) return end   -- (right-click: onto the deck)
+        C.sel = self.g.combo C.Paint()
+      end)
       r:SetScript("OnEnter", function(self) self.hover = true C.PaintRow(self) C.RowTip(self) end)
       r:SetScript("OnLeave", function(self) self.hover = nil C.PaintRow(self) if GameTooltip then GameTooltip:Hide() end end)
       f.rows[i] = r
@@ -1388,6 +1436,36 @@ function C.GearLine()
   if g.lo then parts[#parts + 1] = ("%d-%d damage"):format(math.floor(g.lo + 0.5), math.floor(g.hi + 0.5)) end
   return #parts > 0 and ("YOU NOW  " .. table.concat(parts, "  -  ")) or ""
 end
+--[[ ONTO THE DECK (18 Nov 2026, Arn: "can we API-send the totems to BiS Healing's totem click areas - it's having me test a new
+  totem setup, I click something and it changes the totems on my BiS Healing deck - out of combat of course"): a combo's
+  totems, each under its element, go to BiSHealingAPI.SetTotems (version 3+); its totem boxes drop them from the next click.
+  Water is never touched (no combo has one). Out of a fight only. ]]
+function C.DeckCan()
+  local A = rawget(_G, "BiSHealingAPI")
+  return type(A) == "table" and type(A.SetTotems) == "function" and (tonumber(A.version) or 0) >= 3
+end
+--- Why the deck can't take totems: BiS Healing missing, or too old.
+function C.DeckMissing()
+  if type(rawget(_G, "BiSHealingAPI")) ~= "table" then return "Install BiS Healing to send these totems to its deck." end
+  return "Update BiS Healing to send these totems to its deck."
+end
+function C.SendDeck(totems)
+  if not C.DeckCan() then say("combo: %s", C.DeckMissing()) return false end
+  if InCombatLockdown and InCombatLockdown() then say("combo: out of a fight only") return false end
+  local set, words = {}, {}
+  for _, name in ipairs(totems or {}) do
+    local el = C.ELEMENT[name]
+    if el and not set[el] then set[el] = name words[#words + 1] = C.COL_WORD[name] or name end
+  end
+  if not next(set) then say("combo: that combo has no totems to send") return false end
+  local ok, a, why = pcall(BiSHealingAPI.SetTotems, set)
+  if ok and a then
+    say("combo: your deck's totem boxes now drop %s", table.concat(words, " · "))
+    return true
+  end
+  say("combo: the deck said no (%s)", tostring(ok and why or a))
+  return false
+end
 function C.PaintTry()
   local tr = C.frame and C.frame.try
   if not tr then return end
@@ -1411,6 +1489,12 @@ function C.PaintTry()
     tr.note:SetText("learn an imbue or a totem first")
   end
   tr.note:SetPoint("LEFT", tr, "LEFT", 62 + #names * (C.TRY_H - 2) + 4, 0)
+  -- (18 Nov, Arn: "the button would still be clickable but say install BiS Healing to send to deck" - always there with a
+  -- suggestion, dimmed when the deck can't take it; a click says what to install)
+  if tr.deck then
+    if c then tr.deck:Show() else tr.deck:Hide() end
+    tr.deck.label:SetTextColor(F().color(C.DeckCan() and "gold" or "muted"))
+  end
 end
 function C.IsOpen() return C.frame ~= nil and C.frame:IsShown() end
 -- OPEN STAYS OPEN (17 Nov 2026, Arn: "combo window closes every time I reload and it says on in the options"): the

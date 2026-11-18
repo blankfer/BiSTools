@@ -5439,6 +5439,38 @@ do
     local _, rel2 = cb:GetPoint(1)
     ok(not cb:IsShown() and rel2 ~= ib, "a pull: put away and let go before the lockdown")
     Co.FightOver() W.runAfters(Co.READ_WAIT + 0.1)
+    -- ONTO THE DECK (Arn: "I click something and it changes the totems on my BiS Healing deck - out of combat of course")
+    local sent
+    _G.BiSHealingAPI = { version = 3, SetTotems = function(set) sent = set return true end }
+    Co.Paint()
+    ok(tr.deck:IsShown(), "BiS Healing's deck can take totems: SET DECK on the TRY NEXT strip")
+    tr.deck:GetScript("OnEnter")(tr.deck)
+    local cb2 = _G.BiSToolsComboCast
+    ok(cb2:IsShown() and cb2.attrs.spell == tr.c.imbue and cb2.deckTotems == tr.c.totems,
+       "pointing at SET DECK: the secure button over it casts the suggestion's imbue (Arn: \"it casts the imbue\")", cb2.attrs.spell)
+    sent = nil
+    cb2:GetScript("PostClick")(cb2)
+    ok(sent and sent.fire == "Flametongue Totem", "and the click then sends the totems to the deck")
+    cb2:GetScript("OnLeave")(cb2)
+    sent = nil
+    tr.deck:GetScript("OnClick")(tr.deck)
+    ok(sent and sent.fire == "Flametongue Totem" and sent.earth == "Strength of Earth Totem" and (sent.air == "Grace of Air Totem" or sent.air == "Windfury Totem") and not sent.water,
+       "SET DECK sends the suggestion's totems, each under its element (water left alone)")
+    sent = nil
+    Co.frame.rows[2]:GetScript("OnClick")(Co.frame.rows[2], "RightButton")
+    ok(sent and sent.air == "Windfury Totem" and sent.earth == "Strength of Earth Totem", "right-click a combo in the list: its totems go to the deck")
+    local keepICL = _G.InCombatLockdown
+    _G.InCombatLockdown = function() return true end
+    sent = nil
+    ok(Co.SendDeck({ "Grace of Air Totem" }) == false and sent == nil, "in a fight: nothing sent")
+    _G.InCombatLockdown = keepICL
+    _G.BiSHealingAPI = nil
+    Co.Paint()
+    ok(tr.deck:IsShown() and not Co.SendDeck({ "Grace of Air Totem" }) and Co.DeckMissing():find("Install BiS Healing", 1, true),
+       "no BiS Healing: SET DECK still there (dimmed) - a click says install BiS Healing (Arn)")
+    _G.BiSHealingAPI = { version = 2 }
+    ok(Co.DeckMissing():find("Update BiS Healing", 1, true), "an older BiS Healing: it says update")
+    _G.BiSHealingAPI = nil
     _G.C_Spell.GetSpellInfo, _G.IsPlayerSpell = keepGSI, keepIPS
   end
   -- THE LEVEL PENALTY (Arn: "higher level mobs come with a lot of penalties, like misses and dodges ... an adjusted dps column")
