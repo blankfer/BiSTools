@@ -337,13 +337,27 @@ function C.SwitchCheck(cur, imbue, tot)
   for n in pairs(tot) do if not (cur.nowTot or {})[n] then added = true end end
   cur.nowImbue, cur.nowTot = imbue, tot
   cur.segs[#cur.segs + 1] = { imbue = imbue, tot = copySet(tot), at = now() }
+  -- (17 Nov, Arn's tape: three totems dropped in a row printed three CUTs - the changes settle C.CUT_SETTLE s first and
+  -- print as ONE cut, at the first change's time, with the set as it ended up)
   if added and cur.headed and db().scroll ~= false then
-    local secs = math.max(0, now() - (cur.start or now()))
-    C.TapePrint(("- - - - CUT %d:%02d - - - -"):format(math.floor(secs / 60), math.floor(secs % 60)))
-    C.TapeSet(imbue, tot)
+    cur.cutFrom = cur.cutFrom or now()
+    cur.cutTok = (cur.cutTok or 0) + 1
+    local tok = cur.cutTok
+    if C_Timer and C_Timer.After then
+      C_Timer.After(C.CUT_SETTLE, function() if cur.cutTok == tok and not cur.endAt then C.PrintCut(cur) end end)
+    else
+      C.PrintCut(cur)
+    end
     return true
   end
   return false
+end
+C.CUT_SETTLE = 2
+function C.PrintCut(cur)
+  local secs = math.max(0, (cur.cutFrom or now()) - (cur.start or now()))
+  cur.cutFrom = nil
+  C.TapePrint(("- - - - CUT %d:%02d - - - -"):format(math.floor(secs / 60), math.floor(secs % 60)))
+  C.TapeSet(cur.nowImbue, cur.nowTot)
 end
 --- The fight's set filed under: the one up the longest (to `endAt`); answers imbue, totem set, mixed.
 function C.Longest(cur, endAt)
@@ -468,7 +482,7 @@ function C.Close(cur)
                 active = active, how = how,
                 imbue = imbue, totems = totems, combo = C.Label(imbue, set),
                 wf = dmg > 0 and wf / dmg or 0, ft = dmg > 0 and ft / dmg or 0, spells = C.TopSpells(spells, dmg),
-                procs = cur.procs, mixed = mixed or nil }
+                procs = cur.procs, mixed = mixed or nil, swings = cur.beats }
   d.fights = d.fights or {}
   d.fights[#d.fights + 1] = rec
   while #d.fights > C.KEEP do table.remove(d.fights, 1) end
@@ -1077,41 +1091,86 @@ function C.Paint()
     r.dps:SetText(g and tostring(math.floor(g.dps + 0.5)) or "")
     C.PaintRow(r)
   end
-  local lines = {}
-  if C.sel then
-    local n = 0
-    local fights = db().fights or {}
-    for k = #fights, 1, -1 do
-      local fi = fights[k]
-      if fi.combo == C.sel and (fi.dur or 0) >= C.Min() then
-        n = n + 1
-        if n > 4 then break end
-        lines[#lines + 1] = ("%s  %s  %d dps%s"):format(fi.mob or "?", fi.active and ("%d/%d s"):format(math.floor(fi.active + 0.5), math.floor(fi.dur + 0.5))
-          or ("%d s"):format(math.floor(fi.dur + 0.5)), math.floor(fi.dmg / C.Time(fi) + 0.5),
-          (fi.wf or 0) > 0 and ("  Windfury %d%%"):format(math.floor(fi.wf * 100 + 0.5)) or
-          ((fi.ft or 0) > 0 and ("  Flametongue %d%%"):format(math.floor(fi.ft * 100 + 0.5)) or ""))
-      end
-    end
-  end
-  if C.sel then                                    -- the newest fight of that combo, spell by spell
-    local fights = db().fights or {}
-    for k = #fights, 1, -1 do
-      local fi = fights[k]
-      if fi.combo == C.sel and fi.spells and #fi.spells > 0 then
-        local parts = {}
-        for i = 1, math.min(3, #fi.spells) do
-          parts[#parts + 1] = ("%s %d%%"):format(fi.spells[i].name, math.floor(fi.spells[i].share * 100 + 0.5))
-        end
-        lines[#lines + 1] = "last fight: " .. table.concat(parts, "  -  ")
-        break
-      end
-    end
-  end
-  f.detail:SetText(#lines > 0 and table.concat(lines, "\n") or (#list > 0 and "click a combo: its last fights" or
+  local lines = C.StatLines(C.sel or (list[1] and list[1].combo))
+  f.detail:SetText(#lines > 0 and table.concat(lines, "\n") or (#list > 0 and "click a combo: its numbers" or
     "no fights yet - fight something with an imbue and totems up"))
   f.foot:SetText(C.Min() > 0 and ("%d fights kept  ·  fights under %d s are not counted"):format(#(db().fights or {}), C.Min())
     or ("%d fights kept  ·  dps over the time you swing"):format(#(db().fights or {})))
   C.PaintTry()
+end
+--[[ THE NUMBERS UNDER THE LIST (17 Nov 2026, Arn: "maybe we can put better information at the bottom, like proc %, lifetime,
+  other relevant info, maybe something to do with gear, crit chance"): for the combo clicked (else the best one), over
+  every fight it has - how often Windfury and Flametongue came on YOUR swings (procs / your own swings, counted since the
+  tape learned to tell yours: rec.swings), its average and best dps and Windfury's share of the damage; its newest fight;
+  and you now: melee crit, attack power, weapon speed and damage, read out of a fight (C.Gear). ]]
+function C.StatLines(combo)
+  local out = {}
+  if not combo then out[1] = C.GearLine() return out end
+  local n, dmg, secs, best, wfDmg, sw, wfP, ftP, lastF = 0, 0, 0, 0, 0, 0, 0, 0, nil
+  for _, fi in ipairs(db().fights or {}) do
+    if fi.combo == combo and (fi.dur or 0) >= C.Min() then
+      n = n + 1
+      local t = C.Time(fi)
+      dmg, secs = dmg + (fi.dmg or 0), secs + t
+      wfDmg = wfDmg + (fi.dmg or 0) * (fi.wf or 0)
+      if t > 0 and fi.dmg / t > best then best = fi.dmg / t end
+      if fi.swings and fi.swings > 0 and fi.procs then
+        sw = sw + fi.swings
+        wfP = wfP + (fi.procs.extra1 or 0) + (fi.procs.extra2 or 0) + (fi.procs.more or 0)
+        ftP = ftP + (fi.procs.fire or 0)
+      end
+      lastF = fi
+    end
+  end
+  if n == 0 then out[1] = C.GearLine() return out end
+  if sw > 0 then
+    out[#out + 1] = ("PROCS  Windfury on %d%% of your swings  -  Flametongue %d%%   (%d swings)"):format(
+      math.floor(wfP / sw * 100 + 0.5), math.floor(ftP / sw * 100 + 0.5), sw)
+  else
+    out[#out + 1] = "PROCS  counted from your next fight with it"
+  end
+  out[#out + 1] = ("%d %s  -  %d dps average, best %d  -  Windfury %d%% of the damage"):format(n, n == 1 and "fight" or "fights",
+    math.floor((secs > 0 and dmg / secs or 0) + 0.5), math.floor(best + 0.5), math.floor((dmg > 0 and wfDmg / dmg or 0) * 100 + 0.5))
+  if lastF then
+    out[#out + 1] = ("last: %s  %s  %d dps"):format(lastF.mob or "?", lastF.active and ("%d/%d s"):format(math.floor(lastF.active + 0.5),
+      math.floor(lastF.dur + 0.5)) or ("%d s"):format(math.floor(lastF.dur + 0.5)), math.floor(lastF.dmg / C.Time(lastF) + 0.5))
+    local parts = {}
+    for k = 1, math.min(3, #(lastF.spells or {})) do
+      parts[#parts + 1] = ("%s %d%%"):format(lastF.spells[k].name, math.floor(lastF.spells[k].share * 100 + 0.5))
+    end
+    if #parts > 0 then out[#out] = out[#out] .. "  -  " .. table.concat(parts, ", ") end
+  end
+  out[#out + 1] = C.GearLine()
+  return out
+end
+--- You now: melee crit, attack power, the weapon's speed and damage (plain answers only; read out of a fight, kept).
+function C.Gear()
+  if not (InCombatLockdown and InCombatLockdown()) then
+    local g = {}
+    if GetCritChance then local ok, v = pcall(GetCritChance) v = ok and plain(v) if type(v) == "number" then g.crit = v end end
+    if UnitAttackPower then
+      local ok, base, pos, neg = pcall(UnitAttackPower, "player")
+      base, pos, neg = plain(base), plain(pos), plain(neg)
+      if ok and type(base) == "number" then g.ap = base + (type(pos) == "number" and pos or 0) + (type(neg) == "number" and neg or 0) end
+    end
+    local mh = C.Speeds()
+    g.speed = mh
+    if UnitDamage then
+      local ok, lo, hi = pcall(UnitDamage, "player")
+      lo, hi = plain(lo), plain(hi)
+      if ok and type(lo) == "number" and type(hi) == "number" then g.lo, g.hi = lo, hi end
+    end
+    C.gear = g
+  end
+  return C.gear or {}
+end
+function C.GearLine()
+  local g, parts = C.Gear(), {}
+  if g.crit then parts[#parts + 1] = ("crit %.1f%%"):format(g.crit) end
+  if g.ap then parts[#parts + 1] = ("attack power %d"):format(g.ap) end
+  if g.speed then parts[#parts + 1] = ("%.1f s weapon"):format(g.speed) end
+  if g.lo then parts[#parts + 1] = ("%d-%d damage"):format(math.floor(g.lo + 0.5), math.floor(g.hi + 0.5)) end
+  return #parts > 0 and ("YOU NOW  " .. table.concat(parts, "  -  ")) or ""
 end
 function C.PaintTry()
   local tr = C.frame and C.frame.try
@@ -1384,7 +1443,27 @@ end
   fight it drags anywhere (db.tapePos). Nothing ticks while it is away. ]]
 -- (17 Nov, Arn's first look: "more warm white candle light" - "its so bright" - "30 sec idle time before it fades away":
 -- the paper a dim warm cream, brown ink, and it waits C.TAPE.linger s after the LAST line it printed, in a fight or not)
-C.TAPE = { w = 190, lines = 7, lh = 15, roll = 0.15, linger = 30, fade = 1.5, pad = 5, alpha = 0.82, keep = 300 }
+C.TAPE = { w = 190, lines = 7, lh = 15, roll = 0.15, linger = 30, fade = 1.5, pad = 5, alpha = 0.82, keep = 300,
+           foot = 15, wMin = 130, wMax = 360, hMin = 70, hMax = 420 }
+--[[ THE FOOTER AND THE SIZE (17 Nov 2026, Arn, of the tape: "let's get rid of this empty space, and maybe draggable bigger,
+  drag icon smaller, only words" - "let's give this one a BiS> Procs footer"): the strip under the newest line is the
+  footer now - "BiS> Procs" in words, a thin rule over it, the lines printing up out of it. A small grip in its corner
+  sizes the paper (db.tapeW / db.tapeH, inside the bounds); taller holds more lines, re-read from the fight's log. ]]
+local function tapeLines(t) return t.lines or C.TAPE.lines end
+function C.TapeSize()
+  local T, d = C.TAPE, db()
+  local w = math.max(T.wMin, math.min(T.wMax, tonumber(d.tapeW) or T.w))
+  local h = math.max(T.hMin, math.min(T.hMax, tonumber(d.tapeH) or (T.lines * T.lh + T.foot + 2 + T.pad)))
+  return w, h
+end
+function C.TapeFit(t)
+  local T = C.TAPE
+  local w, h = C.TapeSize()
+  t:SetSize(w, h)
+  t.lines = math.max(2, math.floor((h - T.foot - 2 - T.pad) / T.lh))
+  for _, r in ipairs(t.rows or {}) do r:SetWidth(w - 2 * T.pad - 4) end
+  for _, r in ipairs(t.spare or {}) do r:SetWidth(w - 2 * T.pad - 4) end
+end
 C.PAPER, C.INK, C.INK_FIRE = { 0.78, 0.69, 0.53 }, { 0.20, 0.13, 0.07 }, { 0.62, 0.20, 0.06 }
 local function tapePlace(t, dx, dy)
   dx, dy = dx or 0, dy or 0
@@ -1476,7 +1555,6 @@ function C.Tape()
   if C.tape then return C.tape end
   local T = C.TAPE
   local t = CreateFrame("Frame", "BiSToolsComboTape", UIParent)
-  t:SetSize(T.w, T.lines * T.lh + 2 * T.pad)
   t:SetFrameStrata("HIGH")                                     -- (over bars other addons keep at the top of the screen)
   if t.SetClipsChildren then t:SetClipsChildren(true) end    -- (the paper's top edge cuts the oldest line off)
   t:EnableMouse(true)
@@ -1501,9 +1579,46 @@ function C.Tape()
   t.paper = t:CreateTexture(nil, "BACKGROUND")
   t.paper:SetAllPoints(t)
   t.paper:SetColorTexture(C.PAPER[1], C.PAPER[2], C.PAPER[3], T.alpha)
-  t.edge = t:CreateTexture(nil, "BORDER")                       -- the printer's lip at the bottom, where the paper comes out
-  t.edge:SetPoint("BOTTOMLEFT") t.edge:SetPoint("BOTTOMRIGHT") t.edge:SetHeight(2)
-  t.edge:SetColorTexture(0.25, 0.24, 0.22, 1)
+  t.edge = t:CreateTexture(nil, "BORDER")                       -- the rule over the footer: where the paper comes out
+  t.edge:SetPoint("BOTTOMLEFT", 0, T.foot) t.edge:SetPoint("BOTTOMRIGHT", 0, T.foot) t.edge:SetHeight(1)
+  t.edge:SetColorTexture(C.INK[1], C.INK[2], C.INK[3], 0.35)
+  t.footBg = t:CreateTexture(nil, "BORDER")                     -- the footer a shade darker, under the lines rolling out
+  t.footBg:SetPoint("BOTTOMLEFT") t.footBg:SetPoint("BOTTOMRIGHT") t.footBg:SetHeight(T.foot)
+  t.footBg:SetColorTexture(C.PAPER[1] * 0.88, C.PAPER[2] * 0.88, C.PAPER[3] * 0.88, T.alpha)
+  t.foot = CreateFrame("Frame", nil, t)                         -- (its own frame, over the rows: the words stay clean)
+  t.foot:SetPoint("BOTTOMLEFT") t.foot:SetPoint("BOTTOMRIGHT") t.foot:SetHeight(T.foot)
+  t.foot:SetFrameLevel((t:GetFrameLevel() or 1) + 3)
+  t.foot.bg = t.foot:CreateTexture(nil, "BACKGROUND")
+  t.foot.bg:SetAllPoints(t.foot)
+  t.foot.bg:SetColorTexture(C.PAPER[1] * 0.88, C.PAPER[2] * 0.88, C.PAPER[3] * 0.88, 1)
+  t.foot.word = t.foot:CreateFontString(nil, "OVERLAY")
+  t.foot.word:SetFont("Fonts\\ARIALN.TTF", 10, "")
+  t.foot.word:SetPoint("CENTER", 0, 0)
+  t.foot.word:SetTextColor(C.INK[1], C.INK[2], C.INK[3], 0.7)
+  t.foot.word:SetText("BiS> Procs")
+  if t.SetResizable then t:SetResizable(true) end
+  if t.SetResizeBounds then pcall(t.SetResizeBounds, t, T.wMin, T.hMin, T.wMax, T.hMax) end
+  local grip = CreateFrame("Button", nil, t.foot)               -- small, in the footer's corner
+  grip:SetSize(9, 9)
+  grip:SetPoint("BOTTOMRIGHT", -1, 1)
+  grip.tex = grip:CreateTexture(nil, "OVERLAY")
+  grip.tex:SetAllPoints(grip)
+  grip.tex:SetTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Up")
+  grip.tex:SetVertexColor(C.INK[1], C.INK[2], C.INK[3], 0.8)
+  grip:SetScript("OnMouseDown", function()
+    if InCombatLockdown and InCombatLockdown() then return end
+    if t.StartSizing then t.sizing = true t:StartSizing("BOTTOMRIGHT") end
+  end)
+  grip:SetScript("OnMouseUp", function() C.TapeEndSize(t) end)
+  t.grip = grip
+  t:SetScript("OnSizeChanged", function(self, w, h)
+    if not self.sizing then return end
+    local d = db()
+    d.tapeW = math.floor((tonumber(w) or T.w) + 0.5)
+    d.tapeH = math.floor((tonumber(h) or 100) + 0.5)
+    C.TapeFit(self)
+    C.TapeBack(self, 0)
+  end)
   t.rows, t.spare, t.shift, t.log, t.back = {}, {}, 0, {}, 0
   -- SCROLL BACK (17 Nov 2026, Arn: "does the receipt keep going or is it scrollable?"): the whole fight is kept (t.log, up
   -- to C.TAPE.keep lines); the mouse wheel over the paper rolls it back, and new lines wait below while you read
@@ -1511,7 +1626,7 @@ function C.Tape()
   t:SetScript("OnMouseWheel", function(self, delta) C.TapeBack(self, (tonumber(delta) or 0) > 0 and 1 or -1) end)
   t.hint = t:CreateFontString(nil, "OVERLAY")
   t.hint:SetFont("Fonts\\ARIALN.TTF", 10, "")
-  t.hint:SetPoint("BOTTOMRIGHT", t, "BOTTOMRIGHT", -T.pad, 2)
+  t.hint:SetPoint("TOPRIGHT", t, "TOPRIGHT", -T.pad, -2)
   t.hint:SetTextColor(C.INK_FIRE[1], C.INK_FIRE[2], C.INK_FIRE[3], 1)
   t.hint:Hide()
   t:SetScript("OnUpdate", function(self, e)
@@ -1529,6 +1644,7 @@ function C.Tape()
       end
     end
   end)
+  C.TapeFit(t)
   t:Hide()
   tapePlace(t)
   C.tape = t
@@ -1540,7 +1656,7 @@ function C.TapeLay(t)
   local n = #t.rows
   for i, r in ipairs(t.rows) do
     r:ClearAllPoints()
-    r.y = T.pad + (n - i) * T.lh - t.shift
+    r.y = T.foot + 2 + (n - i) * T.lh - t.shift
     r:SetPoint("BOTTOMLEFT", t, "BOTTOMLEFT", T.pad + 2, r.y)
   end
 end
@@ -1551,7 +1667,7 @@ local function newRow(t)
   if not r then
     r = t:CreateFontString(nil, "OVERLAY")
     r:SetFont("Fonts\\ARIALN.TTF", 12, "")
-    r:SetWidth(T.w - 2 * T.pad - 4)
+    r:SetWidth((t:GetWidth() or T.w) - 2 * T.pad - 4)
     r:SetJustifyH("LEFT")
     if r.SetWordWrap then r:SetWordWrap(false) end
     if r.SetMaxLines then r:SetMaxLines(1) end
@@ -1572,7 +1688,7 @@ function C.TapePrint(text, fire)
   t:SetAlpha(1)
   t:Show()
   if (t.back or 0) > 0 then                                    -- (reading back: the new line waits below)
-    t.back = math.min(t.back + 1, math.max(0, #t.log - T.lines))
+    t.back = math.min(t.back + 1, math.max(0, #t.log - tapeLines(t)))
     C.TapeHint(t)
     return nil
   end
@@ -1581,7 +1697,7 @@ function C.TapePrint(text, fire)
   r:SetText(text)
   r:Show()
   t.rows[#t.rows + 1] = r
-  while #t.rows > T.lines + 1 do                               -- (one spare line rides off the top as the paper rolls)
+  while #t.rows > tapeLines(t) + 1 do                               -- (one spare line rides off the top as the paper rolls)
     local old = table.remove(t.rows, 1)
     old:Hide()
     t.spare[#t.spare + 1] = old
@@ -1590,14 +1706,26 @@ function C.TapePrint(text, fire)
   C.TapeLay(t)
   return r
 end
+--- Let go of the tape's corner: its size kept, its spot kept.
+function C.TapeEndSize(t)
+  if not t.sizing then return end
+  t.sizing = nil
+  t:StopMovingOrSizing()
+  local d = db()
+  d.tapeW, d.tapeH = math.floor((t:GetWidth() or C.TAPE.w) + 0.5), math.floor((t:GetHeight() or 100) + 0.5)
+  local ok, pt, _, rp, x, y = pcall(t.GetPoint, t)
+  if ok and pt then d.tapePos = { pt, rp, x, y } end
+  C.TapeFit(t)
+  C.TapeBack(t, 0)
+end
 --- Roll back (+1, older) or forward (-1) a line; the paper shows the log from there, no animation.
 function C.TapeBack(t, step)
   local T = C.TAPE
-  t.back = math.max(0, math.min((t.back or 0) + step, math.max(0, #t.log - T.lines)))
+  t.back = math.max(0, math.min((t.back or 0) + step, math.max(0, #t.log - tapeLines(t))))
   for _, r in ipairs(t.rows) do r:Hide() t.spare[#t.spare + 1] = r end
   t.rows, t.shift = {}, 0
   local last = #t.log - t.back
-  for k = math.max(1, last - T.lines + 1), last do
+  for k = math.max(1, last - tapeLines(t) + 1), last do
     local r = newRow(t)
     ink(r, t.log[k][2])
     r:SetText(t.log[k][1])

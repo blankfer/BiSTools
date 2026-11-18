@@ -5433,6 +5433,20 @@ do
     ok(not cb:IsShown(), "the mouse leaves: it goes away")
     _G.C_Spell.GetSpellInfo, _G.IsPlayerSpell = keepGSI, keepIPS
   end
+  -- THE NUMBERS UNDER THE LIST (Arn: "proc %, lifetime, ... something to do with gear, crit chance")
+  do
+    local fs0 = cdb.fights
+    cdb.fights = { { combo = "TEST", dur = 20, active = 20, dmg = 2000, wf = 0.3, swings = 10, mob = "Murloc",
+                     procs = { extra1 = 0, extra2 = 2, more = 0, fire = 8 }, spells = { { name = "Melee", share = 0.7 } } } }
+    local keepCC = _G.GetCritChance
+    _G.GetCritChance = function() return 7.4 end
+    local L = Co.StatLines("TEST")
+    ok(L[1]:find("Windfury on 20%% of your swings") and L[1]:find("Flametongue 80%%") and L[2]:find("100 dps average")
+       and L[3]:find("Murloc", 1, true) and L[#L]:find("crit 7.4%%"),
+       "under the list: proc % of your own swings, average / best, the last fight, and you now (crit)", table.concat(L, " | "))
+    _G.GetCritChance = keepCC
+    cdb.fights = fs0
+  end
   ok(Co.Cells("Windfury Weapon", { "Grace of Air Totem", "Windfury Totem" }).air == "GoA+WF", "two of one element (they stack now): joined with +")
   -- OPEN STAYS OPEN (Arn: "combo window closes every time I reload")
   ok(cdb.open == true, "the list open: written down")
@@ -5456,7 +5470,7 @@ do
   Co.frame.rows[2]:GetScript("OnClick")(Co.frame.rows[2])
   ok(Co.frame.detail:GetText():find("Bloodsnout", 1, true) and Co.frame.detail:GetText():find("Windfury 30%", 1, true),
      "a row clicked: its fights, with Windfury's share", Co.frame.detail:GetText())
-  ok(rec.spells and rec.spells[1].name == "Melee" and math.abs(rec.spells[2].share - 0.3) < 1e-9 and Co.frame.detail:GetText():find("last fight: Melee 70%", 1, true),
+  ok(rec.spells and rec.spells[1].name == "Melee" and math.abs(rec.spells[2].share - 0.3) < 1e-9 and Co.frame.detail:GetText():find("Melee 70%", 1, true),
      "each fight keeps its spells' shares (the weapon's Windfury and the totem's stack on Forever now)", Co.frame.detail:GetText())
   -- THE SIZE AND THE SWITCHES (Arn: "we forgot the rule of letting us resize the window")
   ok(Co.ToggleSet() and Co.frame.sw:IsShown() and Co.frame.sw.card.value:GetText() == "ON", "SET: the switches panel over the list")
@@ -5567,11 +5581,25 @@ do
     local cur = { segs = { { imbue = "Windfury Weapon", tot = {}, at = W.now } }, nowImbue = "Windfury Weapon", nowTot = {}, headed = true, start = W.now }
     W.now = W.now + 21
     ok(Co.SwitchCheck(cur, "Windfury Weapon", { ["Flametongue Totem"] = true }), "a totem dropped mid-fight: the tape cuts")
+    W.now = W.now + 1
+    Co.SwitchCheck(cur, "Windfury Weapon", { ["Flametongue Totem"] = true, ["Grace of Air Totem"] = true })   -- a second one, 1 s on
+    local before = #Co.Tape().log
+    W.runAfters(Co.CUT_SETTLE + 0.1)
+    ok(#Co.tape.log == before + 3, "two totems a second apart: ONE cut once they settle (Arn's tape had three)", #Co.tape.log - before)
     local rows = Co.tape.rows
     local n = #rows
-    ok(rows[n - 2]:GetText() == "- - - - CUT 0:21 - - - -" and rows[n - 1]:GetText() == "IMBUE  WF" and rows[n]:GetText() == "TOTEMS  FT",
+    ok(rows[n - 2]:GetText() == "- - - - CUT 0:21 - - - -" and rows[n - 1]:GetText() == "IMBUE  WF" and rows[n]:GetText() == "TOTEMS  FT · GOA",
        "the cut, when, and the new set under it", rows[n - 2]:GetText() .. " | " .. rows[n - 1]:GetText() .. " | " .. rows[n]:GetText())
-    ok(not Co.SwitchCheck(cur, "Windfury Weapon", {}) and #cur.segs == 3, "a totem gone: a new stretch kept, no cut")
+    ok(not Co.SwitchCheck(cur, "Windfury Weapon", {}) and #cur.segs == 4, "a totem gone: a new stretch kept, no cut")
+    -- THE FOOTER AND THE SIZE (Arn: "a BiS> Procs footer", "draggable bigger, drag icon smaller, only words")
+    local tp0 = Co.tape
+    ok(tp0.foot and tp0.foot.word:GetText() == "BiS> Procs" and tp0.grip, "the tape's footer: BiS> Procs in words, a small grip in its corner")
+    tp0.sizing = true
+    tp0:GetScript("OnSizeChanged")(tp0, 240, 260)
+    ok(tp0.lines >= 14 and cdb.tapeH == 260, "dragged taller: more lines, the size kept", tp0.lines)
+    Co.TapeEndSize(tp0)
+    cdb.tapeW, cdb.tapeH = nil, nil
+    Co.TapeFit(tp0)
     -- SCROLL BACK (Arn: "does the receipt keep going or is it scrollable?")
     for k = 1, 12 do Co.TapePrint("line " .. k) end
     local tp = Co.tape
