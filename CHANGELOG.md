@@ -1,3 +1,8 @@
+## 1.5.0
+
+- **Clean proc text.** For a calm screen: no paper - each swing's procs float up on one line in big letters and fade (WINDFURY +2 in gold, FT +1 in orange, FB +1 in blue, with their icons). No setup, cut or total lines. Switch it in the combo list's SET (proc text style), in the options, or with `/bist combo clean` (`/bist combo receipt` for the paper tape).
+- **Windfury due:** with clean proc text and Windfury up, a small gauge under the words fills with each of your swings that doesn't proc (from your own lifetime Windfury rate) and empties on a proc - "any second..." when it's full. Just for fun: every swing is its own roll. Drag it to move the floating text.
+
 ## 1.4.0
 
 - **The combo list in icons you can click.** Every imbue and totem shows as its spell icon (names on hover). Out of a fight, click an icon to cast it: the imbue goes on your weapon, the totem drops.
