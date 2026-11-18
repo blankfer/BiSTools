@@ -5331,6 +5331,24 @@ do
   Co.frame.rows[2]:GetScript("OnClick")(Co.frame.rows[2])
   ok(Co.frame.detail:GetText():find("Bloodsnout", 1, true) and Co.frame.detail:GetText():find("Windfury 30%", 1, true),
      "a row clicked: its fights, with Windfury's share", Co.frame.detail:GetText())
+  ok(rec.spells and rec.spells[1].name == "Melee" and math.abs(rec.spells[2].share - 0.3) < 1e-9 and Co.frame.detail:GetText():find("last fight: Melee 70%", 1, true),
+     "each fight keeps its spells' shares (the weapon's Windfury and the totem's stack on Forever now)", Co.frame.detail:GetText())
+  -- THE SIZE AND THE SWITCHES (Arn: "we forgot the rule of letting us resize the window")
+  ok(Co.ToggleSet() and Co.frame.sw:IsShown() and Co.frame.sw.card.value:GetText() == "ON", "SET: the switches panel over the list")
+  local rows0 = Co.RowCount()
+  Co.frame.sw.hei.plus:GetScript("OnClick")(Co.frame.sw.hei.plus)
+  Co.frame.sw.hei.plus:GetScript("OnClick")(Co.frame.sw.hei.plus)
+  ok(cdb.h == Co.H + 2 * Co.STEP and Co.frame.h == Co.H + 2 * Co.STEP and Co.RowCount() > rows0, "height +: the list grows and holds more rows", Co.RowCount())
+  Co.frame.sw.wid.minus:GetScript("OnClick")(Co.frame.sw.wid.minus)
+  ok(cdb.w == Co.W - Co.STEP and Co.frame.sw.wid.value:GetText() == (Co.W - Co.STEP) .. " px", "width -: narrower, the number says so")
+  for _ = 1, 40 do Co.frame.sw.wid.minus:GetScript("OnClick")(Co.frame.sw.wid.minus) end
+  ok(cdb.w == Co.W_MIN, "never narrower than the floor")
+  Co.frame.sw.card:GetScript("OnClick")(Co.frame.sw.card)
+  ok(cdb.card == false and Co.frame.sw.card.value:GetText() == "OFF", "the card switch: off")
+  local nf = #cdb.fights
+  Co.frame.sw.reset:GetScript("OnClick")(Co.frame.sw.reset)
+  ok(cdb.w == nil and cdb.h == nil and cdb.card == nil and #cdb.fights == nf and Co.frame.h == Co.H, "RESET: the look back, the fights kept")
+  Co.ToggleSet(false)
   -- off: nothing recorded
   R:SetEnabled("combo", false)
   Co.events:GetScript("OnEvent")(Co.events, "PLAYER_REGEN_DISABLED")

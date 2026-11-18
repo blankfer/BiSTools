@@ -27,6 +27,11 @@ NS.Combo = C
 
 C.MIN, C.KEEP, C.READ_WAIT, C.CARD_FOR, C.CARD_FADE = 10, 300, 1.5, 8, 1
 C.W, C.H, C.ROWS, C.ROW = 330, 236, 7, 16
+-- THE SIZE AND THE SWITCHES (17 Nov 2026, Arn: "we forgot the rule of letting us resize the window that we did with bis
+-- healing deck" - the family rule: every window a switches panel with its toggles, width and height, RESET): the list's
+-- SET button opens the panel over its lower half; width / height in C.STEP px steps between the bounds, kept in
+-- db.w / db.h; the rows follow the height. RESET puts the look back (never your fights).
+C.W_MIN, C.W_MAX, C.H_MIN, C.H_MAX, C.STEP = 280, 560, 200, 440, 20
 -- the imbues by enchant id (Classic's numbers; a cast of yours teaches the rest - db.imbueNames)
 C.IMBUE_IDS = {
   [283] = "Windfury Weapon", [284] = "Windfury Weapon", [525] = "Windfury Weapon", [1669] = "Windfury Weapon",
@@ -144,6 +149,7 @@ function C.Close(cur)
   if type(dmg) ~= "number" or type(dur) ~= "number" or dur <= 0 then return nil end
   -- what Windfury and Flametongue added (your breakdown, by the spells' names)
   local wf, ft = 0, 0
+  local spells = {}                                  -- every spell's share (the weapon's Windfury and the totem's apart, if named apart)
   local guid = UnitGUID and plain(UnitGUID("player"))
   local okB, br = pcall(D.GetCombatSessionSourceFromID, sid, dmgType, guid)
   if okB and type(br) == "table" then
@@ -155,6 +161,7 @@ function C.Close(cur)
         name = okN and plain(name) or ""
         if type(amt) == "number" and type(name) == "string" then
           if name:find("Windfury", 1, true) then wf = wf + amt elseif name:find("Flametongue", 1, true) then ft = ft + amt end
+          spells[#spells + 1] = { name = (name ~= "" and name) or ("spell " .. tostring(id)), amt = amt }
         end
       end
     end)
@@ -169,13 +176,24 @@ function C.Close(cur)
   for _, n in ipairs(totems) do set[n] = true end
   local rec = { at = (time and time()) or 0, sid = sid, mob = plain(last.name) or plain(s.name), dur = dur, dmg = dmg,
                 imbue = imbue, totems = totems, combo = C.Label(imbue, set),
-                wf = dmg > 0 and wf / dmg or 0, ft = dmg > 0 and ft / dmg or 0 }
+                wf = dmg > 0 and wf / dmg or 0, ft = dmg > 0 and ft / dmg or 0, spells = C.TopSpells(spells, dmg) }
   d.fights = d.fights or {}
   d.fights[#d.fights + 1] = rec
   while #d.fights > C.KEEP do table.remove(d.fights, 1) end
   if d.card ~= false then C.ShowCard(rec) end
   if C.IsOpen() then C.Paint() end
   return rec
+end
+
+--- A fight's biggest spells as shares, at most C.TOP_SPELLS (kept small in the save). (17 Nov, Arn: "they let you stack
+--- totems and imbue now" - "totem is 1 extra hit, imbue is 2": Windfury Weapon and Windfury Totem both proc on Forever
+--- since the 11-12 Nov hotfix; if the game names their hits apart, the list shows each one's share.)
+C.TOP_SPELLS = 5
+function C.TopSpells(list, dmg)
+  table.sort(list, function(a, b) return a.amt > b.amt end)
+  local out = {}
+  for i = 1, math.min(C.TOP_SPELLS, #list) do out[i] = { name = list[i].name, share = dmg > 0 and list[i].amt / dmg or 0 } end
+  return out
 end
 
 -- ---------------------------------------------------------------- the ranking
@@ -276,7 +294,7 @@ function C.Build()
   if C.frame then return C.frame end
   local K = F()
   local f = CreateFrame("Frame", "BiSToolsCombo", UIParent)
-  f:SetSize(C.W, C.H)
+  f:SetSize(C.Size())
   f:SetScale(1.2)                                   -- (small windows read at 1.2 - the family rule)
   f:SetPoint("CENTER")
   f:SetFrameStrata("DIALOG")
@@ -301,35 +319,16 @@ function C.Build()
   f.close.label = K.fs(f.close, "x", 9, "ink")
   f.close.label:SetPoint("CENTER")
   f.close:SetScript("OnClick", function() C.Toggle(false) end)
-  local function head(text, x, w, right)
-    local h = K.fs(f, text, 9, "dim")
-    h:SetPoint("TOPLEFT", x, -24)
-    h:SetWidth(w)
-    h:SetJustifyH(right and "RIGHT" or "LEFT")
-    return h
-  end
-  head("imbue · totems", 10, 200) head("fights", 210, 50, true) head("dps", 262, 56, true)
+  f.set = CreateFrame("Button", nil, f)               -- the switches panel's button
+  f.set:SetSize(28, 16)
+  f.set:SetPoint("RIGHT", f.close, "LEFT", -4, 0)
+  K.tex(f.set, "BACKGROUND", "field", 0.9)
+  f.set.label = K.fs(f.set, "SET", 9, "ink")
+  f.set.label:SetPoint("CENTER")
+  f.set:SetScript("OnClick", function() C.ToggleSet() end)
+  f.heads = { K.fs(f, "imbue · totems", 9, "dim"), K.fs(f, "fights", 9, "dim"), K.fs(f, "dps", 9, "dim") }
   f.rows = {}
-  for i = 1, C.ROWS do
-    local r = CreateFrame("Button", nil, f)
-    r:SetSize(C.W - 16, C.ROW)
-    r:SetPoint("TOPLEFT", 8, -38 - (i - 1) * C.ROW)
-    r.lit = K.tex(r, "BACKGROUND", "accent", 0)                 -- rows glow on hover (the family rule): a wash + a bar
-    r.bar = r:CreateTexture(nil, "ARTWORK")
-    r.bar:SetPoint("TOPLEFT") r.bar:SetPoint("BOTTOMLEFT") r.bar:SetWidth(3)
-    do local rr, g, b = K.color("accent") r.bar:SetColorTexture(rr, g, b, 1) end
-    r.bar:SetAlpha(0)
-    r.name = K.fs(r, "", 9, "ink") r.name:SetPoint("LEFT", 4, 0) r.name:SetWidth(196) r.name:SetJustifyH("LEFT")
-    r.n = K.fs(r, "", 9, "muted") r.n:SetPoint("LEFT", 202, 0) r.n:SetWidth(50) r.n:SetJustifyH("RIGHT")
-    r.dps = K.fs(r, "", 9, "good") r.dps:SetPoint("LEFT", 254, 0) r.dps:SetWidth(56) r.dps:SetJustifyH("RIGHT")
-    r:SetScript("OnClick", function(self) if self.g then C.sel = self.g.combo C.Paint() end end)
-    r:SetScript("OnEnter", function(self) self.hover = true C.PaintRow(self) end)
-    r:SetScript("OnLeave", function(self) self.hover = nil C.PaintRow(self) end)
-    f.rows[i] = r
-  end
   f.detail = K.fs(f, "", 9, "muted")
-  f.detail:SetPoint("TOPLEFT", 10, -42 - C.ROWS * C.ROW)
-  f.detail:SetWidth(C.W - 20)
   f.detail:SetJustifyH("LEFT")
   f.foot = K.fs(f, "", 9, "dim")
   f.foot:SetPoint("BOTTOMLEFT", 8, 7)
@@ -338,6 +337,139 @@ function C.Build()
   C.frame = f
   return f
 end
+--- The list's size: the saved one, inside the bounds.
+function C.Size()
+  local d = db()
+  local w = math.max(C.W_MIN, math.min(C.W_MAX, tonumber(d.w) or C.W))
+  local h = math.max(C.H_MIN, math.min(C.H_MAX, tonumber(d.h) or C.H))
+  return w, h
+end
+--- How many rows the height holds.
+function C.RowCount()
+  local _, h = C.Size()
+  return math.max(3, math.floor((h - 38 - 62 - 22) / C.ROW))
+end
+--- Lay the list out on its size: the columns on the width, as many rows as the height holds.
+function C.Layout()
+  local f = C.frame
+  if not f then return end
+  local K = F()
+  local w, h = C.Size()
+  f:SetSize(w, h)
+  local nameW = w - 16 - 120
+  f.heads[1]:ClearAllPoints() f.heads[1]:SetPoint("TOPLEFT", 10, -24) f.heads[1]:SetWidth(nameW)
+  f.heads[2]:ClearAllPoints() f.heads[2]:SetPoint("TOPLEFT", 10 + nameW, -24) f.heads[2]:SetWidth(52) f.heads[2]:SetJustifyH("RIGHT")
+  f.heads[3]:ClearAllPoints() f.heads[3]:SetPoint("TOPLEFT", 10 + nameW + 54, -24) f.heads[3]:SetWidth(56) f.heads[3]:SetJustifyH("RIGHT")
+  local n = C.RowCount()
+  for i = 1, math.max(n, #f.rows) do
+    local r = f.rows[i]
+    if i <= n and not r then
+      r = CreateFrame("Button", nil, f)
+      r.lit = K.tex(r, "BACKGROUND", "accent", 0)               -- rows glow on hover (the family rule): a wash + a bar
+      r.bar = r:CreateTexture(nil, "ARTWORK")
+      r.bar:SetPoint("TOPLEFT") r.bar:SetPoint("BOTTOMLEFT") r.bar:SetWidth(3)
+      do local rr, g, b = K.color("accent") r.bar:SetColorTexture(rr, g, b, 1) end
+      r.bar:SetAlpha(0)
+      r.name = K.fs(r, "", 9, "ink") r.name:SetJustifyH("LEFT")
+      r.n = K.fs(r, "", 9, "muted") r.n:SetJustifyH("RIGHT")
+      r.dps = K.fs(r, "", 9, "good") r.dps:SetJustifyH("RIGHT")
+      r:SetScript("OnClick", function(self) if self.g then C.sel = self.g.combo C.Paint() end end)
+      r:SetScript("OnEnter", function(self) self.hover = true C.PaintRow(self) end)
+      r:SetScript("OnLeave", function(self) self.hover = nil C.PaintRow(self) end)
+      f.rows[i] = r
+    end
+    if r then
+      if i <= n then
+        r:SetSize(w - 16, C.ROW)
+        r:ClearAllPoints() r:SetPoint("TOPLEFT", 8, -38 - (i - 1) * C.ROW)
+        r.name:ClearAllPoints() r.name:SetPoint("LEFT", 4, 0) r.name:SetWidth(nameW - 6)
+        r.n:ClearAllPoints() r.n:SetPoint("LEFT", 2 + nameW, 0) r.n:SetWidth(52)
+        r.dps:ClearAllPoints() r.dps:SetPoint("LEFT", 2 + nameW + 54, 0) r.dps:SetWidth(56)
+        r:Show()
+      else
+        r.g = nil
+        r:Hide()
+      end
+    end
+  end
+  f.detail:ClearAllPoints()
+  f.detail:SetPoint("TOPLEFT", 10, -42 - n * C.ROW)
+  f.detail:SetWidth(w - 20)
+  if f.sw then f.sw:SetWidth(w - 16) end
+end
+
+-- the switches panel: toggles, steppers, RESET - over the list's lower half
+local function swRow(p, y, label)
+  local K = F()
+  local r = CreateFrame("Button", nil, p)
+  r:SetHeight(16)
+  r:SetPoint("TOPLEFT", 4, y) r:SetPoint("TOPRIGHT", -4, y)
+  r.lit = K.tex(r, "BACKGROUND", "accent", 0)
+  r.bar = r:CreateTexture(nil, "ARTWORK")
+  r.bar:SetPoint("TOPLEFT") r.bar:SetPoint("BOTTOMLEFT") r.bar:SetWidth(3)
+  do local rr, g, b = K.color("accent") r.bar:SetColorTexture(rr, g, b, 1) end
+  r.bar:SetAlpha(0)
+  r.label = K.fs(r, label, 9, "ink") r.label:SetPoint("LEFT", 6, 0)
+  r.value = K.fs(r, "", 9, "gold") r.value:SetPoint("RIGHT", -6, 0)
+  r:SetScript("OnEnter", function(self) self.lit:SetAlpha(0.16) self.bar:SetAlpha(1) end)
+  r:SetScript("OnLeave", function(self) self.lit:SetAlpha(0) self.bar:SetAlpha(0) end)
+  return r
+end
+local function stepRow(p, y, label, get, set, lo, hi, step, unit)
+  local r = swRow(p, y, label)
+  local K = F()
+  local function btn(word, dir)
+    local b = CreateFrame("Button", nil, r)
+    b:SetSize(16, 14)
+    K.tex(b, "BACKGROUND", "field", 0.9)
+    b.label = K.fs(b, word, 9, "ink") b.label:SetPoint("CENTER")
+    b:SetScript("OnClick", function() set(math.max(lo, math.min(hi, get() + dir * step))) C.PaintSet() end)
+    return b
+  end
+  r.plus = btn("+", 1) r.plus:SetPoint("RIGHT", -4, 0)
+  r.value:ClearAllPoints() r.value:SetPoint("RIGHT", r.plus, "LEFT", -6, 0)
+  r.minus = btn("-", -1)
+  r.minus:SetPoint("RIGHT", r.value, "LEFT", -40, 0)
+  r.paint = function() r.value:SetText(tostring(get()) .. (unit or "")) end
+  return r
+end
+function C.BuildSet()
+  local f = C.frame
+  if not f or f.sw then return f and f.sw end
+  local K = F()
+  local p = CreateFrame("Frame", nil, f)
+  p:SetFrameLevel((f:GetFrameLevel() or 0) + 5)
+  p:SetPoint("BOTTOMLEFT", 8, 22)
+  p:SetSize(C.Size() - 16, 110)
+  K.tex(p, "BACKGROUND", "header", 0.98)
+  K.border(p, "edge", 1)
+  local d = function() return db() end
+  p.card = swRow(p, -4, "card after each fight")
+  p.card:SetScript("OnClick", function() d().card = d().card == false and true or false C.PaintSet() end)
+  p.card.paint = function() p.card.value:SetText(d().card ~= false and "ON" or "OFF") end
+  p.min = stepRow(p, -22, "shortest fight counted", C.Min, function(v) d().min = v end, 5, 60, 5, " s")
+  p.wid = stepRow(p, -40, "width", function() return (C.Size()) end, function(v) d().w = v C.Layout() end, C.W_MIN, C.W_MAX, C.STEP, " px")
+  p.hei = stepRow(p, -58, "height", function() return select(2, C.Size()) end, function(v) d().h = v C.Layout() end, C.H_MIN, C.H_MAX, C.STEP, " px")
+  p.reset = swRow(p, -82, "RESET  (the look - never your fights)")
+  p.reset:SetScript("OnClick", function() local x = d() x.w, x.h, x.card, x.min = nil, nil, nil, nil C.Layout() C.PaintSet() end)
+  p:Hide()
+  f.sw = p
+  return p
+end
+function C.PaintSet()
+  local p = C.frame and C.frame.sw
+  if not p then return end
+  for _, k in ipairs({ "card", "min", "wid", "hei" }) do if p[k] and p[k].paint then p[k].paint() end end
+  C.Paint()
+end
+function C.ToggleSet(want)
+  local p = C.BuildSet()
+  if not p then return false end
+  if want == nil then want = not p:IsShown() end
+  if want then p:Show() C.PaintSet() else p:Hide() end
+  return p:IsShown()
+end
+
 function C.PaintRow(r)
   local sel = r.g and r.g.combo == C.sel
   r.lit:SetAlpha(sel and 0.35 or ((r.hover and r.g) and 0.16 or 0))
@@ -347,8 +479,9 @@ function C.Paint()
   local f = C.frame
   if not f then return end
   local list = C.Rank()
+  local shownRows = C.RowCount()
   for i, r in ipairs(f.rows) do
-    local g = list[i]
+    local g = i <= shownRows and list[i] or nil
     r.g = g
     r.name:SetText(g and g.combo or "")
     r.n:SetText(g and tostring(g.n) or "")
@@ -371,6 +504,20 @@ function C.Paint()
       end
     end
   end
+  if C.sel then                                    -- the newest fight of that combo, spell by spell
+    local fights = db().fights or {}
+    for k = #fights, 1, -1 do
+      local fi = fights[k]
+      if fi.combo == C.sel and fi.spells and #fi.spells > 0 then
+        local parts = {}
+        for i = 1, math.min(3, #fi.spells) do
+          parts[#parts + 1] = ("%s %d%%"):format(fi.spells[i].name, math.floor(fi.spells[i].share * 100 + 0.5))
+        end
+        lines[#lines + 1] = "last fight: " .. table.concat(parts, "  -  ")
+        break
+      end
+    end
+  end
   f.detail:SetText(#lines > 0 and table.concat(lines, "\n") or (#list > 0 and "click a combo: its last fights" or
     "no fights yet - fight something with an imbue and totems up"))
   f.foot:SetText(("%d fights kept  ·  fights under %d s are not counted"):format(#(db().fights or {}), C.Min()))
@@ -379,7 +526,7 @@ function C.IsOpen() return C.frame ~= nil and C.frame:IsShown() end
 function C.Toggle(want)
   local f = C.Build()
   if want == nil then want = not f:IsShown() end
-  if want then f:Show() C.Paint() else f:Hide() end
+  if want then C.Layout() f:Show() C.Paint() else f:Hide() end
   return f:IsShown()
 end
 
