@@ -5877,6 +5877,46 @@ do
       Co.float:GetScript("OnUpdate")(Co.float, Co.FLOAT.dueHold + 1)
       ok(not due:IsShown() and not Co.float:IsShown(), "the fight over: the gauge waits, then everything is gone (nothing ticks)")
       ok(not (Co.tape and Co.tape:IsShown()), "no TOTAL tape in the clean mode")
+      -- THE GAUGE NAMES YOUR PROC (18 Nov, Arn: "if no wf imbue or totem detected change to any proc name where it says
+      -- windfury" - then "i think i switched wf totem after the fight started")
+      local keepUA = _G.C_UnitAuras
+      local buffs = {}
+      _G.C_UnitAuras = { GetAuraDataBySpellName = function(u, name) return buffs[name] and { name = name } or nil end }
+      local keepTot = { totems[1], totems[2], totems[3], totems[4] }
+      totems[1], totems[2], totems[3], totems[4] = nil, nil, nil, "Windfury Totem"
+      buffs["Windfury Totem"] = true
+      Co.Pull()
+      Co.cur.nowImbue = "Frostbrand Weapon"
+      ok(Co.cur.wfAura == true, "(the pull: Windfury Totem's buff on you)")
+      h() W.runAfters(1)
+      ok(due:IsShown() and due.label:GetText():find("^WINDFURY"), "Windfury up: the gauge says Windfury", due.label:GetText())
+      totems[4], totems[1] = nil, "Flametongue Totem"                -- swapped away mid-fight; its buff stays a while
+      fc(Co.events, "PLAYER_TOTEM_UPDATE", 4)
+      ok(Co.cur.wfAura == true, "(the buff still on you right after)")
+      buffs["Windfury Totem"] = nil
+      W.runAfters(Co.AURA_LINGER + 0.1)
+      ok(Co.cur.wfAura == false, "a moment later the buffs are read again: Windfury gone")
+      W.runAfters(1.5) h() h(16) W.runAfters(1)                       -- a swing with a frost hit
+      ok(due.label:GetText() == "FROSTBRAND!" and due.kind == "fb" and Co.cur.dry == 0,
+         "no Windfury, Frostbrand on: the gauge follows Frostbrand, its own count", due.label:GetText())
+      W.runAfters(1.5) h() W.runAfters(1)
+      ok(due.label:GetText():find("^FROSTBRAND DUE") and Co.cur.dry == 1, "a plain swing: FROSTBRAND DUE", due.label:GetText())
+      Co.cur.nowImbue = "Rockbiter Weapon"
+      totems[1] = nil
+      fc(Co.events, "PLAYER_TOTEM_UPDATE", 1)
+      W.runAfters(1.5) h() W.runAfters(1)
+      ok(not due:IsShown(), "Rockbiter and no fire: no proc to wait for, no gauge")
+      Co.FightOver() W.runAfters(Co.READ_WAIT + Co.AURA_LINGER)
+      ok(Co.ProcRate("ft") == nil and Co.WFRate() == Co.ProcRate("wf"), "each proc its own rate (none learned yet here)")
+      local keepF = cdb.fights
+      cdb.fights = { { imbue = "Frostbrand Weapon", totems = {}, swings = 40, procs = { frost = 6 } },
+                     { imbue = "Windfury Weapon", totems = {}, swings = 40, procs = { extra2 = 8, frost = 9 } } }
+      ok(math.abs((Co.ProcRate("fb") or 0) - 0.15) < 1e-9 and math.abs((Co.ProcRate("wf") or 0) - 0.2) < 1e-9,
+         "the Frostbrand rate only from fights with Frostbrand on", Co.ProcRate("fb"))
+      cdb.fights = keepF
+      totems[1], totems[2], totems[3], totems[4] = keepTot[1], keepTot[2], keepTot[3], keepTot[4]
+      _G.C_UnitAuras = keepUA
+      Co.float:GetScript("OnUpdate")(Co.float, Co.FLOAT.dueHold + 1)
       cdb.tapeStyle = nil
       Co.StyleChanged()
       _G.UnitAttackSpeed = keepAS

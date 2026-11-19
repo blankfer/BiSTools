@@ -1820,7 +1820,12 @@ function C.CloseBurst(cur, b)
     end
     if frostN > 0 and b.swings > 0 then parts[#parts + 1] = { C.Ico("Frostbrand Weapon", "FB") .. " FB +1", "fb" } end
     if #parts > 0 then C.FloatLine(parts) end
-    if b.swings > 0 and (weapon or totem) then C.DueTick(cur, extra >= 1) end
+    local kind = C.DueKind(weapon or totem, im, ftSources)
+    if b.swings > 0 and kind then
+      C.DueTick(cur, (kind == "wf" and extra >= 1) or (kind == "fb" and frostN > 0) or (kind == "ft" and fireN > 0), kind)
+    elseif b.swings > 0 and C.float and C.float.due then
+      C.float.due:Hide()                                         -- (no proc up at all, e.g. Rockbiter alone: no gauge)
+    end
     return
   end
   if #words > 0 and db().scroll ~= false then C.Scroll(table.concat(words, "    "), fireOnly) end
@@ -1836,21 +1841,44 @@ end
 C.FLOAT = { w = 320, h = 130, rise = 70, life = 1.8, fade = 0.6, size = 17, push = 20, dueW = 150, dueH = 8, dueHold = 6 }
 C.FLOAT_COL = { wf = "ffd33a", ft = "ff7a2a", fb = "7ec4ff" }
 function C.Clean() return db().tapeStyle == "clean" end
---- Your Windfury rate: procs / your own swings, over fights with Windfury up (nil under C.WF_MIN_SWINGS swings).
+--[[ THE GAUGE NAMES YOUR PROC (18 Nov 2026, Arn: "if no wf imbue or totem detected change to any proc name where it says
+  windfury"): Windfury when it is up (your imbue, your totem, a party member's totem buff), else Frostbrand (your imbue),
+  else Flametongue (imbue or totem); none of them (Rockbiter alone) = no gauge. Each its own rate, from the fights it was
+  up in. A change of kind mid-fight starts the count again. ]]
+C.DUE_NAME = { wf = "WINDFURY", fb = "FROSTBRAND", ft = "FLAMETONGUE" }
+C.AURA_LINGER = 11
+C.DUE_TIP = { wf = "Windfury", fb = "Frostbrand", ft = "Flametongue" }
+--- Which proc the gauge follows: "wf", else "fb", else "ft", else nil.
+function C.DueKind(wfUp, imbue, ftSources)
+  if wfUp then return "wf" end
+  if type(imbue) == "string" and imbue:find("Frostbrand", 1, true) then return "fb" end
+  if (ftSources or 0) > 0 then return "ft" end
+  return nil
+end
+--- Your rate for one proc kind: procs / your own swings, over fights it was up in (nil under C.WF_MIN_SWINGS swings).
 C.WF_MIN_SWINGS, C.WF_GUESS = 20, 0.2
-function C.WFRate()
-  local sw, wf = 0, 0
+function C.ProcRate(kind)
+  local sw, n = 0, 0
   for _, fi in ipairs(db().fights or {}) do
-    local hasWF = type(fi.imbue) == "string" and fi.imbue:find("Windfury", 1, true)
-    for _, t in ipairs(fi.totems or {}) do if t == "Windfury Totem" then hasWF = true end end
-    if hasWF and fi.swings and fi.swings > 0 and fi.procs then
+    local im = type(fi.imbue) == "string" and fi.imbue or ""
+    local t = {}
+    for _, name in ipairs(fi.totems or {}) do t[name] = true end
+    local up
+    if kind == "fb" then up = im:find("Frostbrand", 1, true)
+    elseif kind == "ft" then up = im:find("Flametongue", 1, true) or t["Flametongue Totem"]
+    else up = im:find("Windfury", 1, true) or t["Windfury Totem"] end
+    local p = fi.procs
+    if up and fi.swings and fi.swings > 0 and p then
       sw = sw + fi.swings
-      wf = wf + (fi.procs.extra1 or 0) + (fi.procs.extra2 or 0) + (fi.procs.more or 0)
+      if kind == "fb" then n = n + (p.frost or 0)
+      elseif kind == "ft" then n = n + (p.fire or 0)
+      else n = n + (p.extra1 or 0) + (p.extra2 or 0) + (p.more or 0) end
     end
   end
   if sw < C.WF_MIN_SWINGS then return nil, sw end
-  return wf / sw, sw
+  return n / sw, sw
 end
+function C.WFRate() return C.ProcRate("wf") end
 local function floatPlace(g)
   g:ClearAllPoints()
   local p = db().tapePos
@@ -1900,10 +1928,12 @@ function C.Float()
   g:SetScript("OnHide", stop)
   d:SetScript("OnEnter", function(self)
     if not GameTooltip then return end
-    local r, sw = C.WFRate()
+    local kind = self.kind or "wf"
+    local r, sw = C.ProcRate(kind)
+    local word = C.DUE_TIP[kind] or "Windfury"
     GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
-    GameTooltip:AddLine("Windfury due", 1, 0.82, 0.23)
-    GameTooltip:AddLine(r and ("Windfury has come on %d%% of your swings (%d swings so far)."):format(math.floor(r * 100 + 0.5), sw)
+    GameTooltip:AddLine(word .. " due", 1, 0.82, 0.23)
+    GameTooltip:AddLine(r and ("%s has come on %d%% of your swings (%d swings so far)."):format(word, math.floor(r * 100 + 0.5), sw)
       or ("Learning your rate - %d of %d swings so far (it guesses 20%% until then)."):format(sw or 0, C.WF_MIN_SWINGS), 0.9, 0.9, 0.9, true)
     GameTooltip:AddLine("Just for fun: every swing is its own roll - a long dry spell doesn't make the next one more likely.", 0.6, 0.6, 0.6, true)
     GameTooltip:AddLine("Drag me to move the floating text (out of a fight).", 0.6, 0.6, 0.6, true)
@@ -1973,16 +2003,26 @@ function C.FloatStep(g, e)
   end
   if #g.lines == 0 and not (d and d:IsShown()) then g:Hide() end   -- (nothing left: no ticking)
 end
---- Your own swing with Windfury up: the gauge moves on (a proc empties it).
-function C.DueTick(cur, procced)
+--- Your own swing with a proc up (`kind`: C.DueKind): the gauge moves on (a proc empties it).
+local function hexRGB(h) return tonumber(h:sub(1, 2), 16) / 255, tonumber(h:sub(3, 4), 16) / 255, tonumber(h:sub(5, 6), 16) / 255 end
+function C.DueTick(cur, procced, kind)
   local g, Q = C.Float(), C.FLOAT
   local d = g.due
-  local r = C.WFRate() or C.WF_GUESS
+  kind = kind or "wf"
+  if cur.dueKind ~= kind then cur.dueKind = kind cur.dry = 0 end   -- (another proc now: its own count)
+  local r = C.ProcRate(kind) or C.WF_GUESS
   if procced then cur.dry = 0 else cur.dry = (cur.dry or 0) + 1 end
   local k = math.min(1, (cur.dry or 0) * r)
   d.fill:SetWidth(math.max(0.01, (Q.dueW - 2) * k))
   d.full = k >= 1 or nil
-  d.label:SetText(procced and "WINDFURY!" or (d.full and "WINDFURY DUE - ANY SECOND..." or "WINDFURY DUE"))
+  local name = C.DUE_NAME[kind] or "WINDFURY"
+  d.label:SetText(procced and (name .. "!") or (d.full and (name .. " DUE - ANY SECOND...") or (name .. " DUE")))
+  if d.kind ~= kind then
+    local rr, gg, bb = hexRGB(C.FLOAT_COL[kind] or C.FLOAT_COL.wf)
+    d.label:SetTextColor(rr, gg, bb, 1)
+    d.fill:SetColorTexture(rr, gg, bb, 0.9)
+    d.kind = kind
+  end
   d.flash = procced and 0.4 or nil
   d.hideIn = nil
   d.k = k
@@ -2503,7 +2543,22 @@ ev:SetScript("OnEvent", function(_, event, a1, a2, a3, a4, a5)
   if event == "PLAYER_REGEN_DISABLED" then C.Pull()
   elseif event == "PLAYER_REGEN_ENABLED" then C.FightOver()
   elseif event == "PLAYER_TOTEM_UPDATE" then
-    if C.cur then C.ScanTotems(C.cur.totems) C.SwitchCheck(C.cur, C.cur.nowImbue, C.ScanTotems({})) end
+    if C.cur then
+      local up = C.ScanTotems({})
+      C.ScanTotems(C.cur.totems) C.SwitchCheck(C.cur, C.cur.nowImbue, up)
+      -- (18 Nov, Arn: the gauge said WINDFURY after he swapped his Windfury Totem away mid-fight - the buff was read
+      -- once at the pull. A totem change reads the buffs again, and once more C.AURA_LINGER s later - a totem's buff
+      -- stays a while after it goes; an unreadable answer counts as not up)
+      local cur = C.cur
+      local function again()
+        if C.cur ~= cur then return end
+        local tot = cur.nowTot or {}
+        if not tot["Windfury Totem"] then cur.wfAura = C.AuraUp("Windfury Totem") end
+        if not tot["Flametongue Totem"] then cur.ftAura = C.AuraUp("Flametongue Totem") end
+      end
+      again()
+      if C_Timer and C_Timer.After then C_Timer.After(C.AURA_LINGER, again) end
+    end
   elseif event == "PLAYER_ENTER_COMBAT" then if C.cur then C.cur.swing = true end    -- auto-attack on
   elseif event == "PLAYER_LEAVE_COMBAT" then if C.cur then C.cur.swing = false end   -- and off
   elseif event == "UNIT_SPELLCAST_SUCCEEDED" then if a1 == "player" then C.Cast(a3) end
