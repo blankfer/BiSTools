@@ -2545,19 +2545,24 @@ ev:SetScript("OnEvent", function(_, event, a1, a2, a3, a4, a5)
   elseif event == "PLAYER_TOTEM_UPDATE" then
     if C.cur then
       local up = C.ScanTotems({})
+      local had = C.cur.nowTot or {}
+      local wfGone, ftGone = had["Windfury Totem"] and not up["Windfury Totem"], had["Flametongue Totem"] and not up["Flametongue Totem"]
       C.ScanTotems(C.cur.totems) C.SwitchCheck(C.cur, C.cur.nowImbue, up)
       -- (18 Nov, Arn: the gauge said WINDFURY after he swapped his Windfury Totem away mid-fight - the buff was read
-      -- once at the pull. A totem change reads the buffs again, and once more C.AURA_LINGER s later - a totem's buff
-      -- stays a while after it goes; an unreadable answer counts as not up)
+      -- once at the pull. When YOUR Windfury / Flametongue Totem goes, its buff is read again, and once more
+      -- C.AURA_LINGER s later - a totem's buff stays a while after it goes; an unreadable answer (a fight hides buffs by
+      -- name) counts as not up. Only then: any other totem change leaves a party member's buff as it was read)
       local cur = C.cur
-      local function again()
-        if C.cur ~= cur then return end
-        local tot = cur.nowTot or {}
-        if not tot["Windfury Totem"] then cur.wfAura = C.AuraUp("Windfury Totem") end
-        if not tot["Flametongue Totem"] then cur.ftAura = C.AuraUp("Flametongue Totem") end
+      if wfGone or ftGone then
+        local function again()
+          if C.cur ~= cur then return end
+          local tot = cur.nowTot or {}
+          if wfGone and not tot["Windfury Totem"] then cur.wfAura = C.AuraUp("Windfury Totem") end
+          if ftGone and not tot["Flametongue Totem"] then cur.ftAura = C.AuraUp("Flametongue Totem") end
+        end
+        again()
+        if C_Timer and C_Timer.After then C_Timer.After(C.AURA_LINGER, again) end
       end
-      again()
-      if C_Timer and C_Timer.After then C_Timer.After(C.AURA_LINGER, again) end
     end
   elseif event == "PLAYER_ENTER_COMBAT" then if C.cur then C.cur.swing = true end    -- auto-attack on
   elseif event == "PLAYER_LEAVE_COMBAT" then if C.cur then C.cur.swing = false end   -- and off

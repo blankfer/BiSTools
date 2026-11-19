@@ -5901,6 +5901,12 @@ do
          "no Windfury, Frostbrand on: the gauge follows Frostbrand, its own count", due.label:GetText())
       W.runAfters(1.5) h() W.runAfters(1)
       ok(due.label:GetText():find("^FROSTBRAND DUE") and Co.cur.dry == 1, "a plain swing: FROSTBRAND DUE", due.label:GetText())
+      Co.cur.wfAura = true                                            -- a party shaman's Windfury on you, read at the pull
+      totems[2] = "Strength of Earth Totem"
+      fc(Co.events, "PLAYER_TOTEM_UPDATE", 2) W.runAfters(Co.AURA_LINGER + 0.1)
+      ok(Co.cur.wfAura == true, "another totem of yours changed: a party member's Windfury stays as it was read (a fight hides the buff)")
+      Co.cur.wfAura = false
+      totems[2] = nil
       Co.cur.nowImbue = "Rockbiter Weapon"
       totems[1] = nil
       fc(Co.events, "PLAYER_TOTEM_UPDATE", 1)
