@@ -5574,6 +5574,24 @@ do
        "the list repainted: the next combo on top")
     W.shift = false
     ok(Co.ForgetAsk(nil) == false, "nothing under the mouse: nothing")
+    -- THE WINDFURY PROBE (18 Nov): out of a fight it learns the buff's id by name; in one it asks by that id too
+    local keepUA, keepL, keepIs = _G.C_UnitAuras, _G.InCombatLockdown, _G.issecretvalue
+    local locked, S = false, {}
+    local function secret() return S end
+    _G.issecretvalue = function(v) return v == S end
+    _G.InCombatLockdown = function() return locked end
+    _G.C_UnitAuras = {
+      GetAuraDataBySpellName = function(u, n) if locked then return secret() end return { spellId = 327942, sourceUnit = "party2", expirationTime = 1010 } end,
+      GetPlayerAuraBySpellID = function(id) if id == 327942 then return { expirationTime = secret() } end end,
+    }
+    local p1 = Co.WFProbe()
+    ok(p1["by name"]:find("id 327942", 1, true) and cdb.wfIds[327942] and p1.lockdown == "false", "/bist combo wf out of a fight: the buff by name, its id learned", p1["by name"])
+    locked = true
+    local p2 = Co.WFProbe()
+    ok(p2["by name"] == "SECRET" and p2["by id"] == "327942=up, ends SECRET" and #cdb.wfProbe == 2,
+       "in a fight: by name hidden, by id still answers - both kept in the save", p2["by id"])
+    _G.C_UnitAuras, _G.InCombatLockdown, _G.issecretvalue = keepUA, keepL, keepIs
+    cdb.wfIds, cdb.wfProbe = nil, nil
     cdb.fights = keepFights
     Co.Paint()
   end

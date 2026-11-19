@@ -1574,6 +1574,60 @@ local function shape(t, max)
   if not ok then return "(refused)" end
   return "{" .. table.concat(parts, ", ") .. "}"
 end
+--[[ THE WINDFURY PROBE (18 Nov 2026, Arn: an "is Windfury in range?" lamp for warriors - "it can serve as a im a warrior is
+  windfury in range? and turns red No Windfury!"). First what the game tells an addon about a Windfury Totem, in and out of
+  a fight. /bist combo wf: asks the buff by NAME (out of a fight that also learns its spell id, db.wfIds), by ID (the
+  player call), the main hand's enchant (a totem that imbues the weapon would show here) and the air totem slot. Every
+  answer is printed and kept in db.wfProbe (newest last, at most 6) to be read off the save. ]]
+function C.WFProbe()
+  local d = db()
+  local res = { at = (time and time()) or 0 }
+  local lines = {}
+  local function out(k, v) res[k] = v lines[#lines + 1] = k .. ": " .. v end
+  out("lockdown", kind(InCombatLockdown and InCombatLockdown()))
+  local A = C_UnitAuras
+  if A and A.GetAuraDataBySpellName then
+    local ok, a = pcall(A.GetAuraDataBySpellName, "player", "Windfury Totem", "HELPFUL")
+    if not ok then out("by name", "refused")
+    elseif a == nil then out("by name", "nil")
+    elseif issecretvalue and issecretvalue(a) then out("by name", "SECRET")
+    elseif type(a) ~= "table" then out("by name", kind(a))
+    else
+      out("by name", ("id %s, from %s, ends %s"):format(kind(a.spellId), kind(a.sourceUnit), kind(a.expirationTime)))
+      local id = plain(a.spellId)
+      if type(id) == "number" then d.wfIds = d.wfIds or {} d.wfIds[id] = true end
+    end
+  else out("by name", "no call") end
+  local ids = {}
+  for id in pairs(d.wfIds or {}) do ids[#ids + 1] = id end
+  table.sort(ids)
+  local get = A and A.GetPlayerAuraBySpellID
+  if #ids == 0 then out("by id", "no id yet (ask once out of a fight, standing in a Windfury Totem)")
+  elseif not get then out("by id", "no call")
+  else
+    local parts = {}
+    for _, id in ipairs(ids) do
+      local ok, a = pcall(get, id)
+      local v = (not ok and "refused") or (a == nil and "nil") or ((issecretvalue and issecretvalue(a)) and "SECRET")
+        or (type(a) == "table" and ("up, ends " .. kind(a.expirationTime))) or kind(a)
+      parts[#parts + 1] = id .. "=" .. v
+    end
+    out("by id", table.concat(parts, " "))
+  end
+  if GetWeaponEnchantInfo then
+    local ok, mh, exp, _, id = pcall(GetWeaponEnchantInfo)
+    out("enchant", ok and ("%s id %s, %s ms"):format(kind(mh), kind(id), kind(exp)) or "refused")
+  end
+  if GetTotemInfo then
+    local ok, have, name = pcall(GetTotemInfo, 4)
+    out("air totem", ok and (kind(have) .. " " .. kind(name)) or "refused")
+  end
+  d.wfProbe = d.wfProbe or {}
+  table.insert(d.wfProbe, res)
+  while #d.wfProbe > 6 do table.remove(d.wfProbe, 1) end
+  say("combo wf: %s", table.concat(lines, "  |  "))
+  return res
+end
 function C.Probe()
   local lines = {}
   local function out(fmt, ...) local l = string.format(fmt, ...) lines[#lines + 1] = l say("%s", l) end
@@ -2620,6 +2674,7 @@ R:Register({
     C.db = d
     local cmd = tostring(args or ""):match("^(%S*)") or ""
     if cmd == "probe" then C.Probe() return end
+    if cmd == "wf" then C.WFProbe() return end
     if cmd == "live" then C.LiveArm() return end
     if cmd == "reach" then C.ReachProbe() return end
     if cmd == "why" then
