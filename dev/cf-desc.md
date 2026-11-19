@@ -1,4 +1,4 @@
-# BiS Tools — CurseForge page text (1.7.0)
+# BiS Tools — CurseForge page text (1.7.3)
 
 Paste everything below the line into the project description
 (CurseForge → BiS Tools, project 1686340 → Edit → Description), in the Markdown editor.
@@ -9,6 +9,9 @@ and lists stay flat.
 
 **Deliberately NOT on the page: summon** (Forever has no summoning stones, the tool does not load
 there). The threat beta and the pup finder were retired on 9 Nov. The page is for Forever.
+
+Changed for 1.7.3 (18 Nov): two lines made true after the fixes - ASK lights only for BiS Tools players (1.7.2), and
+"only your own swings" holds in a group, the meter taking off what wasn't yours (1.7.3).
 
 Changed for 1.7.0 (18 Nov): a new section **Windfury lamp** after the combo (the lamp, ASK - "needs BiS Tools on both
 players"), the opener's bold line names it, its commands in the table; the combo gains forget-a-row and the gauge naming
@@ -150,7 +153,7 @@ Which weapon imbue and which totems actually hit hardest? Turn on `/bist combo` 
 - **Click an icon to cast it.** Out of a fight, a click on any icon puts that imbue on your weapon or drops that totem.
 - **The numbers, in boxes:** Windfury, Flametongue and Frostbrand procs as a share of your own swings, your fights, average and best damage per second, the mobs' level - and you now: crit, attack power, weapon speed and damage.
 - **TRY NEXT** shows the combo you have the fewest fights with, out of the imbues and totems you know - click its icons and go. With BiS Healing, **SET DECK** puts its imbue on your weapon and its totems in your deck's totem boxes in one click; right-click any combo in the list to send that one.
-- **Only your own swings count.** Another player hitting your target doesn't show up as your procs, and with no Windfury up nothing counts as Windfury; after each fight the game's damage meter double-checks.
+- **Only your own swings count.** Another player hitting your target - your party's melee too - doesn't show up as your procs, and with no Windfury up nothing counts as Windfury. After each fight the game's damage meter has the last word: procs it says weren't yours come off that fight.
 - **The receipt tape:** while you fight, a small strip of paper prints each proc as icons - Windfury +2, Flametongue +1 - with the fight's clock, a cut when you swap totems, and the total at the end. Scroll back through the fight, drag it bigger, or switch it off. Prefer a calm screen? **Clean proc text** floats each swing's procs up in big letters instead (WINDFURY +2, FT +1), with a small gauge that fills while your next proc is due - Windfury, or Frostbrand or Flametongue when there's no Windfury.
 - **Your numbers come from the game's own damage meter**, read once each fight is over. It starts off; SET on the list has its switches, and the list resizes by its corner.
 
@@ -161,7 +164,7 @@ Melee in a shaman's group: is the Windfury on you, or did you just step out of r
 - **Gold WINDFURY** while a Windfury Totem is on you, or your own Windfury Weapon. **Red NO WINDFURY!**, blinking, the moment it isn't. The game itself draws it, so it works in the middle of a fight.
 - **It sits under your proc text** and shows only in a fight with a shaman in your party. Drag it to move it; `/bist wf test` shows it out of a fight.
 - **ASK the shaman.** Beside the lamp, an **ASK** button: press it about twice a second, four times. Your target flips to the shaman and back, and their **Windfury Totem** button lights up red with your name and a sound. One click and the totem is down. It works mid-fight, when chat and addon messages can't. `/bist wf key F` puts ASK on a key.
-- **Needs BiS Tools on both players**, with windfury switched on. Without it on the shaman's side, nothing lights up for them.
+- **Needs BiS Tools on both players**, with windfury switched on. Without it on the shaman's side, nothing lights up for them - and the shaman's button lights only for party members who run BiS Tools, so someone else switching targets quickly never sets it off.
 
 ## Zeppelins, boats and the tram
 
