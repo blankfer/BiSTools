@@ -1,4 +1,4 @@
-# BiS Tools — CurseForge page text (1.6.0)
+# BiS Tools — CurseForge page text (1.7.0)
 
 Paste everything below the line into the project description
 (CurseForge → BiS Tools, project 1686340 → Edit → Description), in the Markdown editor.
@@ -9,6 +9,10 @@ and lists stay flat.
 
 **Deliberately NOT on the page: summon** (Forever has no summoning stones, the tool does not load
 there). The threat beta and the pup finder were retired on 9 Nov. The page is for Forever.
+
+Changed for 1.7.0 (18 Nov): a new section **Windfury lamp** after the combo (the lamp, ASK - "needs BiS Tools on both
+players"), the opener's bold line names it, its commands in the table; the combo gains forget-a-row and the gauge naming
+your proc.
 
 Changed for 1.6.0 (19 Nov): **SET DECK** on TRY NEXT (and a right-click on a combo), and the 1.5.0 **clean proc text**
 + Windfury gauge that never reached the page - both in **Imbue + totem combo**; `clean` / `receipt` in the table.
@@ -32,7 +36,7 @@ a new install, each with its own tick - the "you hear it" and crest lines say so
 
 # BiS Tools
 
-**Your XP buffs in one stop, your disenchanting in one window, every boss in a dungeon marked, a picture book of every creature, what killed you, who to watch for (and the griefers on your own side), which imbue and totems hit hardest, and what to farm. For WoW Forever.**
+**Your XP buffs in one stop, your disenchanting in one window, every boss in a dungeon marked, a picture book of every creature, what killed you, who to watch for (and the griefers on your own side), which imbue and totems hit hardest, whether a shaman's Windfury is on you, and what to farm. For WoW Forever.**
 
 You're dead, and you never saw it coming. BiS Tools opens the game's own record of the hits that killed you: who landed the last one, who helped, with what, and how fast. Click a player on that screen and they're your rival. The next time they walk into view, you'll know.
 
@@ -142,13 +146,22 @@ Type a mob's name, kill one, or right-click it and pick **BiS: track in farm**.
 Which weapon imbue and which totems actually hit hardest? Turn on `/bist combo` and fight.
 
 - **A card after each fight:** your imbue and totems as their icons, your damage per second, and where that combo ranks. Click it for the list.
-- **The list, best first,** every combo you've fought with as spell icons - imbue, fire, earth, air - with how many fights, its damage per second and **adj**: the same number as if every mob had been your level (higher mobs make you miss, get dodged and glance more), which the list ranks by.
+- **The list, best first,** every combo you've fought with as spell icons - imbue, fire, earth, air - with how many fights, its damage per second and **adj**: the same number as if every mob had been your level (higher mobs make you miss, get dodged and glance more), which the list ranks by. Shift-click a combo twice to forget its fights.
 - **Click an icon to cast it.** Out of a fight, a click on any icon puts that imbue on your weapon or drops that totem.
 - **The numbers, in boxes:** Windfury, Flametongue and Frostbrand procs as a share of your own swings, your fights, average and best damage per second, the mobs' level - and you now: crit, attack power, weapon speed and damage.
 - **TRY NEXT** shows the combo you have the fewest fights with, out of the imbues and totems you know - click its icons and go. With BiS Healing, **SET DECK** puts its imbue on your weapon and its totems in your deck's totem boxes in one click; right-click any combo in the list to send that one.
 - **Only your own swings count.** Another player hitting your target doesn't show up as your procs, and with no Windfury up nothing counts as Windfury; after each fight the game's damage meter double-checks.
-- **The receipt tape:** while you fight, a small strip of paper prints each proc as icons - Windfury +2, Flametongue +1 - with the fight's clock, a cut when you swap totems, and the total at the end. Scroll back through the fight, drag it bigger, or switch it off. Prefer a calm screen? **Clean proc text** floats each swing's procs up in big letters instead (WINDFURY +2, FT +1), with a small gauge that fills while a Windfury is due.
+- **The receipt tape:** while you fight, a small strip of paper prints each proc as icons - Windfury +2, Flametongue +1 - with the fight's clock, a cut when you swap totems, and the total at the end. Scroll back through the fight, drag it bigger, or switch it off. Prefer a calm screen? **Clean proc text** floats each swing's procs up in big letters instead (WINDFURY +2, FT +1), with a small gauge that fills while your next proc is due - Windfury, or Frostbrand or Flametongue when there's no Windfury.
 - **Your numbers come from the game's own damage meter**, read once each fight is over. It starts off; SET on the list has its switches, and the list resizes by its corner.
+
+## Windfury lamp
+
+Melee in a shaman's group: is the Windfury on you, or did you just step out of range? Switch on **windfury** in the BiS Tools list (or `/bist on wf`) and fight.
+
+- **Gold WINDFURY** while a Windfury Totem is on you, or your own Windfury Weapon. **Red NO WINDFURY!**, blinking, the moment it isn't. The game itself draws it, so it works in the middle of a fight.
+- **It sits under your proc text** and shows only in a fight with a shaman in your party. Drag it to move it; `/bist wf test` shows it out of a fight.
+- **ASK the shaman.** Beside the lamp, an **ASK** button: press it about twice a second, four times. Your target flips to the shaman and back, and their **Windfury Totem** button lights up red with your name and a sound. One click and the totem is down. It works mid-fight, when chat and addon messages can't. `/bist wf key F` puts ASK on a key.
+- **Needs BiS Tools on both players**, with windfury switched on. Without it on the shaman's side, nothing lights up for them.
 
 ## Zeppelins, boats and the tram
 
@@ -196,6 +209,7 @@ The farm's skull, the rival target button, the XP buff buttons, and in battlegro
 | `/bist codex` · `/bist codex full` · `/bist codex <name>` | the Codex · after dark · look one up |
 | `/bist combo` · `/bist combo why` | the combo list (turns it on) · why a fight wasn't kept |
 | `/bist combo clean` · `/bist combo receipt` | proc text in big floating letters · the paper tape |
+| `/bist wf test` · `/bist wf key F` | the Windfury lamp out of a fight · ASK on a key |
 | `/bist farm` | the farm window |
 | `/bist farm key F5` | the skull key |
 | `/bist sounds` · `/bist sounds favs` | the sound explorer · your starred sounds |
