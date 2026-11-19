@@ -233,15 +233,20 @@ function C.ImbueNow()
   local learned = db().imbueNames and db().imbueNames[id]
   return learned or C.IMBUE_IDS[id] or ("imbue " .. id)
 end
---- The damage totems standing now (plain names only), into the set `into`.
+--- The damage totems standing now (plain names only), into the set `into`. The second answer: false when a slot
+--- would not say (18 Nov 2026, Arn's /bist combo wf: in a fight GetTotemInfo answers SECRET, SECRET - an unreadable
+--- slot is NOT an empty one; read as empty, one totem change mid-fight filed the rest of the fight as "no totems",
+--- and those rows sat on top of the list).
 function C.ScanTotems(into)
-  if not GetTotemInfo then return into end
+  if not GetTotemInfo then return into, false end
+  local readable = true
   for slot = 1, 4 do
     local ok, have, name = pcall(GetTotemInfo, slot)
+    if not ok or (issecretvalue and (issecretvalue(have) or issecretvalue(name))) then readable = false end
     name = ok and plain(have) and C.Base(plain(name)) or nil
     if name and name ~= "" and C.TOTEMS[name] then into[name] = true end
   end
-  return into
+  return into, readable
 end
 --- A combo's words: the imbue's short word, then the totems' in order ("WF · GoA · SoE").
 function C.Label(imbue, totems)
@@ -2597,8 +2602,10 @@ ev:SetScript("OnEvent", function(_, event, a1, a2, a3, a4, a5)
   if event == "PLAYER_REGEN_DISABLED" then C.Pull()
   elseif event == "PLAYER_REGEN_ENABLED" then C.FightOver()
   elseif event == "PLAYER_TOTEM_UPDATE" then
-    if C.cur then
-      local up = C.ScanTotems({})
+    local up, readable
+    if C.cur then up, readable = C.ScanTotems({}) end
+    -- (a fight hides the slots: nothing changes then - a totem you drop is still caught by its cast, C.Cast)
+    if C.cur and readable then
       local had = C.cur.nowTot or {}
       local wfGone, ftGone = had["Windfury Totem"] and not up["Windfury Totem"], had["Flametongue Totem"] and not up["Flametongue Totem"]
       C.ScanTotems(C.cur.totems) C.SwitchCheck(C.cur, C.cur.nowImbue, up)

@@ -5919,6 +5919,21 @@ do
          "no Windfury, Frostbrand on: the gauge follows Frostbrand, its own count", due.label:GetText())
       W.runAfters(1.5) h() W.runAfters(1)
       ok(due.label:GetText():find("^FROSTBRAND DUE") and Co.cur.dry == 1, "a plain swing: FROSTBRAND DUE", due.label:GetText())
+      -- A FIGHT HIDES THE TOTEM SLOTS (18 Nov, Arn's /bist combo wf: GetTotemInfo = SECRET, SECRET mid-fight): an unreadable
+      -- slot is not an empty one - before, one totem change mid-fight filed the rest as "no totems" (his top rows)
+      do
+        local keepGTI, keepIs2 = _G.GetTotemInfo, _G.issecretvalue
+        local HID = {}
+        _G.GetTotemInfo = function() return HID, HID end
+        _G.issecretvalue = function(v) return v == HID or (keepIs2 and keepIs2(v)) or false end
+        local before = Co.Label(Co.cur.nowImbue, Co.cur.nowTot)
+        fc(Co.events, "PLAYER_TOTEM_UPDATE", 3)
+        ok(Co.Label(Co.cur.nowImbue, Co.cur.nowTot) == before and before:find("FT totem", 1, true),
+           "slots hidden in a fight: the totems stay as they were (never 'no totems')", before)
+        local _, readable = Co.ScanTotems({})
+        ok(readable == false, "and the scan says it could not read them")
+        _G.GetTotemInfo, _G.issecretvalue = keepGTI, keepIs2
+      end
       Co.cur.wfAura = true                                            -- a party shaman's Windfury on you, read at the pull
       totems[2] = "Strength of Earth Totem"
       fc(Co.events, "PLAYER_TOTEM_UPDATE", 2) W.runAfters(Co.AURA_LINGER + 0.1)
