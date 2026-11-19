@@ -419,7 +419,9 @@ function W.BuildAsk()
     if not GameTooltip then return end
     GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
     GameTooltip:AddLine("Ask the shaman for Windfury", 1, 0.69, 0.18)
-    GameTooltip:AddLine(("Press about twice a second, 4 times (mashing is too fast - the game passes only one change each half second): your target flips to %s and back, and their Windfury Totem button lights up. They need BiS Tools with windfury on."):format(W.askName or "the shaman"), 0.9, 0.9, 0.9, true)
+    GameTooltip:AddLine(("Press about twice a second, 4 times (mashing is too fast - the game passes only one change each half second): your target flips to %s and back, and their Windfury Totem button lights up."):format(W.askName or "the shaman"), 0.9, 0.9, 0.9, true)
+    -- (Arn, at the 1.7.0 release: "make sure that tooltip says needs bis tools for it to work")
+    GameTooltip:AddLine("Needs BiS Tools: the shaman must have BiS Tools with windfury switched on, or nothing lights up for them.", 1, 0.45, 0.45, true)
     GameTooltip:Show()
   end)
   b:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
@@ -457,6 +459,15 @@ function W.BuildTotem()
   b.hl:SetAllPoints(b)
   b.hl:SetColorTexture(1, 1, 1, 0.15)
   b:SetScript("PostClick", function() W.Unlight() end)
+  b:SetScript("OnEnter", function(self)
+    if not GameTooltip then return end
+    GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
+    GameTooltip:AddLine("Windfury Totem", 1, 0.83, 0.23)
+    GameTooltip:AddLine("Click to drop it. It lights up red with a name when someone in your party presses ASK.", 0.9, 0.9, 0.9, true)
+    GameTooltip:AddLine("Needs BiS Tools: they must have BiS Tools with windfury switched on to ask.", 1, 0.45, 0.45, true)
+    GameTooltip:Show()
+  end)
+  b:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
   -- the lit look: our own frame over it (never the secure button's own show or size in a fight)
   local lit = CreateFrame("Frame", nil, UIParent)
   lit:SetFrameStrata("HIGH")
@@ -695,7 +706,7 @@ R:Register({
   defaults = {},
   options = {
     { kind = "button", label = "the lamp", button = "test",
-      help = "Shows the lamp for a few seconds out of a fight: gold while Windfury is on you, red when not. In a fight it shows by itself when a shaman is in your party, with ASK beside it - a shaman gets a Windfury Totem button there that lights up when someone asks.",
+      help = "Shows the lamp for a few seconds out of a fight: gold while Windfury is on you, red when not. In a fight it shows by itself when a shaman is in your party, with ASK beside it - a shaman gets a Windfury Totem button there that lights up when someone asks. ASK needs BiS Tools (windfury on) on both players.",
       action = function(d) W.db = d W.Test() end },
   },
   OnInit = function(_, d) W.db = d end,

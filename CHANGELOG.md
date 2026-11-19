@@ -1,3 +1,11 @@
+## 1.7.0
+
+- **New: the Windfury lamp** (switch on **windfury** in the BiS Tools list, or `/bist on wf`). In a fight with a shaman in your party, a small bar under your proc text: gold **WINDFURY** while a Windfury Totem (or your own Windfury Weapon) is on you, a blinking red **NO WINDFURY!** when it isn't - step out of the totem's range and you see it at once. The game draws it, so it works in the middle of a fight. `/bist wf test` shows it out of a fight; drag it to move it.
+- **ASK the shaman for Windfury.** Beside the lamp, an **ASK** button: press it about twice a second, 4 times. Your target flips to the shaman and back, and the shaman's **Windfury Totem** button lights up red with your name and a sound - one click drops the totem. Works in a fight. **Needs BiS Tools on both players**, with windfury switched on. A key can press ASK too: `/bist wf key F`.
+- **Combo: forget a row.** Shift-click a combo in the list (it turns pink), then shift-click it again: its fights are gone, the rest stay.
+- **Combo: fixed rows with missing totems.** A totem dropped or swapped mid-fight could file the rest of the fight as "no totems" (the game hides the totem slots in a fight). It no longer does.
+- **Combo: the bar under the clean proc text names your proc** - FROSTBRAND DUE or FLAMETONGUE DUE when there's no Windfury, in its own colour; no bar with Rockbiter alone.
+
 ## 1.6.0
 
 - **SET DECK: try a combo on BiS Healing's deck.** On the combo list's TRY NEXT strip, SET DECK puts the suggestion's imbue on your weapon and sends its totems to BiS Healing's totem boxes, each under its element (fire, earth, air; water is left alone). Right-click any combo in the list to send that combo's totems the same way. Out of a fight only; a chat line says what the boxes now drop, or why it couldn't.
