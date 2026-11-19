@@ -577,6 +577,14 @@ _G.CreateFrame = function(kind, name, parent, template)
         if p == self then return true, false end
         p, hops = p.parent, hops + 1
       end
+      -- ...OR ANYWHERE UP ITS ANCHOR CHAIN (18 Nov 2026, Arn's BugSack after 1.7.0: "BiSTools tried to call the protected
+      -- function 'BiSToolsComboFloat:Show()'" - the windfury ASK button was anchored to the lamp, the lamp to the proc
+      -- text: the client protects every frame a secure one hangs from, by anchor as well as by parent)
+      local q, hops2 = s.point and s.point[2], 0
+      while type(q) == "table" and hops2 < 50 do
+        if q == self then return true, false end
+        q, hops2 = q.point and q.point[2], hops2 + 1
+      end
     end
     return false, false
   end
@@ -10130,7 +10138,11 @@ do
   local ask = _G.BiSToolsWFAsk
   ok(ask and ask:IsShown() and ask.attrs.type == "macro" and ask.attrs["bis-who"] == "party1" and ask.attrs.macrotext == "/target party1",
      "a warrior's fight: a secure ASK button, aimed at the first shaman in the party (Thrall)")
-  ok(ask.point and ask.point[2] == WF.frame and ask.point[1] == "LEFT", "at the lamp's right end")
+  ok(ask.point and ask.point[2] ~= WF.frame and ask.point[2] ~= _G.BiSToolsComboFloat,
+     "placed at the lamp's right end, but NOT anchored to it (nothing in its chain gets protected)")
+  ok(not WF.frame:IsProtected() and not _G.BiSToolsComboFloat:IsProtected(), "the lamp and the proc text stay unprotected")
+  ok(pcall(NS.Combo.FloatLine, { { "WINDFURY +1", "wf" } }),
+     "a proc floats up mid-fight with ASK on screen (Arn's BugSack: 'BiSToolsComboFloat:Show()' blocked)")
   ok(WF.wrapped and wrapped[1] and wrapped[1].b == ask and wrapped[1].script == "OnClick", "its click wrapped by the flip snippet")
   local function run(help)
     local fn = assert(loadstring(WF.SNIPPET))

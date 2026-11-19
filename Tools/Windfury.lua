@@ -250,6 +250,11 @@ function W.Build()
     if not (ok and pt) then return end
     if m == self then db().pos = { pt, rp, x, y }
     elseif R:Get("combo") then R:DBFor(R:Get("combo")).tapePos = { pt, rp, x, y } end
+    -- (the buttons are not anchored to the lamp - W.Place: moved with it by hand, out of a fight only)
+    if not locked() then
+      if W.ask and W.ask:IsShown() then W.Place(W.ask, self) end
+      if W.totem and W.totem:IsShown() then W.Place(W.totem, self) end
+    end
   end
   f:SetScript("OnDragStop", stop)
   f:SetScript("OnHide", stop)
@@ -498,6 +503,24 @@ function W.BuildTotem()
   return b
 end
 
+--[[ NEVER ANCHORED TO THE LAMP (18 Nov 2026, Arn's BugSack after 1.7.0: "BiSTools tried to call the protected function
+  'BiSToolsComboFloat:Show()'"). The client protects every frame a secure one hangs from - by ANCHOR as well as by parent:
+  ASK sat on the lamp, the lamp on the combo's proc text, so the proc text could no longer be shown in a fight. A secure
+  button is placed on UIParent at the lamp's right end, worked out from where the lamp is (out of the lockdown only);
+  nothing of ours is in its chain. ]]
+function W.Place(b, f)
+  b:ClearAllPoints()
+  local okR, right = pcall(f.GetRight, f)
+  local okC, _, cy = pcall(f.GetCenter, f)
+  right = okR and plain(right) or nil
+  cy = okC and plain(cy) or nil
+  if type(right) == "number" and type(cy) == "number" then
+    b:SetPoint("LEFT", UIParent, "BOTTOMLEFT", right + 4, cy)
+  else
+    b:SetPoint("CENTER", UIParent, "CENTER", W.W / 2 + 4 + W.TOT / 2, -160)   -- (the lamp not laid out yet: near its default)
+  end
+end
+
 --- Out of the lockdown: the right button for you, aimed and placed at the lamp's right end - or both away.
 function W.Buttons(on)
   if locked() then W.pendingButtons = on return false end
@@ -506,8 +529,7 @@ function W.Buttons(on)
   if on and f then
     if W.IsShaman() then
       if W.KnowsWF() and W.BuildTotem() then
-        W.totem:ClearAllPoints()
-        W.totem:SetPoint("LEFT", f, "RIGHT", 4, 0)
+        W.Place(W.totem, f)
         W.totem:Show()
         W.Hear(true)
       end
@@ -518,8 +540,7 @@ function W.Buttons(on)
         W.ask:SetAttribute("macrotext", "/target " .. u)
         W.ask:SetAttribute("bis-n", 0)
         W.askUnit, W.askName = u, nameOf(u)
-        W.ask:ClearAllPoints()
-        W.ask:SetPoint("LEFT", f, "RIGHT", 4, 0)
+        W.Place(W.ask, f)
         W.ask:Show()
       end
     end
