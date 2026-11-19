@@ -5545,6 +5545,38 @@ do
   Co.frame.sw.reset:GetScript("OnClick")(Co.frame.sw.reset)
   ok(cdb.w == nil and cdb.h == nil and cdb.card == nil and #cdb.fights == nf and Co.frame.h == Co.H, "RESET: the look back, the fights kept")
   Co.ToggleSet(false)
+  -- FORGET ONE ROW (18 Nov, Arn: "a way to clear a row? sometimes it does not pick up the totems and it stays there at the
+  -- top spot"): shift-click twice in time = that combo's fights gone, the rest kept
+  do
+    local keepFights = cdb.fights
+    cdb.fights = { { combo = "RB · GoA", imbue = "Rockbiter Weapon", totems = { "Grace of Air Totem" }, dur = 30, dmg = 3900 },
+                   { combo = "RB · GoA", imbue = "Rockbiter Weapon", totems = { "Grace of Air Totem" }, dur = 30, dmg = 3800 },
+                   { combo = "WF · FT totem", imbue = "Windfury Weapon", totems = { "Flametongue Totem" }, dur = 30, dmg = 2700 } }
+    Co.sel = nil
+    Co.Paint()
+    local r1 = Co.frame.rows[1]
+    ok(r1.g and r1.g.combo == "RB · GoA", "(the missed-totem combo on top)")
+    W.shift = true
+    r1:GetScript("OnClick")(r1, "LeftButton")
+    ok(#cdb.fights == 3 and (r1.armed.alpha or 0) > 0.3 and Co.frame.foot:GetText() == "shift-click it again: forget its 2 fights",
+       "one shift-click: nothing lost, the row pink, the foot asks", Co.frame.foot:GetText())
+    W.runAfters(Co.FORGET_ARM + 0.5)
+    ok((r1.armed.alpha or 0) == 0 and not Co.frame.foot:GetText():find("shift-click", 1, true), "waited too long: the ask goes again")
+    r1:GetScript("OnClick")(r1, "LeftButton")
+    ok(#cdb.fights == 3, "so the next shift-click only asks again")
+    local r2 = Co.frame.rows[2]
+    r2:GetScript("OnClick")(r2, "RightButton")
+    ok(#cdb.fights == 3 and Co.Armed(r2.g.combo) and not Co.Armed("RB · GoA"), "another row shift-clicked: it asks for that one instead")
+    r1:GetScript("OnClick")(r1, "LeftButton") W.runAfters(1)
+    r1:GetScript("OnClick")(r1, "LeftButton")
+    ok(#cdb.fights == 1 and cdb.fights[1].combo == "WF · FT totem", "shift-click twice in time: its 2 fights gone, the other kept")
+    ok(Co.frame.rows[1].g and Co.frame.rows[1].g.combo == "WF · FT totem" and not (Co.frame.rows[2].g),
+       "the list repainted: the next combo on top")
+    W.shift = false
+    ok(Co.ForgetAsk(nil) == false, "nothing under the mouse: nothing")
+    cdb.fights = keepFights
+    Co.Paint()
+  end
   -- off: nothing recorded
   R:SetEnabled("combo", false)
   Co.events:GetScript("OnEvent")(Co.events, "PLAYER_REGEN_DISABLED")

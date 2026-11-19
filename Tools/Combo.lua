@@ -1052,6 +1052,7 @@ function C.Layout()
     if i <= n and not r then
       r = CreateFrame("Button", nil, f)
       r.lit = K.tex(r, "BACKGROUND", "accent", 0)               -- rows glow on hover (the family rule): a wash + a bar
+      r.armed = K.tex(r, "BACKGROUND", "warn", 0)               -- (pink while one shift-click more forgets it: C.ForgetAsk)
       r.bar = r:CreateTexture(nil, "ARTWORK")
       r.bar:SetPoint("TOPLEFT") r.bar:SetPoint("BOTTOMLEFT") r.bar:SetWidth(3)
       do local rr, g, b = K.color("accent") r.bar:SetColorTexture(rr, g, b, 1) end
@@ -1072,6 +1073,7 @@ function C.Layout()
       if r.RegisterForClicks then r:RegisterForClicks("LeftButtonUp", "RightButtonUp") end
       r:SetScript("OnClick", function(self, button)
         if not self.g then return end
+        if IsShiftKeyDown and IsShiftKeyDown() then C.ForgetAsk(self.g.combo) return end   -- (shift-click twice: forget it)
         if button == "RightButton" then C.SendDeck(self.g.totems) return end   -- (right-click: onto the deck)
         C.sel = self.g.combo C.Paint()
       end)
@@ -1215,12 +1217,50 @@ function C.RowTip(r)
   GameTooltip:AddLine(r.g.imbue or "no imbue", 1, 1, 1)
   for _, n in ipairs(r.g.totems or {}) do GameTooltip:AddLine(n, 0.8, 0.8, 0.8) end
   GameTooltip:AddLine(("%d fights  -  %d dps"):format(r.g.n or 0, math.floor((r.g.dps or 0) + 0.5)), 0.6, 0.9, 0.6)
+  GameTooltip:AddLine("shift-click twice: forget these fights", 0.6, 0.6, 0.6)
   GameTooltip:Show()
+end
+--[[ FORGET ONE COMBO (18 Nov 2026, Arn: "a way to clear a row? sometimes it does not pick up the totems and it stays there
+  at the top spot"): shift-click a row = it turns pink and the foot asks; shift-click it again within C.FORGET_ARM s = every
+  kept fight filed under that combo is gone (the rest stay). Anything else - another row, waiting - and nothing is lost. ]]
+C.FORGET_ARM = 4
+function C.Armed(combo)
+  return combo ~= nil and C.forgetArm == combo and (now() - (C.forgetAt or 0)) <= C.FORGET_ARM
+end
+--- Every kept fight filed under `combo` gone; answers how many.
+function C.ForgetCombo(combo)
+  local d, keep, gone = db(), {}, 0
+  for _, f in ipairs(d.fights or {}) do
+    if f.combo == combo then gone = gone + 1 else keep[#keep + 1] = f end
+  end
+  d.fights = keep
+  if C.sel == combo then C.sel = nil end
+  return gone
+end
+--- The first shift-click arms the row, the second (in time, same row) forgets it.
+function C.ForgetAsk(combo)
+  if not combo then return false end
+  if C.Armed(combo) then
+    C.forgetArm = nil
+    local gone = C.ForgetCombo(combo)
+    say("combo: forgot %d %s of %s", gone, gone == 1 and "fight" or "fights", combo)
+    if C.IsOpen() then C.Paint() end
+    return gone
+  end
+  C.forgetArm, C.forgetAt = combo, now()
+  C.forgetTok = (C.forgetTok or 0) + 1
+  local tok = C.forgetTok
+  if C_Timer and C_Timer.After then        -- (the pink goes again once the time is up)
+    C_Timer.After(C.FORGET_ARM + 0.1, function() if C.forgetTok == tok and C.IsOpen() then C.Paint() end end)
+  end
+  if C.IsOpen() then C.Paint() end
+  return false
 end
 function C.PaintRow(r)
   local sel = r.g and r.g.combo == C.sel
   r.lit:SetAlpha(sel and 0.35 or ((r.hover and r.g) and 0.16 or 0))
   r.bar:SetAlpha((sel or (r.hover and r.g)) and 1 or 0)
+  if r.armed then r.armed:SetAlpha((r.g and C.Armed(r.g.combo)) and 0.45 or 0) end
 end
 function C.Paint()
   local f = C.frame
@@ -1257,6 +1297,13 @@ function C.Paint()
   f.detail:SetText(last or (#list > 0 and "click a combo: its numbers" or "no fights yet - fight something with an imbue and totems up"))
   f.foot:SetText(C.Min() > 0 and ("%d fights kept  ·  fights under %d s are not counted"):format(#(db().fights or {}), C.Min())
     or ("%d fights kept  ·  dps over the time you swing"):format(#(db().fights or {})))
+  f.foot:SetTextColor(F().color("dim"))
+  if C.forgetArm and C.Armed(C.forgetArm) then
+    local n = 0
+    for _, fi in ipairs(db().fights or {}) do if fi.combo == C.forgetArm then n = n + 1 end end
+    f.foot:SetText(("shift-click it again: forget its %d %s"):format(n, n == 1 and "fight" or "fights"))
+    f.foot:SetTextColor(F().color("warn"))
+  end
   C.PaintTry()
 end
 --[[ THE NUMBERS UNDER THE LIST (17 Nov 2026, Arn: "maybe we can put better information at the bottom, like proc %, lifetime,
