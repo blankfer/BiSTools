@@ -5876,6 +5876,31 @@ do
       Co.FightOver() W.runAfters(Co.READ_WAIT + 0.1)
       ok(Co.MeterCheck({ wf = 0, procs = { extra1 = 0, extra2 = 3, more = 0, fire = 0 } }) and not Co.MeterCheck({ wf = 0.2, procs = { extra2 = 3 } }),
          "after the fight: Windfury procs on the tape but none in your damage = the meter says they were someone else's")
+      -- PARTY PROCS (18 Nov, Arn: "i think tools is also counting my party procs")
+      do
+        -- the game hides your weapon's speed in a fight: the one read at the pull is used, never the 2.5 s guess
+        local hidden = {}
+        local keepIs = _G.issecretvalue
+        _G.issecretvalue = function(v) return v == hidden or (keepIs and keepIs(v)) or false end
+        _G.UnitAttackSpeed = function() return 3.6, nil end      -- (a slow two-hander, read at the pull)
+        Co.Pull()
+        _G.UnitAttackSpeed = function() return hidden, hidden end -- (the lockdown: secret)
+        ok(Co.Speeds() == 3.6 and Co.cur.mh == 3.6, "mid-fight the speed read at the pull, not the guess", Co.Speeds())
+        Co.CloseBurst(Co.cur, { swings = 1, fire = 0, at = 200 })
+        Co.CloseBurst(Co.cur, { swings = 1, fire = 0, at = 202.0 })   -- a party member's hit 2 s after yours
+        ok(Co.cur.beats == 1 and (Co.cur.foreign or 0) == 1, "a hit 2 s after your swing with a 3.6 s weapon: not yours (with the 2.5 s guess it passed)",
+           Co.cur.beats, Co.cur.foreign)
+        Co.FightOver() W.runAfters(Co.READ_WAIT + 0.1)
+        _G.issecretvalue = keepIs
+        -- the meter's last word: counts it denies are taken off the fight's record
+        local rec = { wf = 0, ft = 0, procs = { extra1 = 2, extra2 = 1, more = 0, fire = 3 } }
+        Co.MeterCheck(rec)
+        ok(rec.notMine and rec.notMineFt and rec.procs.extra1 == 0 and rec.procs.extra2 == 0 and rec.procs.fire == 0,
+           "none of your damage was Windfury or Flametongue: those procs come off the record (the shares and the rate stay yours)")
+        local rec2 = { wf = 0.12, ft = 0.08, procs = { extra1 = 2, fire = 3 } }
+        Co.MeterCheck(rec2)
+        ok(not rec2.notMine and rec2.procs.extra1 == 2 and rec2.procs.fire == 3, "yours by the meter: kept")
+      end
       _G.UnitAttackSpeed = keepAS
     end
     -- THE CLEAN TAPE (Arn: "my cousin does not want any extra information on the tape ... like scrolling combat text")
