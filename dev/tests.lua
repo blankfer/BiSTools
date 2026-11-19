@@ -808,7 +808,7 @@ do
     if sv.enabled[key] ~= want then wrong[#wrong + 1] = key .. "=" .. tostring(sv.enabled[key]) end
     wrote = wrote + 1
   end
-  ok(sv.forever10 == true and wrote == 17 and #wrong == 0, "an existing save at the 1.0 load: every tool frozen as it was, written out", table.concat(wrong, " "))
+  ok(sv.forever10 == true and wrote == 18 and #wrong == 0, "an existing save at the 1.0 load: every tool frozen as it was, written out", table.concat(wrong, " "))
   -- a tool 0.20.2 never had is not "as it was" - it was nothing (Arn, 8 Nov: his cousin's pups came up on)
   ok(sv.enabled.codex == false, "the codex, new in 1.0, starts OFF on an existing save too", tostring(sv.enabled.codex))
   ok(R:DBFor(R:Get("farm")).shown == true and R:DBFor(R:Get("summon")).nag == true, "and the farm window and the summon nag as they were (on)")
@@ -2200,7 +2200,7 @@ do
   -- left click: the Hub, one row per tool
   mm.scripts.OnClick(mm, "LeftButton")
   local hub = BiSToolsHub
-  ok(hub and hub:IsShown() and #hub.rows == 17 and hub.rows[14].key == "codex" and hub.rows[15].key == "bosses" and hub.rows[16].key == "alts" and hub.rows[17].key == "combo", "left click opens the Hub with a row per registered tool")   -- +disenchant, +processing, 6 Nov; threat and pups retired 9 Nov
+  ok(hub and hub:IsShown() and #hub.rows == 18 and hub.rows[14].key == "codex" and hub.rows[15].key == "bosses" and hub.rows[16].key == "alts" and hub.rows[17].key == "combo" and hub.rows[18].key == "windfury", "left click opens the Hub with a row per registered tool")   -- +disenchant, +processing, 6 Nov; threat and pups retired 9 Nov; +windfury 18 Nov
   ok(hub.scale == 1.2, "the Tools list is 20% bigger (Arn: \"lets make this 20% bigger\")")
   ok(hub.rows[1].key == "farm" and hub.rows[2].key == "summon" and hub.rows[3].key == "recap" and hub.rows[4].key == "rivals"
      and hub.rows[5].key == "social" and hub.rows[6].key == "bg" and hub.rows[7].key == "map" and hub.rows[8].key == "party"
@@ -2209,10 +2209,10 @@ do
   -- RIVALS & PALS, their own tool (Arn, 14 Oct: "decouple from recap ... be its own thing")
   ok(hub.rows[4].name.text == "rivals & pals", "the rivals tool's row is titled rivals & pals")
   ok(hub.rows[1].name.text == "farm" and hub.rows[1].state.text:find("on", 1, true), "row: name + on")
-  ok(hub.con.slots.count and hub.con.slots.count.text == "12 of 17 on", "prompt slot counts the tools that are on (party, codex, bosses and alts - new in 1.0 - start off; rides, sounds, xp, disenchant and processing on)", hub.con.slots.count.text)
+  ok(hub.con.slots.count and hub.con.slots.count.text == "12 of 18 on", "prompt slot counts the tools that are on (party, codex, bosses and alts - new in 1.0 - start off; rides, sounds, xp, disenchant and processing on)", hub.con.slots.count.text)
   ok(hub.con:Width() <= H.W - 15 - 8, "hub prompt fits its header budget")
   ok(hub.closeBtn.point[4] == -3, "only an x in the header, at -3")
-  ok(hub.foot and hub.foot.label.text == "options" and hub.h == 16 + 17 * 16 + 4 + 16, "footer 'options' button; height = header + rows + footer")
+  ok(hub.foot and hub.foot.label.text == "options" and hub.h == 16 + 18 * 16 + 4 + 16, "footer 'options' button; height = header + rows + footer")
   -- row click opens the tool window; shift-click drags it to the middle
   BiSToolsFarm:Hide() F.db.pos = { "TOPLEFT", 400, -300, "TOPLEFT" }
   hub.rows[1].scripts.OnClick(hub.rows[1], "LeftButton")
@@ -2262,7 +2262,7 @@ do
   for _, r in ipairs(BiSToolsOptions and BiSToolsOptions.rows or {}) do end
   -- right click toggles the tool; opening an off tool switches it on first
   hub.rows[2].scripts.OnClick(hub.rows[2], "RightButton")
-  ok(not R:Enabled("summon") and hub.rows[2].state.text:find("off", 1, true) and hub.con.slots.count.text == "11 of 17 on", "right click: summon off, row and count follow", hub.con.slots.count.text)
+  ok(not R:Enabled("summon") and hub.rows[2].state.text:find("off", 1, true) and hub.con.slots.count.text == "11 of 18 on", "right click: summon off, row and count follow", hub.con.slots.count.text)
   ok(lib:Enabled(), "and the lib is untouched by it")
   hub.rows[2].scripts.OnClick(hub.rows[2], "LeftButton")
   ok(R:Enabled("summon") and BiSToolsSummon:IsShown() and db_summon().mode == "on", "click on an off tool: switched on and its window pinned open")
@@ -2304,7 +2304,8 @@ do
   -- (+ combo (4), 17 Nov: the card switch, the proc text, the shortest fight counted, the list's open button - and its header)
   -- (+3 in rivals, 17 Nov: griefer alerts, griefer card, griefer sound)
   -- (+1 in combo, 17 Nov: the clean proc text)
-  ok(#opt.rows == 11 + 3 + 5 + 7 + 1 + 8 + 2 + 4 + 7 + 4 + 4 + 5 + 1 + 1 + 1 + 1 + 3 + 2 + 4 + 2 + 6 + 3, "one row per section header and per option", #opt.rows)
+  -- (+ windfury (1), 18 Nov: the lamp's test button - and its section header)
+  ok(#opt.rows == 11 + 3 + 5 + 7 + 1 + 8 + 2 + 4 + 7 + 4 + 4 + 5 + 1 + 1 + 1 + 1 + 3 + 2 + 4 + 2 + 6 + 3 + 2, "one row per section header and per option", #opt.rows)
   -- THE BiSTheme STANDARD, 1.43:1 (Arn, 14 Oct): its sections poured into columns, the window that shape
   ok(math.abs(opt.w / opt.h - 1.43) < 0.01 and (opt.columns or 1) >= 2, "options: 1.43:1, in columns", opt.w .. "x" .. opt.h)
   local function find(label) for _, r in ipairs(opt.rows) do if r.name and r.name.text == label then return r end end end
@@ -2391,7 +2392,7 @@ do
   local farmHdr = opt.rows[5]
   ok(farmHdr.ctl and farmHdr.ctl.on == true, "farm section box shows on")
   farmHdr.ctl.scripts.OnClick(farmHdr.ctl)
-  ok(not R:Enabled("farm") and farmHdr.ctl.on == false and hub.con.slots.count.text == "11 of 17 on", "box off: farm off, hub count follows", hub.con.slots.count.text)
+  ok(not R:Enabled("farm") and farmHdr.ctl.on == false and hub.con.slots.count.text == "11 of 18 on", "box off: farm off, hub count follows", hub.con.slots.count.text)
   farmHdr.ctl.scripts.OnClick(farmHdr.ctl)
   ok(R:Enabled("farm"), "and back on")
   -- toggle: nag
@@ -2507,7 +2508,7 @@ do
     local spec = page.spec
     ok(spec.title == "Tools" and spec.api and spec.api.name == "BiSToolsAPI" and spec.open and spec.open.label == "the tools list",
        "titled Tools, the API named, a big button to the tools")
-    ok(spec.status() == H.Status() and spec.status():find("of 17 tools on", 1, true), "its status line: N of 17 tools on", spec.status())
+    ok(spec.status() == H.Status() and spec.status():find("of 18 tools on", 1, true), "its status line: N of 18 tools on", spec.status())
     -- THE DASHBOARD (Arn, 7 Nov live: "dont just shrink remake them all"): the page draws itself and never takes
     -- the options window in
     ok(spec.build and spec.refresh and spec.window == nil, "the page is a dashboard, not the options window in a box")
@@ -2516,7 +2517,7 @@ do
     local optParent = BiSToolsOptions.parent
     ok(optParent ~= page.frame.body and not BiSToolsOptions:IsShown(), "the options window stays where it lives, hidden")
     local d = page.frame.body.dash
-    ok(d and #d.rows == 18 and d.rows[1].entry.general, "the list: BiS Tools itself, then all 17 tools", d and #d.rows)
+    ok(d and #d.rows == 19 and d.rows[1].entry.general, "the list: BiS Tools itself, then all 18 tools", d and #d.rows)
     -- THE FAMILY RULE (Arn, 8 Nov: "its a theme so itll keep all the pages looking the same"): the page is the kit's
     -- BiSTheme.Dashboard, fed the Registry's own tables; the hand-built copy in Hub.lua is gone
     ok(d.model and d.model.list == "TOOLS" and d.list.head.text == "TOOLS" and type(d.Paint) == "function"
@@ -2632,7 +2633,7 @@ do
         if r.isSection and r.ctl and r.name and r.name.text == want then found[#found + 1] = key break end
       end
     end
-    ok(#found == 17, "all 17 tools have an on/off tick in the options window", #found)
+    ok(#found == 18, "all 18 tools have an on/off tick in the options window", #found)
     -- the minimap's right-click: the OWN options window, and again closes it (Arn, 7 Nov live); the open button: the Hub
     BiSToolsHub:Hide()
     BiSToolsOptions:Hide()
@@ -2704,8 +2705,8 @@ do
   for _, tool in R:Each() do if tool.__real then tool.OnLogin, tool.__real = tool.__real, nil end end
   ok(logins == 0, "at login no tool wakes: nothing hooks, nothing opens, nothing plays", logins)
   NS.Hub.ToggleHub(true)
-  ok(BiSToolsHub.con.slots.count.text == "0 of 17 on", "the Hub, the main page: 0 of 17 on", BiSToolsHub.con.slots.count.text)
-  ok(NS.Hub.Status() == "0 of 17 tools on", "the BiS> page's status line says it", NS.Hub.Status())
+  ok(BiSToolsHub.con.slots.count.text == "0 of 18 on", "the Hub, the main page: 0 of 18 on", BiSToolsHub.con.slots.count.text)
+  ok(NS.Hub.Status() == "0 of 18 tools on", "the BiS> page's status line says it", NS.Hub.Status())
   -- the user chooses: a switch writes TRUE (not nil) and off writes FALSE
   R:SetEnabled("social", true)
   ok(fresh.enabled.social == true and R:Enabled("social"), "switched on: stored as true")
@@ -5545,6 +5546,56 @@ do
   Co.frame.sw.reset:GetScript("OnClick")(Co.frame.sw.reset)
   ok(cdb.w == nil and cdb.h == nil and cdb.card == nil and #cdb.fights == nf and Co.frame.h == Co.H, "RESET: the look back, the fights kept")
   Co.ToggleSet(false)
+  -- FORGET ONE ROW (18 Nov, Arn: "a way to clear a row? sometimes it does not pick up the totems and it stays there at the
+  -- top spot"): shift-click twice in time = that combo's fights gone, the rest kept
+  do
+    local keepFights = cdb.fights
+    cdb.fights = { { combo = "RB · GoA", imbue = "Rockbiter Weapon", totems = { "Grace of Air Totem" }, dur = 30, dmg = 3900 },
+                   { combo = "RB · GoA", imbue = "Rockbiter Weapon", totems = { "Grace of Air Totem" }, dur = 30, dmg = 3800 },
+                   { combo = "WF · FT totem", imbue = "Windfury Weapon", totems = { "Flametongue Totem" }, dur = 30, dmg = 2700 } }
+    Co.sel = nil
+    Co.Paint()
+    local r1 = Co.frame.rows[1]
+    ok(r1.g and r1.g.combo == "RB · GoA", "(the missed-totem combo on top)")
+    W.shift = true
+    r1:GetScript("OnClick")(r1, "LeftButton")
+    ok(#cdb.fights == 3 and (r1.armed.alpha or 0) > 0.3 and Co.frame.foot:GetText() == "shift-click it again: forget its 2 fights",
+       "one shift-click: nothing lost, the row pink, the foot asks", Co.frame.foot:GetText())
+    W.runAfters(Co.FORGET_ARM + 0.5)
+    ok((r1.armed.alpha or 0) == 0 and not Co.frame.foot:GetText():find("shift-click", 1, true), "waited too long: the ask goes again")
+    r1:GetScript("OnClick")(r1, "LeftButton")
+    ok(#cdb.fights == 3, "so the next shift-click only asks again")
+    local r2 = Co.frame.rows[2]
+    r2:GetScript("OnClick")(r2, "RightButton")
+    ok(#cdb.fights == 3 and Co.Armed(r2.g.combo) and not Co.Armed("RB · GoA"), "another row shift-clicked: it asks for that one instead")
+    r1:GetScript("OnClick")(r1, "LeftButton") W.runAfters(1)
+    r1:GetScript("OnClick")(r1, "LeftButton")
+    ok(#cdb.fights == 1 and cdb.fights[1].combo == "WF · FT totem", "shift-click twice in time: its 2 fights gone, the other kept")
+    ok(Co.frame.rows[1].g and Co.frame.rows[1].g.combo == "WF · FT totem" and not (Co.frame.rows[2].g),
+       "the list repainted: the next combo on top")
+    W.shift = false
+    ok(Co.ForgetAsk(nil) == false, "nothing under the mouse: nothing")
+    -- THE WINDFURY PROBE (18 Nov): out of a fight it learns the buff's id by name; in one it asks by that id too
+    local keepUA, keepL, keepIs = _G.C_UnitAuras, _G.InCombatLockdown, _G.issecretvalue
+    local locked, S = false, {}
+    local function secret() return S end
+    _G.issecretvalue = function(v) return v == S end
+    _G.InCombatLockdown = function() return locked end
+    _G.C_UnitAuras = {
+      GetAuraDataBySpellName = function(u, n) if locked then return secret() end return { spellId = 327942, sourceUnit = "party2", expirationTime = 1010 } end,
+      GetPlayerAuraBySpellID = function(id) if id == 327942 then return { expirationTime = secret() } end end,
+    }
+    local p1 = Co.WFProbe()
+    ok(p1["by name"]:find("id 327942", 1, true) and cdb.wfIds[327942] and p1.lockdown == "false", "/bist combo wf out of a fight: the buff by name, its id learned", p1["by name"])
+    locked = true
+    local p2 = Co.WFProbe()
+    ok(p2["by name"] == "SECRET" and p2["by id"] == "327942=up, ends SECRET" and #cdb.wfProbe == 2,
+       "in a fight: by name hidden, by id still answers - both kept in the save", p2["by id"])
+    _G.C_UnitAuras, _G.InCombatLockdown, _G.issecretvalue = keepUA, keepL, keepIs
+    cdb.wfIds, cdb.wfProbe = nil, nil
+    cdb.fights = keepFights
+    Co.Paint()
+  end
   -- off: nothing recorded
   R:SetEnabled("combo", false)
   Co.events:GetScript("OnEvent")(Co.events, "PLAYER_REGEN_DISABLED")
@@ -5845,6 +5896,67 @@ do
       Co.float:GetScript("OnUpdate")(Co.float, Co.FLOAT.dueHold + 1)
       ok(not due:IsShown() and not Co.float:IsShown(), "the fight over: the gauge waits, then everything is gone (nothing ticks)")
       ok(not (Co.tape and Co.tape:IsShown()), "no TOTAL tape in the clean mode")
+      -- THE GAUGE NAMES YOUR PROC (18 Nov, Arn: "if no wf imbue or totem detected change to any proc name where it says
+      -- windfury" - then "i think i switched wf totem after the fight started")
+      local keepUA = _G.C_UnitAuras
+      local buffs = {}
+      _G.C_UnitAuras = { GetAuraDataBySpellName = function(u, name) return buffs[name] and { name = name } or nil end }
+      local keepTot = { totems[1], totems[2], totems[3], totems[4] }
+      totems[1], totems[2], totems[3], totems[4] = nil, nil, nil, "Windfury Totem"
+      buffs["Windfury Totem"] = true
+      Co.Pull()
+      Co.cur.nowImbue = "Frostbrand Weapon"
+      ok(Co.cur.wfAura == true, "(the pull: Windfury Totem's buff on you)")
+      h() W.runAfters(1)
+      ok(due:IsShown() and due.label:GetText():find("^WINDFURY"), "Windfury up: the gauge says Windfury", due.label:GetText())
+      totems[4], totems[1] = nil, "Flametongue Totem"                -- swapped away mid-fight; its buff stays a while
+      fc(Co.events, "PLAYER_TOTEM_UPDATE", 4)
+      ok(Co.cur.wfAura == true, "(the buff still on you right after)")
+      buffs["Windfury Totem"] = nil
+      W.runAfters(Co.AURA_LINGER + 0.1)
+      ok(Co.cur.wfAura == false, "a moment later the buffs are read again: Windfury gone")
+      W.runAfters(1.5) h() h(16) W.runAfters(1)                       -- a swing with a frost hit
+      ok(due.label:GetText() == "FROSTBRAND!" and due.kind == "fb" and Co.cur.dry == 0,
+         "no Windfury, Frostbrand on: the gauge follows Frostbrand, its own count", due.label:GetText())
+      W.runAfters(1.5) h() W.runAfters(1)
+      ok(due.label:GetText():find("^FROSTBRAND DUE") and Co.cur.dry == 1, "a plain swing: FROSTBRAND DUE", due.label:GetText())
+      -- A FIGHT HIDES THE TOTEM SLOTS (18 Nov, Arn's /bist combo wf: GetTotemInfo = SECRET, SECRET mid-fight): an unreadable
+      -- slot is not an empty one - before, one totem change mid-fight filed the rest as "no totems" (his top rows)
+      do
+        local keepGTI, keepIs2 = _G.GetTotemInfo, _G.issecretvalue
+        local HID = {}
+        _G.GetTotemInfo = function() return HID, HID end
+        _G.issecretvalue = function(v) return v == HID or (keepIs2 and keepIs2(v)) or false end
+        local before = Co.Label(Co.cur.nowImbue, Co.cur.nowTot)
+        fc(Co.events, "PLAYER_TOTEM_UPDATE", 3)
+        ok(Co.Label(Co.cur.nowImbue, Co.cur.nowTot) == before and before:find("FT totem", 1, true),
+           "slots hidden in a fight: the totems stay as they were (never 'no totems')", before)
+        local _, readable = Co.ScanTotems({})
+        ok(readable == false, "and the scan says it could not read them")
+        _G.GetTotemInfo, _G.issecretvalue = keepGTI, keepIs2
+      end
+      Co.cur.wfAura = true                                            -- a party shaman's Windfury on you, read at the pull
+      totems[2] = "Strength of Earth Totem"
+      fc(Co.events, "PLAYER_TOTEM_UPDATE", 2) W.runAfters(Co.AURA_LINGER + 0.1)
+      ok(Co.cur.wfAura == true, "another totem of yours changed: a party member's Windfury stays as it was read (a fight hides the buff)")
+      Co.cur.wfAura = false
+      totems[2] = nil
+      Co.cur.nowImbue = "Rockbiter Weapon"
+      totems[1] = nil
+      fc(Co.events, "PLAYER_TOTEM_UPDATE", 1)
+      W.runAfters(1.5) h() W.runAfters(1)
+      ok(not due:IsShown(), "Rockbiter and no fire: no proc to wait for, no gauge")
+      Co.FightOver() W.runAfters(Co.READ_WAIT + Co.AURA_LINGER)
+      ok(Co.ProcRate("ft") == nil and Co.WFRate() == Co.ProcRate("wf"), "each proc its own rate (none learned yet here)")
+      local keepF = cdb.fights
+      cdb.fights = { { imbue = "Frostbrand Weapon", totems = {}, swings = 40, procs = { frost = 6 } },
+                     { imbue = "Windfury Weapon", totems = {}, swings = 40, procs = { extra2 = 8, frost = 9 } } }
+      ok(math.abs((Co.ProcRate("fb") or 0) - 0.15) < 1e-9 and math.abs((Co.ProcRate("wf") or 0) - 0.2) < 1e-9,
+         "the Frostbrand rate only from fights with Frostbrand on", Co.ProcRate("fb"))
+      cdb.fights = keepF
+      totems[1], totems[2], totems[3], totems[4] = keepTot[1], keepTot[2], keepTot[3], keepTot[4]
+      _G.C_UnitAuras = keepUA
+      Co.float:GetScript("OnUpdate")(Co.float, Co.FLOAT.dueHold + 1)
       cdb.tapeStyle = nil
       Co.StyleChanged()
       _G.UnitAttackSpeed = keepAS
@@ -9883,6 +9995,210 @@ do
   S("alts")
   ok(not f:IsShown(), "/bist alts again: closed")
   _G.GetUnitName, _G.UnitClass, _G.UnitLevel, _G.GetServerTime = keep.gun, keep.cls, keep.lvl, keep.gst
+end
+
+-- THE WINDFURY LAMP (18 Nov 2026, Arn: "im a warrior is windfury in range? and turns red No Windfury!" - look A, the proc
+-- text above, its own switch in the tools list). The game hides the buff in a fight (his /bist combo wf), so the CLIENT
+-- draws it: a red bar, and the client's button over it while the buff is on you. This mock is that client.
+do
+  print("BiS> windfury lamp (18 Nov 2026)")
+  local WF = NS.WF
+  ok(WF and R:Get("windfury") and R:Get("wf") == R:Get("windfury"), "the windfury tool, short word wf")
+  ok(not R:Enabled("windfury"), "off until switched on in the tools list (Arn: they turn it on in tools)")
+  local keep = { cls = _G.UnitClass, ex = _G.UnitExists, xml = _G.C_XMLUtil, cf = _G.CreateFrame, ua = _G.C_UnitAuras, is = _G.issecretvalue }
+  _G.issecretvalue = function() return false end                  -- (out of a fight the client hands plain answers)
+  local classes = { player = "WARRIOR", party1 = "SHAMAN" }
+  _G.UnitClass = function(u) local c = classes[u] return c and c:lower(), c end
+  _G.UnitExists = function(u) if classes[u] then return true end return keep.ex(u) end
+  _G.C_XMLUtil = { GetTemplateInfo = function(t) if t == "CustomAuraContainerTemplate" then return { type = "Frame" } end end }
+  local made, WFWRAPPED = {}, {}
+  _G.CreateFrame = function(kind, name, parent, template)
+    local f = keep.cf(kind == "AuraContainer" and "Frame" or kind, name, parent, template)
+    if template == "SecureHandlerBaseTemplate" then
+      function f:WrapScript(b, script, pre) WFWRAPPED[#WFWRAPPED + 1] = { b = b, script = script, pre = pre } end
+    end
+    if kind == "AuraContainer" then
+      made[#made + 1] = f
+      function f:SetUnit(u) self.unit = u end
+      function f:AddAuraSlot(key, filter, opts) self.slot = { key = key, filter = filter, opts = opts } return self.slot end
+      function f:SetEnabled(v) self.enabled = v and true or false end
+      function f:UpdateAllAuras() self.updated = (self.updated or 0) + 1 end
+    end
+    return f
+  end
+  local buff = {}
+  _G.C_UnitAuras = { GetAuraDataBySpellName = function(u, n)
+    if W.combat then return nil end                                -- (hidden in a fight, as measured)
+    return buff[n] and { spellId = buff[n] } or nil end }
+  local ev = function(e) WF.events:GetScript("OnEvent")(WF.events, e) end
+
+  R:SetEnabled("windfury", true)
+  ok(WF.events.events.PLAYER_REGEN_DISABLED and WF.events.events.PLAYER_REGEN_ENABLED, "on: it listens for a fight starting and ending, nothing else")
+  ok(not (WF.frame and WF.frame:IsShown()), "out of a fight: no lamp")
+  buff["Windfury Totem"] = 10609
+  ev("PLAYER_REGEN_DISABLED")
+  local f = WF.frame
+  ok(f and f:IsShown() and f.red.word:GetText() == "NO WINDFURY!", "a fight, a shaman in the party: the lamp, red NO WINDFURY! underneath")
+  local c = f.container
+  ok(c and c.unit == "player" and c.slot.filter == "HELPFUL" and c.slot.opts.candidateFilters.includeSpellIDs[10609]
+     and c.slot.opts.candidateFilters.includeSpellIDs[8512] and c.enabled and (c.updated or 0) >= 1,
+     "over it the game's own aura slot on you, for the Windfury Totem buff (10609, as measured), listening")
+  ok(f.point and f.point[2] == _G.BiSToolsComboFloat and f.point[1] == "TOP", "under the combo's proc text: one spot, the procs float above it")
+  ok(not f.mouse, "never in the way of a click in a fight")
+  -- the buff on you: the client hands its button over - sized over the bar in its creation, dressed gold
+  local btn = keep.cf("Button", nil, c)
+  c.slot.opts.initializeFrame(btn)
+  ok(btn.w == WF.W and btn.h == WF.H and btn.point and btn.point[2] == f and btn.bisWF and btn.bisWF.s:GetText() == "WINDFURY",
+     "Windfury on you: the game's button covers the red, gold, WINDFURY")
+  c.slot.opts.initializeFrame(btn)
+  ok(WF.drawn == 2, "a reused button is placed again, dressed once")
+  ev("PLAYER_REGEN_ENABLED")
+  ok(not f:IsShown() and not c.enabled and f.mouse, "the fight over: gone, the slot quiet, the lamp draggable again")
+  -- YOUR OWN WINDFURY WEAPON (18 Nov, Arn: "its not reading my own windfury imbue"): the enchant reads in a fight, so the
+  -- lamp's own gold covers the red while your main hand has it; and with the paper tape on, the lamp sits under the tape
+  do
+    local keepWE = _G.GetWeaponEnchantInfo
+    local mh = 284
+    _G.GetWeaponEnchantInfo = function() if mh then return true, 1500000, 0, mh end return false end
+    local cdb2 = R:DBFor(R:Get("combo"))
+    local wasCombo, wasStyle = R:Enabled("combo"), cdb2.tapeStyle
+    R:SetEnabled("combo", true) cdb2.tapeStyle = "receipt"
+    ev("PLAYER_REGEN_DISABLED") W.combat = true
+    ok(f.weapon:IsShown() and f.weapon.word:GetText() == "WINDFURY", "Windfury Weapon on your main hand: the lamp gold (our own, the enchant reads in a fight)")
+    ok(f.point and f.point[2] == _G.BiSToolsComboTape, "the paper tape on: the lamp under the tape, not across it")
+    mh = 1663                                                        -- Rockbiter now
+    W.tick()
+    ok(not f.weapon:IsShown(), "another imbue: within a second, red again (unless the totem's gold covers it)")
+    mh = 284
+    W.tick()
+    ok(f.weapon:IsShown(), "Windfury back on: gold")
+    local CostI = dofile("../_bisdev/dev/cost.lua")
+    local ni, byi = CostI.Count(function() WF.CheckImbue() end)
+    ok(ni <= 8, "the imbue look, once a second in a fight: <= 8 client calls", ni, CostI.Top(byi, 4))
+    print(("   cost: windfury lamp, imbue look each second = %d calls (%s)"):format(ni, CostI.Top(byi, 3)))
+    W.combat = false ev("PLAYER_REGEN_ENABLED")
+    ok(not f.weapon:IsShown() and not WF.imbueTicker, "the fight over: nothing looks any more")
+    cdb2.tapeStyle = wasStyle
+    R:SetEnabled("combo", wasCombo)
+    _G.GetWeaponEnchantInfo = keepWE
+  end
+  -- no shaman: nothing
+  classes.party1 = nil
+  ev("PLAYER_REGEN_DISABLED")
+  ok(not f:IsShown(), "no shaman in the party: no lamp")
+  ev("PLAYER_REGEN_ENABLED")
+  classes.player = "SHAMAN"
+  ev("PLAYER_REGEN_DISABLED")
+  ok(f:IsShown(), "you are the shaman: your own totem, the lamp shows")
+  ev("PLAYER_REGEN_ENABLED")
+  -- a Windfury id the list did not have: read at the pull (the lockdown has not started), the filter takes it at once
+  buff["Windfury Totem"] = 999001
+  ev("PLAYER_REGEN_DISABLED")
+  ok(WF.db.ids and WF.db.ids[999001] and not WF.dirty and WF.frame.container ~= c
+     and WF.frame.container.slot.opts.candidateFilters.includeSpellIDs[999001] and WF.frame.container.enabled,
+     "a new Windfury id read at the pull: kept, and the lamp's filter has it")
+  ev("PLAYER_REGEN_ENABLED")
+  WF.db.ids = nil
+  -- /bist wf test: shown out of a fight for a while
+  R:Get("windfury"):OnSlash(WF.db, "test")
+  ok(f:IsShown() and WF.frame.container.enabled, "/bist wf test: the lamp out of a fight, to try in and out of the totem")
+  W.runAfters(WF.TEST + 0.5)
+  ok(not f:IsShown(), "and gone after " .. WF.TEST .. " s")
+  -- what a fight costs (lean and mean): the start and the end
+  local Cost = dofile("../_bisdev/dev/cost.lua")
+  local n, by = Cost.Count(function() ev("PLAYER_REGEN_DISABLED") ev("PLAYER_REGEN_ENABLED") end)
+  ok(n <= 60, "a fight's start and end: <= 60 client calls, nothing in between", n, Cost.Top(by, 4))
+  print(("   cost: windfury lamp, one fight = %d calls (%s)"):format(n, Cost.Top(by, 3)))
+  -- a game that draws no auras for addons: no lamp at all (a red bar for ever would lie)
+  _G.C_XMLUtil = nil
+  WF.Container(WF.frame)
+  ev("PLAYER_REGEN_DISABLED")
+  ok(not f:IsShown() and WF.refused, "no aura drawing in this game: no lamp, and /bist wf says why", WF.refused)
+  ev("PLAYER_REGEN_ENABLED")
+
+  -- THE ASK (18 Nov, Arn: "a warrior missing wf, click a button it clicks the shaman in his group he gets a light up wf
+  -- totem he can click"): the warrior knocks with his target, the shaman's Windfury Totem button lights
+  _G.C_XMLUtil = { GetTemplateInfo = function(t) if t == "CustomAuraContainerTemplate" then return { type = "Frame" } end end }
+  WF.Container(WF.frame)
+  local wrapped = WFWRAPPED
+  local names = { party1 = "Thrall", party2 = "Garrosh" }
+  local keepName, keepKnows = _G.UnitName, NS.Combo.Knows
+  _G.UnitName = function(u) if names[u] then return names[u] end return keepName(u) end
+  -- the warrior
+  classes.player, classes.party1, classes.party2 = "WARRIOR", "SHAMAN", nil
+  ev("PLAYER_REGEN_DISABLED") W.combat = true
+  local ask = _G.BiSToolsWFAsk
+  ok(ask and ask:IsShown() and ask.attrs.type == "macro" and ask.attrs["bis-who"] == "party1" and ask.attrs.macrotext == "/target party1",
+     "a warrior's fight: a secure ASK button, aimed at the first shaman in the party (Thrall)")
+  ok(ask.point and ask.point[2] == WF.frame and ask.point[1] == "LEFT", "at the lamp's right end")
+  ok(WF.wrapped and wrapped[1] and wrapped[1].b == ask and wrapped[1].script == "OnClick", "its click wrapped by the flip snippet")
+  local function run(help)
+    local fn = assert(loadstring(WF.SNIPPET))
+    local set = {}
+    setfenv(fn, { self = { SetAttribute = function(_, k, v) set[k] = v end, GetAttribute = function(_, k) return ask.attrs[k] end },
+                  SecureCmdOptionParse = function(s) return help and "back" or "go" end })
+    fn()
+    return set.macrotext
+  end
+  ok(run(false) == "/target party1" and run(true) == "/targetlasttarget", "on the boss: a press targets the shaman; on the shaman: back to the boss")
+  for _ = 1, 4 do ask.scripts.PreClick(ask) W.runAfters(0.25) end
+  W.runAfters(WF.WINDOW + 0.2)
+  local le = WF.db.log[#WF.db.log]
+  ok(le and le.k == "sent" and le.n == 4 and le.fight == true and le.to == "Thrall", "four presses in a fight: written, to Thrall", le and le.n)
+  W.combat = false ev("PLAYER_REGEN_ENABLED")
+  ok(not ask:IsShown(), "the fight over: ASK away")
+  R:Get("windfury"):OnSlash(WF.db, "key f")
+  ok(WF.db.key == "F" and W.binds[WF.events] and W.binds[WF.events].key == "F" and W.binds[WF.events].btn == "BiSToolsWFAsk",
+     "/bist wf key F: F presses ASK")
+  R:Get("windfury"):OnSlash(WF.db, "key none")
+  ok(WF.db.key == nil, "key none: gone")
+  -- the shaman
+  classes.player, classes.party1, classes.party2 = "SHAMAN", "WARRIOR", "WARRIOR"
+  NS.Combo.Knows = function(n) return n == "Windfury Totem" end
+  local sounds = #W.sounds
+  ev("PLAYER_REGEN_DISABLED") W.combat = true
+  local tot = _G.BiSToolsWFTotem
+  ok(tot and tot:IsShown() and tot.attrs.type == "spell" and tot.attrs.spell == "Windfury Totem" and WF.events.events.UNIT_TARGET,
+     "a shaman's fight: a secure Windfury Totem button, and he listens to the party's targets")
+  ok(not tot.lit:IsShown(), "quiet until someone asks")
+  local ut = function(u) WF.events:GetScript("OnEvent")(WF.events, "UNIT_TARGET", u) end
+  ut("party2") W.runAfters(1.5) ut("party2") W.runAfters(1.5) ut("party2")
+  ok(not tot.lit:IsShown(), "a warrior just switching targets now and then: nothing")
+  W.runAfters(3)
+  ut("party2") W.runAfters(0.3) ut("party2")
+  ok(not tot.lit:IsShown(), "two quick changes: not yet")
+  W.runAfters(0.3) ut("party2")
+  ok(tot.lit:IsShown() and tot.lit.who:GetText() == "Garrosh asks" and #W.sounds == sounds + 1,
+     "three inside two seconds: the totem button lights, Garrosh asks, a sound")
+  W.runAfters(0.3) ut("party2")
+  ok(#W.sounds == sounds + 1, "the fourth: no second alarm")
+  tot.scripts.PostClick(tot)
+  ok(not tot.lit:IsShown(), "one click drops the totem, and the light goes")
+  W.runAfters(WF.WINDOW + 0.3)
+  le = WF.db.log[#WF.db.log]
+  ok(le and le.k == "heard" and le.who == "Garrosh" and le.n == 4 and le.lit and le.fight == true, "the ask written: Garrosh, 4 changes, lit")
+  ut("nameplate4") ut("player") ut(setmetatable({}, {}))
+  ok(not WF.seen.nameplate4 and not WF.seen.player, "a nameplate or yourself: not a party member, ignored")
+  W.runAfters(WF.QUIET)
+  ut("party1") W.runAfters(0.2) ut("party1") W.runAfters(0.2) ut("party1")
+  ok(tot.lit:IsShown() and tot.lit.who:GetText() == "Thrall asks", "another asks: lit for him")
+  W.runAfters(WF.LIT_FOR + 0.1)
+  ok(not tot.lit:IsShown(), "unanswered: the light goes after " .. WF.LIT_FOR .. " s")
+  ok(R:Get("windfury"):OnSlash(WF.db, "log") == nil and #WF.db.log >= 2, "/bist wf log")
+  -- switched off mid-fight: the secure parts wait for the fight to end
+  ok(pcall(R.SetEnabled, R, "windfury", false), "switched off in a fight: no error (nothing secure touched)")
+  ok(tot:IsShown(), "(the totem button stays until the fight ends)")
+  W.combat = false ev("PLAYER_REGEN_ENABLED")
+  ok(not tot:IsShown() and not WF.events.events.UNIT_TARGET and not WF.events.events.PLAYER_REGEN_ENABLED, "then: all away, deaf")
+  R:SetEnabled("windfury", true)
+  _G.UnitName, NS.Combo.Knows = keepName, keepKnows
+  WF.db.log = nil
+
+  -- off: deaf
+  R:SetEnabled("windfury", false)
+  ok(not WF.events.events.PLAYER_REGEN_DISABLED, "off: it listens to nothing")
+  _G.UnitClass, _G.UnitExists, _G.C_XMLUtil, _G.CreateFrame, _G.C_UnitAuras = keep.cls, keep.ex, keep.xml, keep.cf, keep.ua
+  _G.issecretvalue = keep.is
 end
 
 local allowed = { BiSTools = true, BiSToolsDB = true, BiSToolsAlts = true, SLASH_BISTOOLS1 = true, SLASH_BISTOOLS2 = true,

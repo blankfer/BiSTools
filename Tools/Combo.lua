@@ -233,15 +233,20 @@ function C.ImbueNow()
   local learned = db().imbueNames and db().imbueNames[id]
   return learned or C.IMBUE_IDS[id] or ("imbue " .. id)
 end
---- The damage totems standing now (plain names only), into the set `into`.
+--- The damage totems standing now (plain names only), into the set `into`. The second answer: false when a slot
+--- would not say (18 Nov 2026, Arn's /bist combo wf: in a fight GetTotemInfo answers SECRET, SECRET - an unreadable
+--- slot is NOT an empty one; read as empty, one totem change mid-fight filed the rest of the fight as "no totems",
+--- and those rows sat on top of the list).
 function C.ScanTotems(into)
-  if not GetTotemInfo then return into end
+  if not GetTotemInfo then return into, false end
+  local readable = true
   for slot = 1, 4 do
     local ok, have, name = pcall(GetTotemInfo, slot)
+    if not ok or (issecretvalue and (issecretvalue(have) or issecretvalue(name))) then readable = false end
     name = ok and plain(have) and C.Base(plain(name)) or nil
     if name and name ~= "" and C.TOTEMS[name] then into[name] = true end
   end
-  return into
+  return into, readable
 end
 --- A combo's words: the imbue's short word, then the totems' in order ("WF · GoA · SoE").
 function C.Label(imbue, totems)
@@ -1052,6 +1057,7 @@ function C.Layout()
     if i <= n and not r then
       r = CreateFrame("Button", nil, f)
       r.lit = K.tex(r, "BACKGROUND", "accent", 0)               -- rows glow on hover (the family rule): a wash + a bar
+      r.armed = K.tex(r, "BACKGROUND", "warn", 0)               -- (pink while one shift-click more forgets it: C.ForgetAsk)
       r.bar = r:CreateTexture(nil, "ARTWORK")
       r.bar:SetPoint("TOPLEFT") r.bar:SetPoint("BOTTOMLEFT") r.bar:SetWidth(3)
       do local rr, g, b = K.color("accent") r.bar:SetColorTexture(rr, g, b, 1) end
@@ -1072,6 +1078,7 @@ function C.Layout()
       if r.RegisterForClicks then r:RegisterForClicks("LeftButtonUp", "RightButtonUp") end
       r:SetScript("OnClick", function(self, button)
         if not self.g then return end
+        if IsShiftKeyDown and IsShiftKeyDown() then C.ForgetAsk(self.g.combo) return end   -- (shift-click twice: forget it)
         if button == "RightButton" then C.SendDeck(self.g.totems) return end   -- (right-click: onto the deck)
         C.sel = self.g.combo C.Paint()
       end)
@@ -1215,12 +1222,50 @@ function C.RowTip(r)
   GameTooltip:AddLine(r.g.imbue or "no imbue", 1, 1, 1)
   for _, n in ipairs(r.g.totems or {}) do GameTooltip:AddLine(n, 0.8, 0.8, 0.8) end
   GameTooltip:AddLine(("%d fights  -  %d dps"):format(r.g.n or 0, math.floor((r.g.dps or 0) + 0.5)), 0.6, 0.9, 0.6)
+  GameTooltip:AddLine("shift-click twice: forget these fights", 0.6, 0.6, 0.6)
   GameTooltip:Show()
+end
+--[[ FORGET ONE COMBO (18 Nov 2026, Arn: "a way to clear a row? sometimes it does not pick up the totems and it stays there
+  at the top spot"): shift-click a row = it turns pink and the foot asks; shift-click it again within C.FORGET_ARM s = every
+  kept fight filed under that combo is gone (the rest stay). Anything else - another row, waiting - and nothing is lost. ]]
+C.FORGET_ARM = 4
+function C.Armed(combo)
+  return combo ~= nil and C.forgetArm == combo and (now() - (C.forgetAt or 0)) <= C.FORGET_ARM
+end
+--- Every kept fight filed under `combo` gone; answers how many.
+function C.ForgetCombo(combo)
+  local d, keep, gone = db(), {}, 0
+  for _, f in ipairs(d.fights or {}) do
+    if f.combo == combo then gone = gone + 1 else keep[#keep + 1] = f end
+  end
+  d.fights = keep
+  if C.sel == combo then C.sel = nil end
+  return gone
+end
+--- The first shift-click arms the row, the second (in time, same row) forgets it.
+function C.ForgetAsk(combo)
+  if not combo then return false end
+  if C.Armed(combo) then
+    C.forgetArm = nil
+    local gone = C.ForgetCombo(combo)
+    say("combo: forgot %d %s of %s", gone, gone == 1 and "fight" or "fights", combo)
+    if C.IsOpen() then C.Paint() end
+    return gone
+  end
+  C.forgetArm, C.forgetAt = combo, now()
+  C.forgetTok = (C.forgetTok or 0) + 1
+  local tok = C.forgetTok
+  if C_Timer and C_Timer.After then        -- (the pink goes again once the time is up)
+    C_Timer.After(C.FORGET_ARM + 0.1, function() if C.forgetTok == tok and C.IsOpen() then C.Paint() end end)
+  end
+  if C.IsOpen() then C.Paint() end
+  return false
 end
 function C.PaintRow(r)
   local sel = r.g and r.g.combo == C.sel
   r.lit:SetAlpha(sel and 0.35 or ((r.hover and r.g) and 0.16 or 0))
   r.bar:SetAlpha((sel or (r.hover and r.g)) and 1 or 0)
+  if r.armed then r.armed:SetAlpha((r.g and C.Armed(r.g.combo)) and 0.45 or 0) end
 end
 function C.Paint()
   local f = C.frame
@@ -1257,6 +1302,13 @@ function C.Paint()
   f.detail:SetText(last or (#list > 0 and "click a combo: its numbers" or "no fights yet - fight something with an imbue and totems up"))
   f.foot:SetText(C.Min() > 0 and ("%d fights kept  ·  fights under %d s are not counted"):format(#(db().fights or {}), C.Min())
     or ("%d fights kept  ·  dps over the time you swing"):format(#(db().fights or {})))
+  f.foot:SetTextColor(F().color("dim"))
+  if C.forgetArm and C.Armed(C.forgetArm) then
+    local n = 0
+    for _, fi in ipairs(db().fights or {}) do if fi.combo == C.forgetArm then n = n + 1 end end
+    f.foot:SetText(("shift-click it again: forget its %d %s"):format(n, n == 1 and "fight" or "fights"))
+    f.foot:SetTextColor(F().color("warn"))
+  end
   C.PaintTry()
 end
 --[[ THE NUMBERS UNDER THE LIST (17 Nov 2026, Arn: "maybe we can put better information at the bottom, like proc %, lifetime,
@@ -1527,6 +1579,60 @@ local function shape(t, max)
   if not ok then return "(refused)" end
   return "{" .. table.concat(parts, ", ") .. "}"
 end
+--[[ THE WINDFURY PROBE (18 Nov 2026, Arn: an "is Windfury in range?" lamp for warriors - "it can serve as a im a warrior is
+  windfury in range? and turns red No Windfury!"). First what the game tells an addon about a Windfury Totem, in and out of
+  a fight. /bist combo wf: asks the buff by NAME (out of a fight that also learns its spell id, db.wfIds), by ID (the
+  player call), the main hand's enchant (a totem that imbues the weapon would show here) and the air totem slot. Every
+  answer is printed and kept in db.wfProbe (newest last, at most 6) to be read off the save. ]]
+function C.WFProbe()
+  local d = db()
+  local res = { at = (time and time()) or 0 }
+  local lines = {}
+  local function out(k, v) res[k] = v lines[#lines + 1] = k .. ": " .. v end
+  out("lockdown", kind(InCombatLockdown and InCombatLockdown()))
+  local A = C_UnitAuras
+  if A and A.GetAuraDataBySpellName then
+    local ok, a = pcall(A.GetAuraDataBySpellName, "player", "Windfury Totem", "HELPFUL")
+    if not ok then out("by name", "refused")
+    elseif a == nil then out("by name", "nil")
+    elseif issecretvalue and issecretvalue(a) then out("by name", "SECRET")
+    elseif type(a) ~= "table" then out("by name", kind(a))
+    else
+      out("by name", ("id %s, from %s, ends %s"):format(kind(a.spellId), kind(a.sourceUnit), kind(a.expirationTime)))
+      local id = plain(a.spellId)
+      if type(id) == "number" then d.wfIds = d.wfIds or {} d.wfIds[id] = true end
+    end
+  else out("by name", "no call") end
+  local ids = {}
+  for id in pairs(d.wfIds or {}) do ids[#ids + 1] = id end
+  table.sort(ids)
+  local get = A and A.GetPlayerAuraBySpellID
+  if #ids == 0 then out("by id", "no id yet (ask once out of a fight, standing in a Windfury Totem)")
+  elseif not get then out("by id", "no call")
+  else
+    local parts = {}
+    for _, id in ipairs(ids) do
+      local ok, a = pcall(get, id)
+      local v = (not ok and "refused") or (a == nil and "nil") or ((issecretvalue and issecretvalue(a)) and "SECRET")
+        or (type(a) == "table" and ("up, ends " .. kind(a.expirationTime))) or kind(a)
+      parts[#parts + 1] = id .. "=" .. v
+    end
+    out("by id", table.concat(parts, " "))
+  end
+  if GetWeaponEnchantInfo then
+    local ok, mh, exp, _, id = pcall(GetWeaponEnchantInfo)
+    out("enchant", ok and ("%s id %s, %s ms"):format(kind(mh), kind(id), kind(exp)) or "refused")
+  end
+  if GetTotemInfo then
+    local ok, have, name = pcall(GetTotemInfo, 4)
+    out("air totem", ok and (kind(have) .. " " .. kind(name)) or "refused")
+  end
+  d.wfProbe = d.wfProbe or {}
+  table.insert(d.wfProbe, res)
+  while #d.wfProbe > 6 do table.remove(d.wfProbe, 1) end
+  say("combo wf: %s", table.concat(lines, "  |  "))
+  return res
+end
 function C.Probe()
   local lines = {}
   local function out(fmt, ...) local l = string.format(fmt, ...) lines[#lines + 1] = l say("%s", l) end
@@ -1773,7 +1879,12 @@ function C.CloseBurst(cur, b)
     end
     if frostN > 0 and b.swings > 0 then parts[#parts + 1] = { C.Ico("Frostbrand Weapon", "FB") .. " FB +1", "fb" } end
     if #parts > 0 then C.FloatLine(parts) end
-    if b.swings > 0 and (weapon or totem) then C.DueTick(cur, extra >= 1) end
+    local kind = C.DueKind(weapon or totem, im, ftSources)
+    if b.swings > 0 and kind then
+      C.DueTick(cur, (kind == "wf" and extra >= 1) or (kind == "fb" and frostN > 0) or (kind == "ft" and fireN > 0), kind)
+    elseif b.swings > 0 and C.float and C.float.due then
+      C.float.due:Hide()                                         -- (no proc up at all, e.g. Rockbiter alone: no gauge)
+    end
     return
   end
   if #words > 0 and db().scroll ~= false then C.Scroll(table.concat(words, "    "), fireOnly) end
@@ -1789,21 +1900,44 @@ end
 C.FLOAT = { w = 320, h = 130, rise = 70, life = 1.8, fade = 0.6, size = 17, push = 20, dueW = 150, dueH = 8, dueHold = 6 }
 C.FLOAT_COL = { wf = "ffd33a", ft = "ff7a2a", fb = "7ec4ff" }
 function C.Clean() return db().tapeStyle == "clean" end
---- Your Windfury rate: procs / your own swings, over fights with Windfury up (nil under C.WF_MIN_SWINGS swings).
+--[[ THE GAUGE NAMES YOUR PROC (18 Nov 2026, Arn: "if no wf imbue or totem detected change to any proc name where it says
+  windfury"): Windfury when it is up (your imbue, your totem, a party member's totem buff), else Frostbrand (your imbue),
+  else Flametongue (imbue or totem); none of them (Rockbiter alone) = no gauge. Each its own rate, from the fights it was
+  up in. A change of kind mid-fight starts the count again. ]]
+C.DUE_NAME = { wf = "WINDFURY", fb = "FROSTBRAND", ft = "FLAMETONGUE" }
+C.AURA_LINGER = 11
+C.DUE_TIP = { wf = "Windfury", fb = "Frostbrand", ft = "Flametongue" }
+--- Which proc the gauge follows: "wf", else "fb", else "ft", else nil.
+function C.DueKind(wfUp, imbue, ftSources)
+  if wfUp then return "wf" end
+  if type(imbue) == "string" and imbue:find("Frostbrand", 1, true) then return "fb" end
+  if (ftSources or 0) > 0 then return "ft" end
+  return nil
+end
+--- Your rate for one proc kind: procs / your own swings, over fights it was up in (nil under C.WF_MIN_SWINGS swings).
 C.WF_MIN_SWINGS, C.WF_GUESS = 20, 0.2
-function C.WFRate()
-  local sw, wf = 0, 0
+function C.ProcRate(kind)
+  local sw, n = 0, 0
   for _, fi in ipairs(db().fights or {}) do
-    local hasWF = type(fi.imbue) == "string" and fi.imbue:find("Windfury", 1, true)
-    for _, t in ipairs(fi.totems or {}) do if t == "Windfury Totem" then hasWF = true end end
-    if hasWF and fi.swings and fi.swings > 0 and fi.procs then
+    local im = type(fi.imbue) == "string" and fi.imbue or ""
+    local t = {}
+    for _, name in ipairs(fi.totems or {}) do t[name] = true end
+    local up
+    if kind == "fb" then up = im:find("Frostbrand", 1, true)
+    elseif kind == "ft" then up = im:find("Flametongue", 1, true) or t["Flametongue Totem"]
+    else up = im:find("Windfury", 1, true) or t["Windfury Totem"] end
+    local p = fi.procs
+    if up and fi.swings and fi.swings > 0 and p then
       sw = sw + fi.swings
-      wf = wf + (fi.procs.extra1 or 0) + (fi.procs.extra2 or 0) + (fi.procs.more or 0)
+      if kind == "fb" then n = n + (p.frost or 0)
+      elseif kind == "ft" then n = n + (p.fire or 0)
+      else n = n + (p.extra1 or 0) + (p.extra2 or 0) + (p.more or 0) end
     end
   end
   if sw < C.WF_MIN_SWINGS then return nil, sw end
-  return wf / sw, sw
+  return n / sw, sw
 end
+function C.WFRate() return C.ProcRate("wf") end
 local function floatPlace(g)
   g:ClearAllPoints()
   local p = db().tapePos
@@ -1853,10 +1987,12 @@ function C.Float()
   g:SetScript("OnHide", stop)
   d:SetScript("OnEnter", function(self)
     if not GameTooltip then return end
-    local r, sw = C.WFRate()
+    local kind = self.kind or "wf"
+    local r, sw = C.ProcRate(kind)
+    local word = C.DUE_TIP[kind] or "Windfury"
     GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
-    GameTooltip:AddLine("Windfury due", 1, 0.82, 0.23)
-    GameTooltip:AddLine(r and ("Windfury has come on %d%% of your swings (%d swings so far)."):format(math.floor(r * 100 + 0.5), sw)
+    GameTooltip:AddLine(word .. " due", 1, 0.82, 0.23)
+    GameTooltip:AddLine(r and ("%s has come on %d%% of your swings (%d swings so far)."):format(word, math.floor(r * 100 + 0.5), sw)
       or ("Learning your rate - %d of %d swings so far (it guesses 20%% until then)."):format(sw or 0, C.WF_MIN_SWINGS), 0.9, 0.9, 0.9, true)
     GameTooltip:AddLine("Just for fun: every swing is its own roll - a long dry spell doesn't make the next one more likely.", 0.6, 0.6, 0.6, true)
     GameTooltip:AddLine("Drag me to move the floating text (out of a fight).", 0.6, 0.6, 0.6, true)
@@ -1926,16 +2062,26 @@ function C.FloatStep(g, e)
   end
   if #g.lines == 0 and not (d and d:IsShown()) then g:Hide() end   -- (nothing left: no ticking)
 end
---- Your own swing with Windfury up: the gauge moves on (a proc empties it).
-function C.DueTick(cur, procced)
+--- Your own swing with a proc up (`kind`: C.DueKind): the gauge moves on (a proc empties it).
+local function hexRGB(h) return tonumber(h:sub(1, 2), 16) / 255, tonumber(h:sub(3, 4), 16) / 255, tonumber(h:sub(5, 6), 16) / 255 end
+function C.DueTick(cur, procced, kind)
   local g, Q = C.Float(), C.FLOAT
   local d = g.due
-  local r = C.WFRate() or C.WF_GUESS
+  kind = kind or "wf"
+  if cur.dueKind ~= kind then cur.dueKind = kind cur.dry = 0 end   -- (another proc now: its own count)
+  local r = C.ProcRate(kind) or C.WF_GUESS
   if procced then cur.dry = 0 else cur.dry = (cur.dry or 0) + 1 end
   local k = math.min(1, (cur.dry or 0) * r)
   d.fill:SetWidth(math.max(0.01, (Q.dueW - 2) * k))
   d.full = k >= 1 or nil
-  d.label:SetText(procced and "WINDFURY!" or (d.full and "WINDFURY DUE - ANY SECOND..." or "WINDFURY DUE"))
+  local name = C.DUE_NAME[kind] or "WINDFURY"
+  d.label:SetText(procced and (name .. "!") or (d.full and (name .. " DUE - ANY SECOND...") or (name .. " DUE")))
+  if d.kind ~= kind then
+    local rr, gg, bb = hexRGB(C.FLOAT_COL[kind] or C.FLOAT_COL.wf)
+    d.label:SetTextColor(rr, gg, bb, 1)
+    d.fill:SetColorTexture(rr, gg, bb, 0.9)
+    d.kind = kind
+  end
   d.flash = procced and 0.4 or nil
   d.hideIn = nil
   d.k = k
@@ -2456,7 +2602,29 @@ ev:SetScript("OnEvent", function(_, event, a1, a2, a3, a4, a5)
   if event == "PLAYER_REGEN_DISABLED" then C.Pull()
   elseif event == "PLAYER_REGEN_ENABLED" then C.FightOver()
   elseif event == "PLAYER_TOTEM_UPDATE" then
-    if C.cur then C.ScanTotems(C.cur.totems) C.SwitchCheck(C.cur, C.cur.nowImbue, C.ScanTotems({})) end
+    local up, readable
+    if C.cur then up, readable = C.ScanTotems({}) end
+    -- (a fight hides the slots: nothing changes then - a totem you drop is still caught by its cast, C.Cast)
+    if C.cur and readable then
+      local had = C.cur.nowTot or {}
+      local wfGone, ftGone = had["Windfury Totem"] and not up["Windfury Totem"], had["Flametongue Totem"] and not up["Flametongue Totem"]
+      C.ScanTotems(C.cur.totems) C.SwitchCheck(C.cur, C.cur.nowImbue, up)
+      -- (18 Nov, Arn: the gauge said WINDFURY after he swapped his Windfury Totem away mid-fight - the buff was read
+      -- once at the pull. When YOUR Windfury / Flametongue Totem goes, its buff is read again, and once more
+      -- C.AURA_LINGER s later - a totem's buff stays a while after it goes; an unreadable answer (a fight hides buffs by
+      -- name) counts as not up. Only then: any other totem change leaves a party member's buff as it was read)
+      local cur = C.cur
+      if wfGone or ftGone then
+        local function again()
+          if C.cur ~= cur then return end
+          local tot = cur.nowTot or {}
+          if wfGone and not tot["Windfury Totem"] then cur.wfAura = C.AuraUp("Windfury Totem") end
+          if ftGone and not tot["Flametongue Totem"] then cur.ftAura = C.AuraUp("Flametongue Totem") end
+        end
+        again()
+        if C_Timer and C_Timer.After then C_Timer.After(C.AURA_LINGER, again) end
+      end
+    end
   elseif event == "PLAYER_ENTER_COMBAT" then if C.cur then C.cur.swing = true end    -- auto-attack on
   elseif event == "PLAYER_LEAVE_COMBAT" then if C.cur then C.cur.swing = false end   -- and off
   elseif event == "UNIT_SPELLCAST_SUCCEEDED" then if a1 == "player" then C.Cast(a3) end
@@ -2513,6 +2681,7 @@ R:Register({
     C.db = d
     local cmd = tostring(args or ""):match("^(%S*)") or ""
     if cmd == "probe" then C.Probe() return end
+    if cmd == "wf" then C.WFProbe() return end
     if cmd == "live" then C.LiveArm() return end
     if cmd == "reach" then C.ReachProbe() return end
     if cmd == "why" then

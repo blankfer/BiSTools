@@ -4,7 +4,7 @@
 ## IconTexture: Interface\Icons\INV_Misc_Wrench_01
 ## Notes: Death recap, rivals and a farm tracker for WoW Forever. /bist for the tools.
 ## Author: Arn
-## Version: 1.6.0
+## Version: 1.7.0
 ## OptionalDeps: BiSTheme, FojjiCore
 ## SavedVariables: BiSToolsDB, BiSToolsAlts
 ## X-Curse-Project-ID: 1686340
@@ -48,5 +48,6 @@ Tools\BossData.lua
 Tools\Bosses.lua
 Tools\Alts.lua
 Tools\Combo.lua
+Tools\Windfury.lua
 API.lua
 Tools\Hub.lua
