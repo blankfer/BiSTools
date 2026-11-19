@@ -10176,6 +10176,18 @@ do
   local ut = function(u) WF.events:GetScript("OnEvent")(WF.events, "UNIT_TARGET", u) end
   ut("party2") W.runAfters(1.5) ut("party2") W.runAfters(1.5) ut("party2")
   ok(not tot.lit:IsShown(), "a warrior just switching targets now and then: nothing")
+  -- ONLY SOMEONE WHO COULD HAVE ASKED (Arn's screenshot: "Yoruichi asks" - fast target switching, no BiS Tools)
+  local lib = _G.LibBiSComm
+  ok(lib and lib.Enabled and lib:Enabled(), "(the comm lib on)")
+  local keepPeers = lib.peers
+  lib.peers = { ["Thrall"] = { name = "Thrall", addons = { BiSHealing = "1.8.0" } } }
+  W.runAfters(3)
+  ut("party1") W.runAfters(0.2) ut("party1") W.runAfters(0.2) ut("party1")
+  ok(not tot.lit:IsShown() and #W.sounds == sounds, "three fast changes from someone without BiS Tools: never lit (they could not have asked)")
+  W.runAfters(WF.WINDOW + 0.3)
+  local nb = WF.db.log[#WF.db.log]
+  ok(nb and nb.k == "heard" and nb.who == "Thrall" and nb.notBis and not nb.lit, "written as heard, not lit - not a BiS Tools player")
+  lib.peers = { ["Thrall"] = { name = "Thrall", addons = { BiSTools = "1.7.1" } }, ["Garrosh Hellscream"] = { name = "Garrosh Hellscream", addons = { BiSTools = "1.7.1" } } }
   W.runAfters(3)
   ut("party2") W.runAfters(0.3) ut("party2")
   ok(not tot.lit:IsShown(), "two quick changes: not yet")
@@ -10204,6 +10216,7 @@ do
   ok(not tot:IsShown() and not WF.events.events.UNIT_TARGET and not WF.events.events.PLAYER_REGEN_ENABLED, "then: all away, deaf")
   R:SetEnabled("windfury", true)
   _G.UnitName, NS.Combo.Knows = keepName, keepKnows
+  lib.peers = keepPeers
   WF.db.log = nil
 
   -- off: deaf

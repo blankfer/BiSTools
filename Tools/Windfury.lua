@@ -585,18 +585,33 @@ function W.Heard(unit)
   s.stamps[#s.stamps + 1] = t
   while s.stamps[1] and t - s.stamps[1] > W.WINDOW do table.remove(s.stamps, 1) end
   if #s.stamps >= W.NEED and t >= (W.quietUntil or 0) then
-    s.lit = true
-    W.quietUntil = t + W.QUIET
-    W.Light(unit)
+    if W.CanAsk(unit) then
+      s.lit = true
+      W.quietUntil = t + W.QUIET
+      W.Light(unit)
+    else
+      s.notBis = true                                        -- (counted, never lit: they could not have pressed ASK)
+    end
   end
   if C_Timer and C_Timer.After then
     C_Timer.After(W.WINDOW + 0.1, function() if W.seen[unit] == s and now() - s.last >= W.WINDOW then W.CloseBurst(unit, s) end end)
   end
 end
+--[[ ONLY SOMEONE WHO COULD HAVE ASKED (18 Nov 2026, Arn's screenshot: the totem button lit "Yoruichi asks" - a party
+  member switching targets fast, three in two seconds, without BiS Tools). ASK lives in BiS Tools, and every BiS addon
+  says hello on the group line before a fight (LibBiSComm's peers, each with the addons it runs). So the button lights
+  only for a party member whose peer entry carries BiS Tools. With the comm switched off (/biscomm off) nobody is known:
+  then it falls back to the rhythm alone. ]]
+function W.CanAsk(unit)
+  local lib = _G.LibBiSComm
+  if not (lib and lib.Peer and lib.Enabled) or not lib:Enabled() then return true end
+  local ok, p = pcall(lib.Peer, lib, nameOf(unit))
+  return ok and type(p) == "table" and type(p.addons) == "table" and p.addons.BiSTools ~= nil or false
+end
 function W.CloseBurst(unit, s)
   if W.seen[unit] == s then W.seen[unit] = nil end
   W.Log({ k = "heard", who = nameOf(unit), unit = unit, n = s.n, span = math.floor((s.last - s.first) * 10 + 0.5) / 10,
-          fight = s.fight, lit = s.lit or nil })
+          fight = s.fight, lit = s.lit or nil, notBis = s.notBis or nil })
 end
 --- An ask: the totem button lights with the asker's name, a sound, W.LIT_FOR s or until clicked.
 function W.Light(unit)
