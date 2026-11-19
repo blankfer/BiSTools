@@ -316,7 +316,10 @@ end
   THE WARRIOR (anyone but a shaman): a small SECURE "ASK" button at the lamp's right end (and a key, /bist wf key <KEY>).
   Each press flips the target: a hostile one or none -> /target partyN (the first shaman in the party, aimed at the pull),
   a friendly one -> /targetlasttarget (back to the boss). A header's WrapScript snippet picks it just before the click
-  runs - legal in a fight. Four quick presses = four target changes, and he ends on the boss again.
+  runs - legal in a fight. Four STEADY presses (two a second) = four target changes, and he ends on the boss again.
+  MEASURED LIVE 18 Nov (Arn's two accounts, in a fight - it lit): the game passes a party member's target on about every
+  half second, so a MASHED button cancels itself (7 presses in 0.9 s -> 1 change heard); 6 in 1.6 s -> 4 heard, 11 in
+  3.3 s -> 5 heard - both lit. Hence "about two a second" in the words.
 
   THE SHAMAN (knows Windfury Totem): a SECURE Windfury Totem button in the same spot, quiet. In a fight he hears UNIT_TARGET
   for party1-4; W.NEED changes from one person inside W.WINDOW s = an ask: the button LIGHTS (a red frame of our own over
@@ -416,7 +419,7 @@ function W.BuildAsk()
     if not GameTooltip then return end
     GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
     GameTooltip:AddLine("Ask the shaman for Windfury", 1, 0.69, 0.18)
-    GameTooltip:AddLine(("Press 4 times quickly: your target flips to %s and back, and their Windfury Totem button lights up (they need BiS Tools with windfury on)."):format(W.askName or "the shaman"), 0.9, 0.9, 0.9, true)
+    GameTooltip:AddLine(("Press about twice a second, 4 times (mashing is too fast - the game passes only one change each half second): your target flips to %s and back, and their Windfury Totem button lights up. They need BiS Tools with windfury on."):format(W.askName or "the shaman"), 0.9, 0.9, 0.9, true)
     GameTooltip:Show()
   end)
   b:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
@@ -601,7 +604,7 @@ function W.Key(word)
   db().key = word
   W.BuildAsk()
   W.ApplyKey()
-  NS.Print("windfury: %s presses ASK (4 quick presses = an ask)", word)
+  NS.Print("windfury: %s presses ASK (4 presses, about two a second = an ask)", word)
   return word
 end
 
