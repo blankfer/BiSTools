@@ -10011,9 +10011,12 @@ do
   _G.UnitClass = function(u) local c = classes[u] return c and c:lower(), c end
   _G.UnitExists = function(u) if classes[u] then return true end return keep.ex(u) end
   _G.C_XMLUtil = { GetTemplateInfo = function(t) if t == "CustomAuraContainerTemplate" then return { type = "Frame" } end end }
-  local made = {}
+  local made, WFWRAPPED = {}, {}
   _G.CreateFrame = function(kind, name, parent, template)
     local f = keep.cf(kind == "AuraContainer" and "Frame" or kind, name, parent, template)
+    if template == "SecureHandlerBaseTemplate" then
+      function f:WrapScript(b, script, pre) WFWRAPPED[#WFWRAPPED + 1] = { b = b, script = script, pre = pre } end
+    end
     if kind == "AuraContainer" then
       made[#made + 1] = f
       function f:SetUnit(u) self.unit = u end
@@ -10084,6 +10087,85 @@ do
   ev("PLAYER_REGEN_DISABLED")
   ok(not f:IsShown() and WF.refused, "no aura drawing in this game: no lamp, and /bist wf says why", WF.refused)
   ev("PLAYER_REGEN_ENABLED")
+
+  -- THE ASK (18 Nov, Arn: "a warrior missing wf, click a button it clicks the shaman in his group he gets a light up wf
+  -- totem he can click"): the warrior knocks with his target, the shaman's Windfury Totem button lights
+  _G.C_XMLUtil = { GetTemplateInfo = function(t) if t == "CustomAuraContainerTemplate" then return { type = "Frame" } end end }
+  WF.Container(WF.frame)
+  local wrapped = WFWRAPPED
+  local names = { party1 = "Thrall", party2 = "Garrosh" }
+  local keepName, keepKnows = _G.UnitName, NS.Combo.Knows
+  _G.UnitName = function(u) if names[u] then return names[u] end return keepName(u) end
+  -- the warrior
+  classes.player, classes.party1, classes.party2 = "WARRIOR", "SHAMAN", nil
+  ev("PLAYER_REGEN_DISABLED") W.combat = true
+  local ask = _G.BiSToolsWFAsk
+  ok(ask and ask:IsShown() and ask.attrs.type == "macro" and ask.attrs["bis-who"] == "party1" and ask.attrs.macrotext == "/target party1",
+     "a warrior's fight: a secure ASK button, aimed at the first shaman in the party (Thrall)")
+  ok(ask.point and ask.point[2] == WF.frame and ask.point[1] == "LEFT", "at the lamp's right end")
+  ok(WF.wrapped and wrapped[1] and wrapped[1].b == ask and wrapped[1].script == "OnClick", "its click wrapped by the flip snippet")
+  local function run(help)
+    local fn = assert(loadstring(WF.SNIPPET))
+    local set = {}
+    setfenv(fn, { self = { SetAttribute = function(_, k, v) set[k] = v end, GetAttribute = function(_, k) return ask.attrs[k] end },
+                  SecureCmdOptionParse = function(s) return help and "back" or "go" end })
+    fn()
+    return set.macrotext
+  end
+  ok(run(false) == "/target party1" and run(true) == "/targetlasttarget", "on the boss: a press targets the shaman; on the shaman: back to the boss")
+  for _ = 1, 4 do ask.scripts.PreClick(ask) W.runAfters(0.25) end
+  W.runAfters(WF.WINDOW + 0.2)
+  local le = WF.db.log[#WF.db.log]
+  ok(le and le.k == "sent" and le.n == 4 and le.fight == true and le.to == "Thrall", "four presses in a fight: written, to Thrall", le and le.n)
+  W.combat = false ev("PLAYER_REGEN_ENABLED")
+  ok(not ask:IsShown(), "the fight over: ASK away")
+  R:Get("windfury"):OnSlash(WF.db, "key f")
+  ok(WF.db.key == "F" and W.binds[WF.events] and W.binds[WF.events].key == "F" and W.binds[WF.events].btn == "BiSToolsWFAsk",
+     "/bist wf key F: F presses ASK")
+  R:Get("windfury"):OnSlash(WF.db, "key none")
+  ok(WF.db.key == nil, "key none: gone")
+  -- the shaman
+  classes.player, classes.party1, classes.party2 = "SHAMAN", "WARRIOR", "WARRIOR"
+  NS.Combo.Knows = function(n) return n == "Windfury Totem" end
+  local sounds = #W.sounds
+  ev("PLAYER_REGEN_DISABLED") W.combat = true
+  local tot = _G.BiSToolsWFTotem
+  ok(tot and tot:IsShown() and tot.attrs.type == "spell" and tot.attrs.spell == "Windfury Totem" and WF.events.events.UNIT_TARGET,
+     "a shaman's fight: a secure Windfury Totem button, and he listens to the party's targets")
+  ok(not tot.lit:IsShown(), "quiet until someone asks")
+  local ut = function(u) WF.events:GetScript("OnEvent")(WF.events, "UNIT_TARGET", u) end
+  ut("party2") W.runAfters(1.5) ut("party2") W.runAfters(1.5) ut("party2")
+  ok(not tot.lit:IsShown(), "a warrior just switching targets now and then: nothing")
+  W.runAfters(3)
+  ut("party2") W.runAfters(0.3) ut("party2")
+  ok(not tot.lit:IsShown(), "two quick changes: not yet")
+  W.runAfters(0.3) ut("party2")
+  ok(tot.lit:IsShown() and tot.lit.who:GetText() == "Garrosh asks" and #W.sounds == sounds + 1,
+     "three inside two seconds: the totem button lights, Garrosh asks, a sound")
+  W.runAfters(0.3) ut("party2")
+  ok(#W.sounds == sounds + 1, "the fourth: no second alarm")
+  tot.scripts.PostClick(tot)
+  ok(not tot.lit:IsShown(), "one click drops the totem, and the light goes")
+  W.runAfters(WF.WINDOW + 0.3)
+  le = WF.db.log[#WF.db.log]
+  ok(le and le.k == "heard" and le.who == "Garrosh" and le.n == 4 and le.lit and le.fight == true, "the ask written: Garrosh, 4 changes, lit")
+  ut("nameplate4") ut("player") ut(setmetatable({}, {}))
+  ok(not WF.seen.nameplate4 and not WF.seen.player, "a nameplate or yourself: not a party member, ignored")
+  W.runAfters(WF.QUIET)
+  ut("party1") W.runAfters(0.2) ut("party1") W.runAfters(0.2) ut("party1")
+  ok(tot.lit:IsShown() and tot.lit.who:GetText() == "Thrall asks", "another asks: lit for him")
+  W.runAfters(WF.LIT_FOR + 0.1)
+  ok(not tot.lit:IsShown(), "unanswered: the light goes after " .. WF.LIT_FOR .. " s")
+  ok(R:Get("windfury"):OnSlash(WF.db, "log") == nil and #WF.db.log >= 2, "/bist wf log")
+  -- switched off mid-fight: the secure parts wait for the fight to end
+  ok(pcall(R.SetEnabled, R, "windfury", false), "switched off in a fight: no error (nothing secure touched)")
+  ok(tot:IsShown(), "(the totem button stays until the fight ends)")
+  W.combat = false ev("PLAYER_REGEN_ENABLED")
+  ok(not tot:IsShown() and not WF.events.events.UNIT_TARGET and not WF.events.events.PLAYER_REGEN_ENABLED, "then: all away, deaf")
+  R:SetEnabled("windfury", true)
+  _G.UnitName, NS.Combo.Knows = keepName, keepKnows
+  WF.db.log = nil
+
   -- off: deaf
   R:SetEnabled("windfury", false)
   ok(not WF.events.events.PLAYER_REGEN_DISABLED, "off: it listens to nothing")

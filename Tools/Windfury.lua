@@ -27,7 +27,7 @@ local W = {}
 NS.WF = W
 
 W.IDS = { 8512, 8515, 8516, 10608, 10609, 10610, 10612, 10613, 10614, 27621, 78159 }
-W.W, W.H, W.GAP, W.TEST = 150, 20, 28, 12
+W.W, W.H, W.GAP, W.TEST = 150, 20, 28, 20
 W.RED, W.GOLD = { 0.92, 0.16, 0.16 }, { 1, 0.83, 0.23 }
 W.PULSE_LOW, W.PULSE_SECONDS = 0.45, 0.5
 
@@ -271,62 +271,390 @@ function W.Show(on)
   return false
 end
 
---- /bist wf test: the lamp out of a fight for W.TEST s - step in and out of the totem and watch it change.
+--[[ THE ASK (18 Nov 2026, Arn: "a warrior missing wf, click a button it clicks the shaman in his group he gets a light up
+  wf totem he can click"; "lamp alone and then we work on the ask module"; the lamp worked live, then "start the ask
+  module"). Addon messages HOLD in a fight, so the warrior knocks with his TARGET - BiS Healing's rhythm test, put to work.
+
+  THE WARRIOR (anyone but a shaman): a small SECURE "ASK" button at the lamp's right end (and a key, /bist wf key <KEY>).
+  Each press flips the target: a hostile one or none -> /target partyN (the first shaman in the party, aimed at the pull),
+  a friendly one -> /targetlasttarget (back to the boss). A header's WrapScript snippet picks it just before the click
+  runs - legal in a fight. Four quick presses = four target changes, and he ends on the boss again.
+
+  THE SHAMAN (knows Windfury Totem): a SECURE Windfury Totem button in the same spot, quiet. In a fight he hears UNIT_TARGET
+  for party1-4; W.NEED changes from one person inside W.WINDOW s = an ask: the button LIGHTS (a red frame of our own over
+  it, the asker's name, a raid-warning sound) for W.LIT_FOR s or until clicked; one click drops the totem. Nothing secret
+  is read: the unit token and the time are all it needs.
+
+  Both write what happened (db.log, the newest W.KEEP): the warrior his presses, the shaman each burst he heard - so the
+  first live tries can be read off the save. Secure buttons are made, shown, hidden and aimed out of the lockdown only:
+  at PLAYER_REGEN_DISABLED (it has not started yet) and PLAYER_REGEN_ENABLED. They hang off UIParent, anchored to the lamp.
+]]
+W.NEED, W.WINDOW, W.QUIET, W.LIT_FOR, W.KEEP = 3, 2, 4, 8, 30
+W.SOUND = (SOUNDKIT and SOUNDKIT.RAID_WARNING) or 8959
+W.ASK_W, W.TOT = 38, 24
+W.SNIPPET = [[
+  local back
+  if SecureCmdOptionParse then
+    back = SecureCmdOptionParse("[@target,help] back; go") == "back"
+  else
+    local n = (self:GetAttribute("bis-n") or 0) + 1
+    self:SetAttribute("bis-n", n)
+    back = (n % 2 == 0)
+  end
+  if back then
+    self:SetAttribute("macrotext", "/targetlasttarget")
+  else
+    self:SetAttribute("macrotext", "/target " .. (self:GetAttribute("bis-who") or "player"))
+  end
+]]
+local function now() return (GetTime and GetTime()) or 0 end
+local function wall() return (time and time()) or 0 end
+
+--- The first shaman in your party, as a unit ("party2"), or nil.
+function W.ShamanUnit()
+  for i = 1, 4 do
+    local u = "party" .. i
+    local okE, there = pcall(UnitExists, u)
+    if okE and plain(there) and classOf(u) == "SHAMAN" then return u end
+  end
+  return nil
+end
+function W.IsShaman() return classOf("player") == "SHAMAN" end
+--- Do you know Windfury Totem? (the combo's spell check)
+function W.KnowsWF()
+  local C = NS.Combo
+  return (C and C.Knows and C.Knows("Windfury Totem")) and true or false
+end
+local function nameOf(u)
+  local ok, n = pcall(UnitName, u)
+  n = ok and plain(n) or nil
+  return (type(n) == "string" and n ~= "") and n or u
+end
+function W.Log(e)
+  local d = db()
+  d.log = d.log or {}
+  e.at = wall()
+  d.log[#d.log + 1] = e
+  while #d.log > W.KEEP do table.remove(d.log, 1) end
+end
+local function edge(f, r, g, b, a, px)
+  px = px or 1
+  local sides = { { "TOPLEFT", "TOPRIGHT", nil, px }, { "BOTTOMLEFT", "BOTTOMRIGHT", nil, px },
+                  { "TOPLEFT", "BOTTOMLEFT", px, nil }, { "TOPRIGHT", "BOTTOMRIGHT", px, nil } }
+  for _, side in ipairs(sides) do
+    local t = f:CreateTexture(nil, "OVERLAY")
+    t:SetPoint(side[1], f, side[1], 0, 0)
+    t:SetPoint(side[2], f, side[2], 0, 0)
+    if side[3] then t:SetWidth(side[3]) else t:SetHeight(side[4]) end
+    t:SetColorTexture(r, g, b, a)
+  end
+end
+
+--- THE WARRIOR'S BUTTON. Out of the lockdown only (it is secure).
+function W.BuildAsk()
+  if W.ask then return W.ask end
+  if locked() then return nil end
+  local b = CreateFrame("Button", "BiSToolsWFAsk", UIParent, "SecureActionButtonTemplate")
+  if b.RegisterForClicks then b:RegisterForClicks("AnyDown") end
+  b:SetSize(W.ASK_W, W.H)
+  b:SetFrameStrata("HIGH")
+  b:SetAttribute("type", "macro")
+  b:SetAttribute("macrotext", "/targetlasttarget")
+  b:SetAttribute("bis-who", "player")
+  b.bg = b:CreateTexture(nil, "BACKGROUND")
+  b.bg:SetAllPoints(b)
+  b.bg:SetColorTexture(0.1, 0.08, 0.05, 0.9)
+  edge(b, 1, 0.69, 0.18, 1)
+  b.word = b:CreateFontString(nil, "OVERLAY")
+  b.word:SetFont("Fonts\\ARIALN.TTF", 12, "OUTLINE")
+  b.word:SetPoint("CENTER", b, "CENTER", 0, 0)
+  b.word:SetTextColor(1, 0.69, 0.18, 1)
+  b.word:SetText("ASK")
+  b.hl = b:CreateTexture(nil, "HIGHLIGHT")
+  b.hl:SetAllPoints(b)
+  b.hl:SetColorTexture(1, 0.69, 0.18, 0.18)
+  b:SetScript("PreClick", function() W.Pressed() end)      -- (insecure: counts the press, touches nothing secure)
+  b:SetScript("OnEnter", function(self)
+    if not GameTooltip then return end
+    GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
+    GameTooltip:AddLine("Ask the shaman for Windfury", 1, 0.69, 0.18)
+    GameTooltip:AddLine(("Press 4 times quickly: your target flips to %s and back, and their Windfury Totem button lights up (they need BiS Tools with windfury on)."):format(W.askName or "the shaman"), 0.9, 0.9, 0.9, true)
+    GameTooltip:Show()
+  end)
+  b:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+  local okH, h = pcall(CreateFrame, "Frame", "BiSToolsWFHeader", UIParent, "SecureHandlerBaseTemplate")
+  W.header = okH and h or nil
+  W.wrapped = false
+  if W.header and W.header.WrapScript then W.wrapped = pcall(W.header.WrapScript, W.header, b, "OnClick", W.SNIPPET) and true or false end
+  b:Hide()
+  W.ask = b
+  W.ApplyKey()
+  return b
+end
+
+--- THE SHAMAN'S BUTTON: casts Windfury Totem; our red frame and the asker's name over it while lit.
+function W.BuildTotem()
+  if W.totem then return W.totem end
+  if locked() then return nil end
+  local b = CreateFrame("Button", "BiSToolsWFTotem", UIParent, "SecureActionButtonTemplate")
+  if b.RegisterForClicks then b:RegisterForClicks("AnyDown") end
+  b:SetSize(W.TOT, W.TOT)
+  b:SetFrameStrata("HIGH")
+  b:SetAttribute("type", "spell")
+  b:SetAttribute("spell", "Windfury Totem")
+  b.icon = b:CreateTexture(nil, "ARTWORK")
+  b.icon:SetAllPoints(b)
+  local tex
+  if C_Spell and C_Spell.GetSpellTexture then
+    local ok, t = pcall(C_Spell.GetSpellTexture, 8512)
+    tex = ok and plain(t) or nil
+  end
+  b.icon:SetTexture(tex or "Interface\\Icons\\Spell_Nature_Windfury")
+  if b.icon.SetTexCoord then b.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92) end
+  b.icon:SetAlpha(0.55)
+  b.hl = b:CreateTexture(nil, "HIGHLIGHT")
+  b.hl:SetAllPoints(b)
+  b.hl:SetColorTexture(1, 1, 1, 0.15)
+  b:SetScript("PostClick", function() W.Unlight() end)
+  -- the lit look: our own frame over it (never the secure button's own show or size in a fight)
+  local lit = CreateFrame("Frame", nil, UIParent)
+  lit:SetFrameStrata("HIGH")
+  if lit.SetFrameLevel then lit:SetFrameLevel((b:GetFrameLevel() or 1) + 5) end
+  lit:SetPoint("TOPLEFT", b, "TOPLEFT", -3, 3)
+  lit:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", 3, -3)
+  if lit.EnableMouse then lit:EnableMouse(false) end
+  edge(lit, 0.92, 0.16, 0.16, 1, 3)
+  lit.who = lit:CreateFontString(nil, "OVERLAY")
+  lit.who:SetFont("Fonts\\ARIALN.TTF", 12, "OUTLINE")
+  lit.who:SetPoint("BOTTOM", lit, "TOP", 0, 2)
+  lit.who:SetTextColor(1, 0.35, 0.35, 1)
+  if lit.CreateAnimationGroup then
+    local ok, pulse = pcall(lit.CreateAnimationGroup, lit)
+    if ok and pulse then
+      local fade = pulse:CreateAnimation("Alpha")
+      fade:SetFromAlpha(1)
+      fade:SetToAlpha(0.35)
+      fade:SetDuration(0.4)
+      pulse:SetLooping("BOUNCE")
+      lit.pulse = pulse
+    end
+  end
+  lit:Hide()
+  b.lit = lit
+  b:Hide()
+  W.totem = b
+  return b
+end
+
+--- Out of the lockdown: the right button for you, aimed and placed at the lamp's right end - or both away.
+function W.Buttons(on)
+  if locked() then W.pendingButtons = on return false end
+  W.pendingButtons = nil
+  local f = W.frame
+  if on and f then
+    if W.IsShaman() then
+      if W.KnowsWF() and W.BuildTotem() then
+        W.totem:ClearAllPoints()
+        W.totem:SetPoint("LEFT", f, "RIGHT", 4, 0)
+        W.totem:Show()
+        W.Hear(true)
+      end
+    else
+      local u = W.ShamanUnit()
+      if u and W.BuildAsk() then
+        W.ask:SetAttribute("bis-who", u)
+        W.ask:SetAttribute("macrotext", "/target " .. u)
+        W.ask:SetAttribute("bis-n", 0)
+        W.askUnit, W.askName = u, nameOf(u)
+        W.ask:ClearAllPoints()
+        W.ask:SetPoint("LEFT", f, "RIGHT", 4, 0)
+        W.ask:Show()
+      end
+    end
+    return true
+  end
+  if W.ask then W.ask:Hide() end
+  if W.totem then W.totem:Hide() end
+  W.Hear(false)
+  W.Unlight()
+  return false
+end
+
+--- The warrior pressed ASK: counted (a burst = presses with no gap over W.WINDOW), written when it ends.
+function W.Pressed()
+  local t = now()
+  local s = W.sent
+  if not s or t - s.last > W.WINDOW then s = { n = 0, first = t, fight = locked(), to = W.askName } W.sent = s end
+  s.n, s.last = s.n + 1, t
+  if C_Timer and C_Timer.After then
+    C_Timer.After(W.WINDOW + 0.1, function()
+      if W.sent == s and now() - s.last >= W.WINDOW then
+        W.sent = nil
+        W.Log({ k = "sent", n = s.n, span = math.floor((s.last - s.first) * 10 + 0.5) / 10, fight = s.fight, to = s.to })
+      end
+    end)
+  end
+end
+
+--- THE SHAMAN HEARS: a party member's target changed.
+function W.Hear(on)
+  if on then W.events:RegisterEvent("UNIT_TARGET") else W.events:UnregisterEvent("UNIT_TARGET") end
+end
+W.seen, W.stat = {}, { secret = 0 }
+function W.Heard(unit)
+  if issecretvalue and issecretvalue(unit) then W.stat.secret = W.stat.secret + 1 return end
+  if type(unit) ~= "string" or not unit:match("^party%d$") then return end
+  local t = now()
+  local s = W.seen[unit]
+  if s and t - s.last > W.WINDOW then W.CloseBurst(unit, s) s = nil end
+  if not s then s = { n = 0, first = t, stamps = {}, fight = locked() } W.seen[unit] = s end
+  s.n, s.last = s.n + 1, t
+  s.stamps[#s.stamps + 1] = t
+  while s.stamps[1] and t - s.stamps[1] > W.WINDOW do table.remove(s.stamps, 1) end
+  if #s.stamps >= W.NEED and t >= (W.quietUntil or 0) then
+    s.lit = true
+    W.quietUntil = t + W.QUIET
+    W.Light(unit)
+  end
+  if C_Timer and C_Timer.After then
+    C_Timer.After(W.WINDOW + 0.1, function() if W.seen[unit] == s and now() - s.last >= W.WINDOW then W.CloseBurst(unit, s) end end)
+  end
+end
+function W.CloseBurst(unit, s)
+  if W.seen[unit] == s then W.seen[unit] = nil end
+  W.Log({ k = "heard", who = nameOf(unit), unit = unit, n = s.n, span = math.floor((s.last - s.first) * 10 + 0.5) / 10,
+          fight = s.fight, lit = s.lit or nil })
+end
+--- An ask: the totem button lights with the asker's name, a sound, W.LIT_FOR s or until clicked.
+function W.Light(unit)
+  local b = W.totem
+  if not (b and b.lit) then return false end
+  b.lit.who:SetText(nameOf(unit) .. " asks")
+  b.lit:Show()
+  if b.lit.pulse then b.lit.pulse:Play() end
+  b.icon:SetAlpha(1)
+  if PlaySound then pcall(PlaySound, W.SOUND, "Master") end
+  local tok = {}
+  W.litTok = tok
+  if C_Timer and C_Timer.After then C_Timer.After(W.LIT_FOR, function() if W.litTok == tok then W.Unlight() end end) end
+  return true
+end
+function W.Unlight()
+  local b = W.totem
+  W.litTok = nil
+  if not (b and b.lit) then return end
+  b.lit:Hide()
+  if b.lit.pulse then b.lit.pulse:Stop() end
+  b.icon:SetAlpha(0.55)
+end
+
+--- /bist wf key <KEY>: that key presses ASK (none = off). Set out of a fight; kept.
+function W.ApplyKey()
+  if locked() then return false end
+  if ClearOverrideBindings then pcall(ClearOverrideBindings, W.events) end
+  local k = db().key
+  if k and W.ask and SetOverrideBindingClick then pcall(SetOverrideBindingClick, W.events, true, k, "BiSToolsWFAsk", "LeftButton") end
+  return k
+end
+function W.Key(word)
+  if locked() then NS.Print("windfury: not in a fight") return false end
+  word = tostring(word or ""):upper()
+  if word == "" or word == "NONE" then db().key = nil W.ApplyKey() NS.Print("windfury: no ASK key") return false end
+  db().key = word
+  W.BuildAsk()
+  W.ApplyKey()
+  NS.Print("windfury: %s presses ASK (4 quick presses = an ask)", word)
+  return word
+end
+
+--- /bist wf log: the last asks, sent and heard.
+function W.Report(n)
+  local log = db().log or {}
+  n = math.min(tonumber(n) or 8, #log)
+  for i = #log - n + 1, #log do
+    local e = log[i]
+    if e.k == "sent" then
+      NS.Print("  sent: %d presses in %.1f s to %s%s", e.n or 0, e.span or 0, tostring(e.to or "?"), e.fight and " (in a fight)" or "")
+    else
+      NS.Print("  heard: %s, %d target changes in %.1f s%s%s", tostring(e.who or "?"), e.n or 0, e.span or 0,
+        e.fight and " (in a fight)" or "", e.lit and " - LIT" or "")
+    end
+  end
+  return n
+end
+
+--- /bist wf test: the lamp (and your ASK or totem button) out of a fight for W.TEST s.
 function W.Test()
   if locked() then NS.Print("windfury: not in a fight - it shows by itself there") return false end
   W.Learn()
   if not W.Show(true) then NS.Print("windfury: no lamp - %s", W.refused or "?") return false end
+  W.Buttons(true)
   local tok = {}
   W.testUntil = tok
   if C_Timer and C_Timer.After then
-    C_Timer.After(W.TEST, function() if W.testUntil == tok and not locked() then W.Show(false) end end)
+    C_Timer.After(W.TEST, function() if W.testUntil == tok and not locked() then W.Show(false) W.Buttons(false) end end)
   end
   NS.Print("windfury: the lamp for %d s - gold = Windfury on you, red = not. Drag it to move it.", W.TEST)
   return true
 end
 
---- /bist wf: what it knows, in one line.
+--- /bist wf: what it knows (and the ask's line).
 function W.Status()
   local on = R:Enabled("windfury")
   NS.Print("windfury: %s  -  shaman in your party: %s  -  %d ids  -  lamp: %s%s", on and "ON" or "OFF (/bist on wf)",
     W.ShamanNear() and "yes" or "no", #W.Ids(), (W.frame and W.frame.container) and "ready" or (W.refused or "not built yet"),
     W.drawn and ("  -  drawn gold %d times"):format(W.drawn) or "")
+  if W.IsShaman() then
+    NS.Print("windfury ask: you're the shaman - %s", W.KnowsWF() and "your Windfury Totem button lights when someone asks"
+      or "you don't know Windfury Totem yet")
+  else
+    local u = W.ShamanUnit()
+    NS.Print("windfury ask: ASK aims at %s  -  key: %s%s", u and nameOf(u) or "no shaman in your party",
+      db().key or "none (/bist wf key F)", (W.ask and not W.wrapped) and "  |cffff5050(no snippet!)|r" or "")
+  end
 end
 
 W.events = CreateFrame("Frame")
-W.events:SetScript("OnEvent", function(_, event)
+W.events:SetScript("OnEvent", function(_, event, a1)
+  if event == "UNIT_TARGET" then W.Heard(a1) return end
   if event == "PLAYER_REGEN_DISABLED" then
-    -- (the lockdown starts after this: the buff still reads, the frame may still be shown)
+    -- (the lockdown starts after this: the buff still reads, frames and secure buttons may still be shown and aimed)
     W.Learn()
-    if W.ShamanNear() then W.Show(true) end
+    if W.ShamanNear() and W.Show(true) then W.Buttons(true) end
     if W.frame then W.frame:EnableMouse(false) end            -- never in the way of a click in a fight
   elseif event == "PLAYER_REGEN_ENABLED" then
     W.Show(false)
+    W.Buttons(false)
     if W.frame then W.frame:EnableMouse(true) end
     if W.dirty and W.frame then W.Container(W.frame) end
+    if not R:Enabled("windfury") then W.Listen(false) end      -- (switched off mid-fight: now)
   end
 end)
 function W.Listen(on)
   if on then
     W.events:RegisterEvent("PLAYER_REGEN_DISABLED")
     W.events:RegisterEvent("PLAYER_REGEN_ENABLED")
-  else
-    W.events:UnregisterEvent("PLAYER_REGEN_DISABLED")
-    W.events:UnregisterEvent("PLAYER_REGEN_ENABLED")
-    W.Show(false)
+    if db().key then W.BuildAsk() end
+    return
   end
+  W.events:UnregisterEvent("PLAYER_REGEN_DISABLED")
+  W.Show(false)
+  if locked() then return end                                -- (secure buttons wait: PLAYER_REGEN_ENABLED finishes it)
+  W.Buttons(false)
+  W.events:UnregisterEvent("PLAYER_REGEN_ENABLED")
+  if ClearOverrideBindings then pcall(ClearOverrideBindings, W.events) end
 end
 
 R:Register({
   name = "windfury",
   short = "wf",
   defaultOff = true,                                   -- (a save from before 1.0 never had it: off there too)
-  desc = "a lamp: red NO WINDFURY! when a shaman's Windfury Totem is not on you",
-  usage = "/bist wf [test]",
+  desc = "a lamp: red NO WINDFURY! when a shaman's Windfury Totem is not on you - ASK lights their totem button",
+  usage = "/bist wf [test | key <KEY> | log]",
   defaults = {},
   options = {
     { kind = "button", label = "the lamp", button = "test",
-      help = "Shows the lamp for a few seconds out of a fight: gold while Windfury is on you, red when not. In a fight it shows by itself when a shaman is in your party.",
+      help = "Shows the lamp for a few seconds out of a fight: gold while Windfury is on you, red when not. In a fight it shows by itself when a shaman is in your party, with ASK beside it - a shaman gets a Windfury Totem button there that lights up when someone asks.",
       action = function(d) W.db = d W.Test() end },
   },
   OnInit = function(_, d) W.db = d end,
@@ -335,8 +663,10 @@ R:Register({
   OnDisable = function() W.Listen(false) end,
   OnSlash = function(_, d, args)
     W.db = d
-    local cmd = tostring(args or ""):match("^(%S*)") or ""
+    local cmd, rest = tostring(args or ""):match("^(%S*)%s*(.-)%s*$")
     if cmd == "test" then W.Test() return end
+    if cmd == "key" then W.Key(rest) return end
+    if cmd == "log" then W.Report(rest) return end
     W.Status()
   end,
 })
