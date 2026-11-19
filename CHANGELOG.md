@@ -1,3 +1,7 @@
+## 1.7.1
+
+- **Fixed:** with the Windfury lamp on, the combo's floating proc text could be blocked in a fight (a "protected function" error, BiSToolsComboFloat). The ASK and Windfury Totem buttons no longer hang off the lamp.
+
 ## 1.7.0
 
 - **New: the Windfury lamp** (switch on **windfury** in the BiS Tools list, or `/bist on wf`). In a fight with a shaman in your party, a small bar under your proc text: gold **WINDFURY** while a Windfury Totem (or your own Windfury Weapon) is on you, a blinking red **NO WINDFURY!** when it isn't - step out of the totem's range and you see it at once. The game draws it, so it works in the middle of a fight. `/bist wf test` shows it out of a fight; drag it to move it.
