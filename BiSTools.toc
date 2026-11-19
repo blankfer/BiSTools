@@ -48,5 +48,6 @@ Tools\BossData.lua
 Tools\Bosses.lua
 Tools\Alts.lua
 Tools\Combo.lua
+Tools\Windfury.lua
 API.lua
 Tools\Hub.lua
