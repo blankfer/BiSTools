@@ -1,3 +1,7 @@
+## 1.7.2
+
+- **Windfury ASK: no more false asks.** The shaman's Windfury Totem button now lights only for party members who run BiS Tools (the only ones who can press ASK). Someone without it switching targets quickly no longer lights it up.
+
 ## 1.7.1
 
 - **Fixed:** with the Windfury lamp on, the combo's floating proc text could be blocked in a fight (a "protected function" error, BiSToolsComboFloat). The ASK and Windfury Totem buttons no longer hang off the lamp.
