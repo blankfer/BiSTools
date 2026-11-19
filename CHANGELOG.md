@@ -1,3 +1,8 @@
+## 1.7.3
+
+- **Combo: your party's procs are no longer counted as yours.** In a fight the game hides your weapon speed, and the combo tape fell back to a guess - with a slow weapon, a party member's hits could pass as your swings and procs. Your real speed is now read at the pull. And after each fight the damage meter has the last word: Windfury or Flametongue procs it says weren't yours come off that fight.
+- Fights saved before keep their counts - shift-click a row twice in the combo list to forget one that looks too high.
+
 ## 1.7.2
 
 - **Windfury ASK: no more false asks.** The shaman's Windfury Totem button now lights only for party members who run BiS Tools (the only ones who can press ASK). Someone without it switching targets quickly no longer lights it up.

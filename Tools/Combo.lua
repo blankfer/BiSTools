@@ -415,9 +415,12 @@ end
 function C.Pull()
   local tot = C.ScanTotems({})
   local imbue = C.ImbueNow()
+  C.cur = nil
+  local mh, oh = C.Speeds()                                  -- (read now, while the game still says: C.Speeds)
   C.cur = { imbue = imbue, totems = copySet(tot), active = 0, swing = C.Swinging(), start = now(),
             nowImbue = imbue, nowTot = tot, segs = { { imbue = imbue, tot = copySet(tot), at = now() } } }
   C.cur.gap, C.cur.skull = C.TargetGap()
+  C.cur.mh, C.cur.oh = mh, oh
   C.cur.wfAura, C.cur.ftAura = C.AuraUp("Windfury Totem"), C.AuraUp("Flametongue Totem")   -- (a party member's totems)
   C.TapeClear()
   if C.activeTicker and C.activeTicker.Cancel then C.activeTicker:Cancel() end
@@ -593,9 +596,14 @@ end
 --- else's swings landing on your clock. Said on the tape while it is still up.
 function C.MeterCheck(rec)
   local pr = rec.procs or {}
+  -- THE METER HAS THE LAST WORD ON THE COUNTS (18 Nov 2026, Arn: "i think tools is also counting my party procs"): the fight's
+  -- record keeps no Flametongue procs the meter says were none of yours (the Windfury ones just below), so the proc
+  -- shares and the gauge's rate are not built on a party member's hits
+  if (rec.ft or 0) <= 0 and (pr.fire or 0) > 0 then pr.fire, rec.notMineFt = 0, true end
   local wfProcs = (pr.extra1 or 0) + (pr.extra2 or 0) + (pr.more or 0)
   if (rec.wf or 0) > 0 or wfProcs == 0 then return false end
   rec.notMine = true
+  pr.extra1, pr.extra2, pr.more = 0, 0, 0
   local t = C.tape
   if t and t:IsShown() and db().scroll ~= false then
     C.TapePrint("METER: NO WINDFURY OF YOURS", true)
@@ -1785,13 +1793,7 @@ end
   The last beat adds one swing. With C.CADENCE_MIN beats or more it decides the fight's active time; fewer, the reach
   ticker (above) does. Two weapons interleave into short gaps that add up to the real time. ]]
 C.CADENCE, C.CADENCE_MIN, C.SPEED_GUESS = 1.25, 3, 2.5
-function C.Speed()
-  if not UnitAttackSpeed then return C.SPEED_GUESS end
-  local ok, mh = pcall(UnitAttackSpeed, "player")
-  if ok then mh = plain(mh) else mh = nil end
-  if type(mh) == "number" and mh > 0.5 and mh < 6 then return mh end
-  return C.SPEED_GUESS
-end
+function C.Speed() return (C.Speeds()) end
 function C.Beat(cur, at)
   local sp = C.Speed()
   cur.beats = (cur.beats or 0) + 1
@@ -1805,12 +1807,20 @@ end
   beat - counted in cur.foreign for /bist combo why. In a group a stranger's swing can still land on your clock now and
   then; after the fight the meter checks (C.MeterCheck). ]]
 C.OWN_K = 0.75
+--- Your weapons' speeds. IN A FIGHT THE GAME HIDES THEM (18 Nov 2026, Arn: "i think tools is also counting my party procs"):
+--- unit stats are secret in the lockdown, so mid-fight this fell back to C.SPEED_GUESS (2.5 s) - with a slower two-hander a
+--- party member's hit anywhere after ~1.9 s passed as your swing. The speeds read at the pull (C.Pull: PLAYER_REGEN_DISABLED,
+--- before the lockdown) are used while the game will not say.
 function C.Speeds()
-  if not UnitAttackSpeed then return C.SPEED_GUESS, nil end
-  local ok, mh, oh = pcall(UnitAttackSpeed, "player")
-  if not ok then return C.SPEED_GUESS, nil end
-  mh, oh = plain(mh), plain(oh)
-  if not (type(mh) == "number" and mh > 0.5 and mh < 6) then mh = C.SPEED_GUESS end
+  local mh, oh
+  if UnitAttackSpeed then
+    local ok, a, b = pcall(UnitAttackSpeed, "player")
+    if ok then mh, oh = plain(a), plain(b) end
+  end
+  local cur = C.cur
+  if not (type(mh) == "number" and mh > 0.5 and mh < 6) then
+    return (cur and cur.mh) or C.SPEED_GUESS, cur and cur.oh or nil
+  end
   if not (type(oh) == "number" and oh > 0.5 and oh < 6) then oh = nil end
   return mh, oh
 end
