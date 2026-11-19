@@ -10054,6 +10054,34 @@ do
   ok(WF.drawn == 2, "a reused button is placed again, dressed once")
   ev("PLAYER_REGEN_ENABLED")
   ok(not f:IsShown() and not c.enabled and f.mouse, "the fight over: gone, the slot quiet, the lamp draggable again")
+  -- YOUR OWN WINDFURY WEAPON (18 Nov, Arn: "its not reading my own windfury imbue"): the enchant reads in a fight, so the
+  -- lamp's own gold covers the red while your main hand has it; and with the paper tape on, the lamp sits under the tape
+  do
+    local keepWE = _G.GetWeaponEnchantInfo
+    local mh = 284
+    _G.GetWeaponEnchantInfo = function() if mh then return true, 1500000, 0, mh end return false end
+    local cdb2 = R:DBFor(R:Get("combo"))
+    local wasCombo, wasStyle = R:Enabled("combo"), cdb2.tapeStyle
+    R:SetEnabled("combo", true) cdb2.tapeStyle = "receipt"
+    ev("PLAYER_REGEN_DISABLED") W.combat = true
+    ok(f.weapon:IsShown() and f.weapon.word:GetText() == "WINDFURY", "Windfury Weapon on your main hand: the lamp gold (our own, the enchant reads in a fight)")
+    ok(f.point and f.point[2] == _G.BiSToolsComboTape, "the paper tape on: the lamp under the tape, not across it")
+    mh = 1663                                                        -- Rockbiter now
+    W.tick()
+    ok(not f.weapon:IsShown(), "another imbue: within a second, red again (unless the totem's gold covers it)")
+    mh = 284
+    W.tick()
+    ok(f.weapon:IsShown(), "Windfury back on: gold")
+    local CostI = dofile("../_bisdev/dev/cost.lua")
+    local ni, byi = CostI.Count(function() WF.CheckImbue() end)
+    ok(ni <= 8, "the imbue look, once a second in a fight: <= 8 client calls", ni, CostI.Top(byi, 4))
+    print(("   cost: windfury lamp, imbue look each second = %d calls (%s)"):format(ni, CostI.Top(byi, 3)))
+    W.combat = false ev("PLAYER_REGEN_ENABLED")
+    ok(not f.weapon:IsShown() and not WF.imbueTicker, "the fight over: nothing looks any more")
+    cdb2.tapeStyle = wasStyle
+    R:SetEnabled("combo", wasCombo)
+    _G.GetWeaponEnchantInfo = keepWE
+  end
   -- no shaman: nothing
   classes.party1 = nil
   ev("PLAYER_REGEN_DISABLED")

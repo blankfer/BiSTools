@@ -171,6 +171,11 @@ end
 function W.Anchor(f)
   f:ClearAllPoints()
   local C = NS.Combo
+  -- (18 Nov, Arn's screenshot: with the paper tape on, the lamp sat across it - then it goes under the tape)
+  if C and C.Tape and C.Clean and not C.Clean() and R:Enabled("combo") then
+    local t = C.Tape()
+    if t then f:SetPoint("TOP", t, "BOTTOM", 0, -6) f.under = t return t end
+  end
   local g = C and C.Float and C.Float()
   if g then f:SetPoint("TOP", g, "BOTTOM", 0, -W.GAP) f.under = g return g end
   local p = db().pos
@@ -212,6 +217,22 @@ function W.Build()
     end
   end
   f.red = red
+  -- YOUR OWN WINDFURY WEAPON (18 Nov 2026, Arn: "its not reading my own windfury imbue"): the lamp was the totem's
+  -- buff only. The weapon's enchant DOES read in a fight (his /bist combo wf: "enchant: true id 1663" in the lockdown),
+  -- so this one is ours to draw: gold over the red while your main hand carries Windfury (W.CheckImbue, once a second).
+  local wpn = CreateFrame("Frame", nil, f)
+  wpn:SetAllPoints(f)
+  if wpn.SetFrameLevel then wpn:SetFrameLevel((f:GetFrameLevel() or 1) + 5) end
+  wpn.bg = wpn:CreateTexture(nil, "ARTWORK")
+  wpn.bg:SetAllPoints(wpn)
+  wpn.bg:SetColorTexture(W.GOLD[1], W.GOLD[2], W.GOLD[3], 1)
+  wpn.word = wpn:CreateFontString(nil, "OVERLAY")
+  wpn.word:SetFont("Fonts\\ARIALN.TTF", 13, "")
+  wpn.word:SetPoint("CENTER", wpn, "CENTER", 0, 0)
+  wpn.word:SetTextColor(0.12, 0.09, 0.02, 1)
+  wpn.word:SetText("WINDFURY")
+  wpn:Hide()
+  f.weapon = wpn
   -- moved out of a fight only; it moves the spot it shares with the proc text
   f:EnableMouse(true)
   f:RegisterForDrag("LeftButton")
@@ -260,15 +281,32 @@ function W.Show(on)
     if f.red.pulse then f.red.pulse:Play() end
     pcall(f.container.SetEnabled, f.container, true)
     if f.container.UpdateAllAuras then pcall(f.container.UpdateAllAuras, f.container) end   -- (a buff already on you)
+    W.CheckImbue()
+    if W.imbueTicker and W.imbueTicker.Cancel then W.imbueTicker:Cancel() end
+    W.imbueTicker = (C_Timer and C_Timer.NewTicker) and C_Timer.NewTicker(W.IMBUE_EVERY, W.CheckImbue) or nil
     return true
   end
+  if W.imbueTicker and W.imbueTicker.Cancel then W.imbueTicker:Cancel() end
+  W.imbueTicker = nil
   if f then
     W.testUntil = nil
     f:Hide()
     if f.red.pulse then f.red.pulse:Stop() end
+    if f.weapon then f.weapon:Hide() end
     if f.container then pcall(f.container.SetEnabled, f.container, false) end
   end
   return false
+end
+--- Your main hand's Windfury Weapon (the combo's reading - plain in a fight too): the lamp's own gold on or off.
+W.IMBUE_EVERY = 1
+function W.CheckImbue()
+  local f = W.frame
+  if not (f and f.weapon) then return false end
+  local C = NS.Combo
+  local im = C and C.ImbueNow and C.ImbueNow()
+  local wf = type(im) == "string" and im:find("Windfury", 1, true) and true or false
+  if wf then f.weapon:Show() else f.weapon:Hide() end
+  return wf
 end
 
 --[[ THE ASK (18 Nov 2026, Arn: "a warrior missing wf, click a button it clicks the shaman in his group he gets a light up
