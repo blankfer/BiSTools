@@ -358,7 +358,10 @@ function W.RunMacro(text)
     if ln == "/cleartarget" then
       if W.target then W.last = W.target end
       W.target = nil
+    elseif nm and nm:find("^%[noexists%] ") and W.target then
+      -- already somebody: the line does nothing
     elseif nm then
+      nm = nm:gsub("^%[noexists%] ", "")
       local toks = {}
       for tok in pairs(W.plates) do if tok:find("^nameplate") then toks[#toks + 1] = tok end end
       table.sort(toks)
@@ -375,6 +378,9 @@ function W.RunMacro(text)
       -- a ping that names nobody: the client takes the line and pings nothing
     elseif pC == "@target,exists" or pC == "mod:shift,@target,exists" then
       if W.target and (pC == "@target,exists" or W.shift) then W.pings[#W.pings + 1] = { name = W.target.name, kind = pK } end
+    elseif ln == "/click [exists] BiSToolsBossHit" then
+      -- a plain button of ours, clicked by the macro only when somebody is targeted
+      if W.target and _G.BiSToolsBossHit then _G.BiSToolsBossHit:Click() end
     elseif ln == "/targetlasttarget [noexists]" then
       if not W.target then W.target = W.last end
     else
@@ -5683,6 +5689,14 @@ do
     _G.C_Spell.IsSpellInRange = function() return nil end
     ok(Co.InReach() == true and Co.reachHow:find("10 yd", 1, true), "nothing else answers: the 10 yd check, and it says so")
     ok(Co.ReachProbe():find("interact3=true", 1, true), "/bist combo reach: every check's answer")
+    -- IN A FIGHT THE CLIENT BLOCKS IT (Arn's BugGrabber, 21 Nov: "BiSTools tried to call the protected function
+    -- 'UNKNOWN()'", 7 times) - blocked, not an error: pcall answers as if nothing happened, so the mock counts it
+    local blocked = 0
+    _G.CheckInteractDistance = function() if W.combat then blocked = blocked + 1 return nil end return true end
+    local keepCombat = W.combat
+    W.combat = true
+    ok(Co.InReach() == nil and Co.ReachProbe():find("interact3=refused", 1, true) and blocked == 0, "in a fight the duel-distance check is never asked", blocked)
+    W.combat = keepCombat
     _G.C_Spell.GetSpellInfo = keepGSI
     _G.C_Spell.IsSpellInRange, _G.CheckInteractDistance, _G.UnitExists = keepCS2, keepCID, keepUE
   end
@@ -9720,7 +9734,11 @@ do
     end
     above("the screen clear of the place's name", f.screen, f.place)
     above("the name clear of the number boxes", f.place, f.boxes[1])
-    above("the boxes clear of the strip", f.boxes[1], f.tape)
+    above("the boxes clear of the tabs", f.boxes[1], f.tabs[1])
+    above("the tabs clear of the strip", f.tabs[2], f.tape)
+    local _, _, t1r = rect(f.tabs[1])
+    local t2l = rect(f.tabs[2])
+    ok(t1r <= t2l, "phone: the tabs side by side")
     above("the strip clear of the first row", f.tape, f.rows[1])
     for i = 2, BS.ROWS do above("row " .. i, f.rows[i - 1], f.rows[i]) end
     for _, o in ipairs({ f.say, f.prev, f.next, f.pageNo }) do
@@ -9777,7 +9795,7 @@ do
   ok(BS.mark[D[36].bosses[1].id] == 8 and BS.mark[D[36].bosses[2].id] == 7 and BS.mark[D[36].bosses[8].id] == 1,
     "the marks: skull for the first, cross for the next ... star for the eighth")
   local r1 = f.rows[1]
-  ok(r1.attrs.type == "macro" and r1.attrs.macrotext == "/cleartarget\n/targetexact Rhahk'Zor\n/tm [exists] !8\n/ping [mod:shift,@target,exists] attack\n/targetlasttarget [noexists]",
+  ok(r1.attrs.type == "macro" and r1.attrs.macrotext == "/cleartarget\n/targetexact Rhahk'Zor\n/tm [exists] !8\n/ping [mod:shift,@target,exists] attack\n/click [exists] BiSToolsBossHit\n/targetlasttarget [noexists]",
     "a row: clear, the boss by its exact name, its mark, a ping only with shift, the old target back if not found", r1.attrs.macrotext)
   ok(r1.icon.shown and r1.icon.file == BS.MARK_ICON .. 8 and r1.name.text == "Rhahk'Zor" and r1.name.wrap == false, "row 1: the skull, the name on one line")
 
@@ -9856,7 +9874,7 @@ do
   ok(not f.rows[2].check.shown and f.rows[2].icon.shown, "the others keep their marks")
   ok(BS.mark[D[36].bosses[2].id] == 8 and f.rows[2].attrs.macrotext:find("!8", 1, true), "Sneed has the skull now, his row rewritten")
   ok(f.readDown.text == "1 / 8" and f.say.text == "Rhahk'Zor down - 1 of 8", "the readout and the line", f.say.text)
-  ok(f.readNear.text == "2" and f.readMark.text ~= "", "the boxes: how many in sight, how many marked", f.readNear.text)
+  ok(f.readNear.text == "7" and f.readMark.text ~= "", "the boxes: how many left, how many found", f.readNear.text)
   ok(f.segs[1].shown and f.segs[1].color[1] == select(1, F.color("good")) and not f.segs[9].shown, "the tape: eight lights, the first green")
   -- seen dead: down too
   W.target = { name = "Gilnid", guid = "Creature-0-1-36-1-1763-0001", dead = true }
@@ -9889,6 +9907,9 @@ do
   for _, p in ipairs({ f.screen, f.over, f.tape, f.boxes[1], f.boxes[2], f.boxes[3], f.model }) do if p and p.mouse == true then anyMouse = true end end
   ok(not anyMouse, "and nothing on it takes a click - not a row, not a key, not the window, not its picture: what is behind it can be clicked")
   ok(BS.FIGHT_ALPHA <= 0.15, "barely there (Arn: 'dim it way more')", BS.FIGHT_ALPHA)
+  ok(not f.model.shown, "and no 3D boss: a model ignores its window's alpha (Arn's shots, 21 Nov)")
+  BS.Paint()
+  ok(not f.model.shown, "a repaint mid-fight does not bring it back")
   ok(not onEsc, "and Escape still leaves it alone mid-fight")
   ok(f:GetScript("OnUpdate") == nil and f.help.text == BS.FIGHT_HELP,
      "QUIET (Arn: 'like a quiet cockpit screen would'): the grid stops rolling, and one line says the keys are locked")
@@ -9906,6 +9927,23 @@ do
   ok(f.alpha == 1 and not f.dimmed and allMouse and not backOnEsc,
     "full strength again, every key clickable, and still not on the Escape list")
   ok(f:GetScript("OnUpdate") == f.tick and f.help.text == BS.HELP, "and the grid rolls again, the usual help line back")
+  do
+    W.plates.nameplate9 = { name = D[36].bosses[2].name, guid = "Creature-0-1-36-1-643-0001" }
+    BS.events.scripts.OnEvent(BS.events, "NAME_PLATE_UNIT_ADDED", "nameplate9")
+    ok(f.model.shown, "the 3D boss is back after the fight")
+    local keepUI = rawget(_G, "UIParent")
+    _G.UIParent = keepUI or {}
+    local keepA = UIParent.GetAlpha
+    UIParent.GetAlpha = function() return 0 end
+    f.tick(f, 1)
+    ok(not f.model.shown, "the interface faded out (BiS Memories takes a picture): no boss left standing in it")
+    UIParent.GetAlpha = function() return 1 end
+    f.tick(f, 1)
+    ok(f.model.shown, "and back with it")
+    UIParent.GetAlpha = keepA
+    _G.UIParent = keepUI
+    W.plates.nameplate9 = nil
+  end
 
   -- the key
   S("bosses key F7")
@@ -9993,6 +10031,203 @@ do
   ok(select(2, A.BossesShow()) == "bosses tool off", "and says so when the tool is off")
   ok(not f:IsShown() and BS.map == nil and not BS.events.events.NAME_PLATE_UNIT_ADDED, "switched off: closed, eyes shut")
   _G.IsInInstance, W.me.inst, W.target, W.plates, W.shift = keep.inst, keep.map, keep.target, keep.plates, keep.shift
+end
+
+-- QUEST TARGETS (Arn, 21 Nov 2026: "smartly read what quest we are on and target them"), and the client as measured that
+-- night inside Maraudon: a living creature's UnitName and UnitGUID are SECRET (BiSProbe, "Targets") - the block above
+-- names every boss, which is the client OUTSIDE. Here nobody may be named.
+do
+  local BS, BQ = NS.Bosses, NS.BossQuests
+  local Cost = dofile("../_bisdev/dev/cost.lua")
+  local keep = { inst = _G.IsInInstance, map = W.me.inst, target = W.target, plates = W.plates, last = W.last, name = _G.UnitName,
+    guid = _G.UnitGUID, is = _G.issecretvalue, Q = _G.C_QuestLog, cmap = _G.C_Map, item = _G.C_Item, zone = _G.GetRealZoneText,
+    sub = _G.GetSubZoneText, ex = _G.UnitExists, cls = _G.UnitClass, ldb = _G.LibQuestieDB }
+  local SECRET = setmetatable({}, { __eq = function() error("compared a secret") end, __concat = function() error("joined a secret") end })
+  _G.issecretvalue = function(v) return rawequal(v, SECRET) end
+  local creature = function(u) return u == "target" or (type(u) == "string" and u:find("^nameplate")) end
+  local hide = true
+  local mates = { party1 = { "Robert Oak", "PRIEST" }, party2 = { "Tezumek", "MAGE" } }
+  _G.UnitName = function(u)
+    if mates[u] then return mates[u][1] end
+    if hide and creature(u) then local x = u == "target" and W.target or W.plates[u] if x then return SECRET end end
+    return keep.name(u)
+  end
+  _G.UnitGUID = function(u) if hide and creature(u) then return SECRET end return keep.guid(u) end
+  _G.UnitExists = function(u) if mates[u] then return true end return keep.ex(u) end
+  _G.UnitClass = function(u) if mates[u] then return mates[u][2], mates[u][2] end return keep.cls(u) end
+  local bags = { [17761] = 1 }
+  _G.C_Item = setmetatable({ GetItemCount = function(id) return bags[id] or 0 end }, { __index = keep.item })
+  local area = { [2100] = "Maraudon", [17] = "The Barrens" }
+  local here = 1443
+  _G.C_Map = setmetatable({ GetBestMapForUnit = function() return here end,
+    GetMapInfo = function(m) return { name = m == 1443 and "Desolace" or "The Barrens", parentMapID = 0 } end,
+    GetAreaInfo = function(a) return area[a] end }, { __index = keep.cmap })
+  _G.GetRealZoneText = function() return "Desolace" end
+  _G.GetSubZoneText = function() return "" end
+  -- the log, in the measured shapes: a header is the place; a kill says "0/3 Noxxious Scion slain", an item only the item
+  local log = {
+    { title = "Maraudon", isHeader = true },
+    { title = "The Pariah's Instructions", questID = 7067 },
+    { title = "Shadowshard Fragments", questID = 7068 },
+    { title = "Twisted Evils", questID = 7041 },
+    { title = "Arathi Highlands", isHeader = true },
+    { title = "Crushridge Bounty", questID = 518 },
+  }
+  local objs = {
+    [7067] = {},
+    [7068] = { { type = "item", text = "0/10 Shadowshard Fragment", finished = false, numFulfilled = 0, numRequired = 10 } },
+    [7041] = { { type = "monster", text = "1/3 Noxxious Scion slain", finished = false, numFulfilled = 1, numRequired = 3 },
+      { type = "monster", text = "0/8 Vylestem Vines healed", finished = false, numFulfilled = 0, numRequired = 8 } },
+    [518] = { { type = "monster", text = "0/14 Crushridge Mauler slain", finished = false, numFulfilled = 0, numRequired = 14 } },
+  }
+  local onQuest, believe = { party1 = { [7067] = true }, party2 = { [7067] = true, [7041] = true } }, true
+  _G.C_QuestLog = setmetatable({ GetNumQuestLogEntries = function() return #log end, GetInfo = function(i) return log[i] end,
+    GetQuestObjectives = function(q) return objs[q] end,
+    IsUnitOnQuest = function(u, q) if not believe then return true end return (onQuest[u] and onQuest[u][q]) or false end },
+    { __index = keep.Q })
+  ok(BQ.Kill("0/14 Crushridge Mauler slain") == "Crushridge Mauler" and BQ.Kill("Crushridge Mauler slain: 0/14") == "Crushridge Mauler"
+     and BQ.Kill("0/8 Vylestem Vines healed") == nil and BQ.Kill(SECRET) == nil, "a kill objective names the creature, both spellings")
+
+  -- INSIDE MARAUDON
+  S("on bosses")
+  local bdb = R:DBFor(R:Get("bosses"))
+  bdb.run, bdb.open, bdb.pos = nil, nil, nil
+  _G.IsInInstance = function() return true, "party" end
+  W.me.inst = 349
+  W.plates, W.target, W.last = {}, nil, nil
+  BS.key = false
+  fireAll("PLAYER_ENTERING_WORLD")
+  local f = BiSToolsBosses
+  ok(BS.map == 349 and BS.tab == "boss" and #BS.list == 8 and f:IsShown(), "Maraudon: it opens on BOSSES")
+  ok(#BS.quests == 6 and f.tabs[2].label.text == "QUESTS 5" and f.tabs[1].label.text == "BOSSES 8",
+     "its quests: five khans and the Scions; a gem in the bags is one less (Arathi's quest is not here)", f.tabs[2].label.text)
+  ok(BS.unknown == 2, "the fragments and the vines: nobody can name who", BS.unknown)
+  f.tabs[2].scripts.OnClick(f.tabs[2])
+  ok(BS.tab == "quest" and #BS.list == 6 and f.place.text == "Maraudon" and f.boxes[1].word.text == "DONE" and f.readDown.text == "1 / 6",
+     "the QUESTS tab", f.readDown.text)
+  local k1, k4, k6 = f.rows[1], f.rows[4], f.rows[6]
+  ok(k1.name.text == "Spirit of Kolk" and k1.state.text == "DONE" and k1.check.shown, "Kolk's gem is in the bags: DONE, ticked")
+  ok(k4.name.text == "Spirit of Maraudos" and k4.state.text == "0 / 1" and k4.icon.shown, "Maraudos: 0 / 1, a mark", k4.state.text)
+  ok(k4.attrs.macrotext == "/cleartarget\n/targetexact Spirit of Maraudos\n/targetexact [noexists] Maraudos\n/tm [exists] !6\n"
+     .. "/ping [mod:shift,@target,exists] attack\n/click [exists] BiSToolsBossHit\n/targetlasttarget [noexists]",
+     "one khan, two names: the spirit, else the khan", k4.attrs.macrotext)
+  ok(k6.name.text == "Noxxious Scion" and k6.state.text == "1 / 3", "a kill quest: named by the log itself", k6.name.text)
+  ok(k4.who.text:find("R", 1, true) and k4.who.text:find("T", 1, true) and k6.who.text:find("T", 1, true) and not k6.who.text:find("R", 1, true),
+     "who in the party is on it too: initials", k4.who.text)
+  for _, row in ipairs(f.rows) do ok(#(row.attrs.macrotext or "") <= 255, "every row's macro fits", #(row.attrs.macrotext or "")) end
+  -- a press, when nobody may be named
+  W.plates.nameplate1 = { name = "Maraudos", guid = "Creature-0-1-349-1-12242-0001" }
+  local saw, why = pcall(BS.events.scripts.OnEvent, BS.events, "NAME_PLATE_UNIT_ADDED", "nameplate1")
+  ok(saw and not next(BS.near), "a plate whose name is secret: nothing said, no error", tostring(why))
+  local tm = #W.tmLog
+  k4:Click()
+  ok(W.target == W.plates.nameplate1 and #W.tmLog == tm + 1 and k4.state.text == "FOUND" and f.say.text == "Spirit of Maraudos marked",
+     "the khan's second name finds him; FOUND, though his name is secret (it used to say not in sight)", f.say.text)
+  W.target, W.last = nil, nil
+  f.rows[5]:Click()
+  ok(f.say.text == "Spirit of Veng is not in sight" and f.rows[5].state.text == "0 / 1", "nobody there: not in sight", f.say.text)
+  W.target = { name = "Thessala Hydra", guid = "Creature-0-1-349-1-12207-0001" }
+  f.rows[5]:Click()
+  ok(f.say.text == "looked for Spirit of Veng" and not BS.found[BS.quests[5].id], "your old target back, unreadable: it does not guess", f.say.text)
+  -- a boss the same way
+  f.tabs[1].scripts.OnClick(f.tabs[1])
+  W.plates.nameplate2 = { name = "Noxxion", guid = "Creature-0-1-349-1-13282-0001" }
+  f.rows[1]:Click()
+  ok(f.rows[1].name.text == "Noxxion" and f.rows[1].state.text == "FOUND" and f.readMark.text == "1", "a boss found, his name secret: FOUND", f.rows[1].state.text)
+  f.tabs[2].scripts.OnClick(f.tabs[2])
+  -- the log moves: one look a burst
+  objs[7041][1].numFulfilled, objs[7041][1].finished = 3, true
+  for _ = 1, 5 do BQ.events.scripts.OnEvent(BQ.events, "QUEST_LOG_UPDATE") end
+  ok(k6.state.text == "1 / 3", "five quest events: nothing yet")
+  W.runAfters(1)
+  ok(k6.state.text == "DONE" and f.readDown.text == "2 / 6", "and one look after: the Scions are DONE", k6.state.text)
+  -- in a fight the rows stay where they are, only the counts move
+  local first = f.rows[2].entry
+  bags[17762] = 1
+  table.insert(log, 2, { title = "New one", questID = 9999 })
+  objs[9999] = { { type = "monster", text = "0/1 Rotgrip slain", finished = false, numFulfilled = 0, numRequired = 1 } }
+  W.combat = true
+  BQ.events.scripts.OnEvent(BQ.events, "QUEST_LOG_UPDATE")
+  local okF, whyF = pcall(W.runAfters, 1)
+  ok(okF and f.rows[2].entry == first and f.rows[2].name.text == "Spirit of Gelk" and f.rows[2].state.text == "DONE" and #BS.quests == 6,
+     "mid-fight: Gelk's gem is counted, no row moves, no error", tostring(whyF))
+  ok(BS.SetTab("boss") == false and BS.tab == "quest", "and the tabs wait for the fight's end")
+  W.combat = false
+  BS.events.scripts.OnEvent(BS.events, "PLAYER_REGEN_ENABLED")
+  ok(#BS.quests == 7 and f.rows[1].name.text == "Rotgrip" and f.rows[1].attrs.macrotext:find("/targetexact Rotgrip", 1, true),
+     "after it: the new quest's boss is a row too", f.rows[1].name.text)
+  table.remove(log, 2)
+  -- a client whose answer means nothing is not believed
+  believe = false
+  BS.QuestsNow()
+  ok(f.rows[4].who.text == "", "IsUnitOnQuest says yes to a quest that does not exist: no initials", f.rows[4].who.text)
+  believe = true
+  -- QuestieDB there: the fragments have an owner, this place's creatures first
+  _G.LibQuestieDB = { RequireContract = function(n) return n == 4 end,
+    Quest = { objectives = function(q) if q == 7068 then return { {}, {}, { { 17756 } } } end return { {}, {}, {} } end },
+    Item = { npcDrops = function(i) return i == 17756 and { 99, 11777, 11778 } or nil end },
+    Npc = { name = function(n) return ({ [99] = "Far Away Mob", [11777] = "Shadowshard Rumbler", [11778] = "Shadowshard Smasher" })[n] end,
+      zoneID = function(n) return n == 99 and 17 or 2100 end } }
+  BS.QuestsNow()
+  local frag
+  for _, e in ipairs(BS.quests) do if e.quest == 7068 then frag = e end end
+  ok(frag and frag.names[1] == "Shadowshard Rumbler" and frag.names[2] == "Shadowshard Smasher" and #frag.names == 2 and frag.need == 10 and BS.unknown == 1,
+     "QuestieDB: who carries the fragments, only the ones of this place", frag and table.concat(frag.names, ","))
+  _G.LibQuestieDB.RequireContract = function() return false end
+  BS.QuestsNow()
+  ok(BS.unknown == 2, "another contract of it: not used")
+  _G.LibQuestieDB = { RequireContract = function() error("broken") end }
+  ok(pcall(BS.QuestsNow), "a broken one: no error")
+  _G.LibQuestieDB = nil
+  -- the long run: a kill keeps it alive
+  local at = BS.run.at
+  W.now = W.now + 3000
+  local realTime = _G.time
+  _G.time = function() return at + 3000 end
+  BS.events.scripts.OnEvent(BS.events, "ENCOUNTER_END", BS.bosses[1].id, "Noxxion", 1, 5, 1)
+  ok(BS.run.down[BS.bosses[1].id] and BS.run.at == at + 3000 and BS.tab == "quest", "a boss down while QUESTS is open: counted, and the run lives on")
+  _G.time = realTime
+
+  -- OUTSIDE: the cave before it
+  _G.IsInInstance = function() return false, "none" end
+  fireAll("ZONE_CHANGED_NEW_AREA")
+  ok(BS.map == nil and BS.key == "out:349" and f:IsShown() and BS.tab == "quest" and f.place.text == "Maraudon, outside",
+     "outside, in its zone: the same quests, the window stays (it was open)", f.place.text)
+  ok(BS.ShowBox(), "and its button is in the tools box")
+  hide = false
+  W.plates.nameplate3 = { name = "Spirit of Magra", guid = "Creature-0-1-1-1-12241-0001" }
+  BS.events.scripts.OnEvent(BS.events, "NAME_PLATE_UNIT_ADDED", "nameplate3")
+  ok(f.rows[3].state.text == "IN SIGHT", "outside, names are plain: in sight", f.rows[3].state.text)
+  f.close.scripts.OnClick(f.close)
+  -- RAZORFEN DOWNS: three dungeons share the zone, one has a quest
+  here = 1413
+  _G.GetRealZoneText = function() return "The Barrens" end
+  log = { { title = "Undercity", isHeader = true }, { title = "An Unholy Alliance", questID = 6521 },
+    { title = "Razorfen Downs", isHeader = true }, { title = "A Host of Evil", questID = 6626 } }
+  objs[6521] = { { type = "item", text = "0/1 Ambassador Malcin's Head", finished = false, numFulfilled = 0, numRequired = 1 } }
+  objs[6626] = { { type = "monster", text = "0/8 Razorfen Battleguard slain", finished = false, numFulfilled = 0, numRequired = 8 } }
+  fireAll("ZONE_CHANGED_NEW_AREA")
+  ok(BS.key == "out:43,47,129" and BS.outName == "Razorfen Downs, outside" and #BS.quests == 2 and BS.quests[1].name == "Ambassador Malcin"
+     and BS.quests[2].name == "Razorfen Battleguard" and not f:IsShown(), "RFD outside: Malcin and the camps; closed by you, it stays closed", BS.outName)
+  BS.Toggle(true)
+  ok(f.rows[1].state.text == "0 / 1" and #BS.bosses > 0, "opened by hand; RFD's bosses are there for a look")
+  objs[6521][1].finished, objs[6521][1].numFulfilled = true, 1
+  BS.QuestsNow()
+  ok(f.rows[1].state.text == "DONE", "Malcin's head: DONE")
+  -- nothing to do here: no window, no button; and a zone of no dungeon: nothing registered
+  log = {}
+  BS.QuestsNow()
+  ok(not BS.ShowBox() and #BS.quests == 0, "no quest here: no button")
+  here = 1411
+  _G.GetRealZoneText = function() return "Durotar" end
+  fireAll("ZONE_CHANGED_NEW_AREA")
+  ok(BS.key == nil and not BQ.listening and not BQ.events.events.QUEST_LOG_UPDATE and not BS.events.events.NAME_PLATE_UNIT_ADDED and not f:IsShown(),
+     "a zone with no dungeon: nothing is listened to")
+  local n = Cost.Count(function() for _ = 1, 40 do fireAll("QUEST_LOG_UPDATE") end end)
+  print(("   cost: bosses, 40 quest events outside = %d calls"):format(n))
+  S("off bosses")
+  _G.IsInInstance, W.me.inst, W.target, W.plates, W.last, _G.UnitName, _G.UnitGUID, _G.issecretvalue = keep.inst, keep.map, keep.target, keep.plates, keep.last, keep.name, keep.guid, keep.is
+  _G.C_QuestLog, _G.C_Map, _G.C_Item, _G.GetRealZoneText, _G.GetSubZoneText, _G.UnitExists, _G.UnitClass, _G.LibQuestieDB = keep.Q, keep.cmap, keep.item, keep.zone, keep.sub, keep.ex, keep.cls, keep.ldb
 end
 
 -- MAIN & ALTS (Arn, 14 Nov 2026: "Select main / Select alt mains don't override / Select what main sends to alts that

@@ -300,7 +300,9 @@ function C.InReach()
   end
   local r = spellReach(C.AUTO_ATTACK)
   if r ~= nil then C.reachHow = "Auto Attack" return r end
-  if CheckInteractDistance then
+  -- NOT IN A FIGHT (Arn's BugGrabber, 21 Nov: "AddOn 'BiSTools' tried to call the protected function 'UNKNOWN()'", here,
+  -- 7 times): the client blocks this one in combat, and a pcall round a blocked call changes nothing
+  if CheckInteractDistance and not (InCombatLockdown and InCombatLockdown()) then
     local ok, v = pcall(CheckInteractDistance, "target", 3)
     if ok then v = plain(v) else v = nil end
     if v == true or v == false then C.reachHow = "about 10 yd (duel distance)" return v end
@@ -322,7 +324,7 @@ function C.ReachProbe()
   parts[#parts + 1] = "Auto Attack=" .. (okA and k(a) or "refused")
   for i = 1, 4 do
     local okD, d = false, nil
-    if CheckInteractDistance then okD, d = pcall(CheckInteractDistance, "target", i) end
+    if CheckInteractDistance and not (InCombatLockdown and InCombatLockdown()) then okD, d = pcall(CheckInteractDistance, "target", i) end
     parts[#parts + 1] = ("interact%d=%s"):format(i, okD and k(d) or "refused")
   end
   local line = "combo reach: " .. table.concat(parts, "  ")
