@@ -155,7 +155,7 @@ DP.Register()
 R:Register({
   name = "deck",
   desc = "the one BiS deck, tall or wide: live cards, pages, steps (first try: look, do not lean on it yet)",
-  usage = "/bist deck  |  /bist deck wide|tall|pad|welcome|pin <profile>|unpin",
+  usage = "/bist deck  |  /bist deck wide|tall|pad|welcome|theme <name>|pin <profile>|unpin",
   defaultOff = true,
   defaults = {},
   OnEnable = function() if D then D.Show() end end,
@@ -173,6 +173,13 @@ R:Register({
       -- the pad holds the deck only while asked to (B gives it back): it stands open all evening
       if not D.Focus(not D.focused) then NS.Print("deck: no gamepad kit, or a fight") end
     elseif cmd == "welcome" then D.Show() if D.Replay then D.Replay() end
+    elseif cmd == "theme" then
+      local names = {}
+      for _, t in ipairs(D.THEMES) do
+        if rest ~= "" and (t.key == rest:lower() or t.name:lower() == rest:lower()) then D.Show() D.SetTheme(t.key) return NS.Print("deck: theme %s", t.name) end
+        names[#names + 1] = t.name
+      end
+      NS.Print("deck: themes are %s (now %s)", table.concat(names, ", "), D.Theme().name)
     elseif cmd == "unpin" then D.Pin(nil) NS.Print("deck: it follows you again")
     else D.Toggle() end
   end,

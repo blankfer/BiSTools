@@ -10286,6 +10286,11 @@ do
   S("deck pin raid night")
   ok(Dk.profile == "Raid night", "/bist deck pin raid night", Dk.profile)
   S("deck unpin")
+  ok(Dk.Theme().key == "dark", "the clean dark one until you change it")
+  S("deck theme Night drive")
+  ok(Dk.Theme().key == "drive", "/bist deck theme night drive")
+  S("deck theme dark")
+  ok(Dk.Theme().key == "dark" and Dk.Store().theme == nil, "/bist deck theme dark: back")
   S("deck welcome")
   ok(Dk.page == "BiSDeck:welcome", "/bist deck welcome: again")
   -- a tool that is off: its icon is gray, its page has one button

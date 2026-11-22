@@ -86,6 +86,12 @@ shown); a slot in the deck with BRING IT BACK, never shown twice; a button does 
 at the pull; a card with nothing to say hides and comes back to its place. Rides first: it takes over from the old rides card
 (one or the other, never both).
 
+## Themes (Arn, 22 Nov: "make Ryan gosling mode a mode you have to turn on theme , I like the clean style that you did first , we like dark mode other people can change the theme")
+Dark = the clean deck, the default, and what every layout is judged in. Night drive (the Gosling look: pink accent, a dusk and roofs behind the head of
+home, never behind a list), Light, High contrast are picked in the switches (THEME), `/bist deck theme <name>`, or the welcome. A theme is the same
+colour names in other colours (D.THEMES); it never touches T.hex, so no other BiS window changes. dev/deck.lua measures every theme: ink 7:1, the rest 4.5:1.
+PULL-OUT cards therefore start in the clean style; the big thin number, the pill and the glide stay part of the plan for all themes.
+
 ## Data
 BiS>Guides = a separate, NOT public library (Arn, 21 Nov) behind a BiSGuidesAPI (to build): dungeon quests, chains, givers,
 levels, what each needs (kill / loot / use / click) and the item. The deck works without it: own quest log, BQ.OWN (our own
