@@ -36,9 +36,27 @@ local R = NS.Registry
 local BF = {}
 NS.Bosses = BF
 
-BF.W, BF.H = 343, 240              -- 1.43:1, the family's window shape
-BF.SCALE = 1.45                    -- every window starts at 1.2 ("so small cant read"); this one, Arn 8 Nov: "lil small"
-BF.ROWS, BF.ROW = 8, 16
+-- A PHONE (Arn, 21 Nov 2026, over a shot of the wide window: "this like a phone too"; sketch A of
+-- https://claude.ai/artifact/BwkBfcV2HXsRUo5Nu89aVb - "A, drop, this one": the boss on top, the needle gauge gone, this
+-- window only - the rest of the family stays 1.43:1). Every height comes from the ones above it, so no part can grow
+-- into its neighbour; the suite measures the built boxes.
+BF.W, BF.H = 240, 427              -- 9:16
+BF.SCALE = 1.35                    -- as high as the probe deck's phone; its letters are a point bigger than the wide one's
+BF.PAD = 8
+BF.ROWS, BF.ROW = 8, 18
+BF.SCREEN_H = 122                  -- the boss, edge to edge (top of the phone)
+BF.TITLE_Y = BF.SCREEN_H + 5       -- the place's name
+BF.BOX_Y, BF.BOX_H = BF.TITLE_Y + 17, 25          -- down / in sight / marked
+BF.TAPE_Y, BF.TAPE_H = BF.BOX_Y + BF.BOX_H + 3, 5
+BF.ROWS_Y = BF.TAPE_Y + BF.TAPE_H + 4
+BF.PAGE_Y, BF.PAGE_H = BF.ROWS_Y + BF.ROWS * BF.ROW + 2, 13   -- < > and what the last press did
+BF.FIND_Y, BF.FIND_H = BF.PAGE_Y + BF.PAGE_H + 4, 26
+BF.KEYS_Y, BF.KEYS_H = BF.FIND_Y + BF.FIND_H + 4, 18          -- MARK ALL, RESET
+BF.HELP_Y = BF.KEYS_Y + BF.KEYS_H + 4
+BF.HOME = 3                        -- the home bar, from the bottom
+BF.CHECK = "Interface\\RaidFrame\\ReadyCheck-Ready"
+BF.CLOCK_EVERY = 1                 -- the clock at the top: looked at once a second, only while shown
+BF.SPOT = { 300, 0 }               -- never dragged: right of your character, not over it
 BF.MARKS = { 8, 7, 6, 5, 4, 3, 2, 1 }      -- skull, cross, square, moon, triangle, diamond, circle, star
 BF.MARK_ICON = "Interface\\TargetingFrame\\UI-RaidTargetingIcon_"
 BF.MACRO_MAX = 255
@@ -507,12 +525,24 @@ function BF.BuildScreen(f, x, y, w, h)
     m:SetFrameLevel((sc:GetFrameLevel() or 1) + 2)
     f.model = m
   end
-  f.caption = K().fs(sc, "", 8, "ink")
-  f.caption:SetPoint("BOTTOM", sc, "BOTTOM", 0, 3)
-  f.caption:SetWidth(w - 6)
+  -- the words over it: their own layer ABOVE the model (the name on the screen's own layer printed behind the boss)
+  local over = CreateFrame("Frame", nil, f)
+  over:SetSize(w, h)
+  over:SetPoint("TOPLEFT", x, y)
+  over:SetFrameLevel((sc:GetFrameLevel() or 1) + 5)
+  f.over = over
+  f.caption = K().fs(over, "", 14, "ink")
+  f.caption:SetPoint("BOTTOMLEFT", over, "BOTTOMLEFT", BF.PAD - 1, 4)
+  f.caption:SetWidth(w - 76)
+  f.caption:SetJustifyH("LEFT")
   f.caption:SetWordWrap(false)
-  f.nopic = K().fs(sc, "", 7, "ink2")
-  f.nopic:SetPoint("TOP", sc, "TOP", 0, -4)
+  f.capState = K().fs(over, "", 8, "gold")
+  f.capState:SetPoint("BOTTOMRIGHT", over, "BOTTOMRIGHT", -BF.PAD + 1, 6)
+  f.capState:SetWidth(56)
+  f.capState:SetJustifyH("RIGHT")
+  f.capState:SetWordWrap(false)
+  f.nopic = K().fs(over, "", 8, "ink2")
+  f.nopic:SetPoint("TOP", over, "TOP", 0, -24)
   BF.t = 0
   BF.GridAt(0)
   return sc
@@ -531,44 +561,7 @@ function BF.GridAt(t)
   end
 end
 
-function BF.BuildGauge(f, x, y)
-  local g = CreateFrame("Frame", nil, f)
-  g:SetSize(56, 52)
-  g:SetPoint("TOPLEFT", x, y)
-  f.gauge = g
-  local cx, cy, rad = 28, -28, 23
-  local face = g:CreateTexture(nil, "BACKGROUND")
-  face:SetTexture(BF.ROUND)
-  face:SetSize(rad * 2 + 4, rad * 2 + 4)
-  face:SetPoint("CENTER", g, "TOPLEFT", cx, cy)
-  face:SetVertexColor(rgb("frame"))
-  -- eleven ticks from -135 to +135 degrees (up is 0), the last three amber... no: the far end is the good end
-  for i = 0, 10 do
-    local a = math.rad(-135 + i * 27)
-    local r1 = (i % 5 == 0) and rad - 6 or rad - 3
-    local l = line(g, "ARTWORK", i == 10 and "good" or "ink2", 0.9, (i % 5 == 0) and 2 or 1)
-    l:SetStartPoint("TOPLEFT", g, cx + math.sin(a) * r1, cy + math.cos(a) * r1)
-    l:SetEndPoint("TOPLEFT", g, cx + math.sin(a) * rad, cy + math.cos(a) * rad)
-  end
-  f.needle = line(g, "OVERLAY", "gold", 1, 2)
-  local hub = g:CreateTexture(nil, "OVERLAY")
-  hub:SetTexture(BF.ROUND)
-  hub:SetSize(6, 6)
-  hub:SetPoint("CENTER", g, "TOPLEFT", cx, cy)
-  hub:SetVertexColor(rgb("gold"))
-  f.gaugeAt = { cx = cx, cy = cy, rad = rad - 4 }
-  local lbl = K().fs(g, "DOWN", 7, "dim")
-  lbl:SetPoint("CENTER", g, "TOPLEFT", cx, cy - 13)
-  return g
-end
-
---- The needle: 0 bosses down points at -135 degrees, all of them at +135.
-function BF.NeedleAngle(down, all)
-  if not all or all <= 0 then return math.rad(-135) end
-  return math.rad(-135 + 270 * math.min(1, down / all))
-end
-
---- Where the window stands: where it was dragged to (db.pos, in its own scale), else a little above the middle.
+--- Where the window stands: where it was dragged to (db.pos, in its own scale), else right of the middle.
 function BF.Place()
   local f, pos = BF.frame, BF.db and BF.db.pos
   if not f then return end
@@ -576,7 +569,7 @@ function BF.Place()
   if type(pos) == "table" and type(pos[1]) == "string" then
     f:SetPoint(pos[1], UIParent, pos[2] or pos[1], tonumber(pos[3]) or 0, tonumber(pos[4]) or 0)
   else
-    f:SetPoint("CENTER", UIParent, "CENTER", 0, 80)
+    f:SetPoint("CENTER", UIParent, "CENTER", BF.SPOT[1], BF.SPOT[2])
   end
 end
 
@@ -605,26 +598,52 @@ function BF.Build()
   f:SetScript("OnDragStop", function(self) BF.EndDrag(self) end)
   k.tex(f, "BACKGROUND", "frame", 0.97)
   k.border(f, "edge", 1)
-  f.title = k.fs(f, "BiS> BOSSES", 10, "accent")
-  f.title:SetPoint("TOPLEFT", 8, -7)
-  f.place = k.fs(f, "", 9, "ink")
-  f.place:SetPoint("LEFT", f.title, "RIGHT", 8, 0)
-  f.place:SetWidth(170)
-  f.place:SetJustifyH("LEFT")
-  f.place:SetWordWrap(false)
+  -- the screen first: the boss, edge to edge, and over it the phone's top line
+  local P, W = BF.PAD, BF.W - 2 * BF.PAD
+  BF.BuildScreen(f, 1, -1, BF.W - 2, BF.SCREEN_H - 1)
+  local top = f.over
+  local notch = top:CreateTexture(nil, "ARTWORK")
+  notch:SetColorTexture(rgb("frame"))
+  notch:SetSize(64, 10)
+  notch:SetPoint("TOP", top, "TOP", 0, 0)
+  f.clock = k.fs(top, "", 8, "ink")
+  f.clock:SetPoint("TOPLEFT", top, "TOPLEFT", P - 1, -3)
   f.close = key(f, "x", 16, 14, nil, function() BF.Toggle(false) end)
   f.close:SetPoint("TOPRIGHT", -4, -4)
-  f.build = k.fs(f, "", 7, "dim")                    -- the fingerprint: faint, which copy this is
-  f.build:SetJustifyH("RIGHT")
-  f.build:SetPoint("RIGHT", f.close, "LEFT", -6, 0)
-  f.build:SetAlpha(0.6)
+  f.close:SetFrameLevel((top:GetFrameLevel() or 1) + 2)
+  -- whose list this is
+  f.place = k.fs(f, "", 14, "ink")
+  f.place:SetPoint("TOPLEFT", f, "TOPLEFT", P, -BF.TITLE_Y)
+  f.place:SetWidth(W - 62)
+  f.place:SetJustifyH("LEFT")
+  f.place:SetWordWrap(false)
+  f.title = k.fs(f, "BiS> BOSSES", 8, "accent")
+  f.title:SetPoint("TOPRIGHT", f, "TOPRIGHT", -P, -BF.TITLE_Y - 4)
+  -- the numbers, in boxes
+  f.boxes = {}
+  local bw = (W - 8) / 3
+  local function box(i, word, ink)
+    local b = CreateFrame("Frame", nil, f)
+    b:SetSize(bw, BF.BOX_H)
+    b:SetPoint("TOPLEFT", f, "TOPLEFT", P + (i - 1) * (bw + 4), -BF.BOX_Y)
+    k.tex(b, "BACKGROUND", "field", 0.9)
+    local w = k.fs(b, word, 6, "dim")
+    w:SetPoint("TOPLEFT", b, "TOPLEFT", 5, -3)
+    local n = k.fs(b, "", 12, ink)
+    n:SetPoint("TOPLEFT", b, "TOPLEFT", 5, -10)
+    f.boxes[i] = b
+    return n
+  end
+  f.readDown = box(1, "DOWN", "good")
+  f.readNear = box(2, "IN SIGHT", "gold")
+  f.readMark = box(3, "MARKED", "accent")
   -- the list: a row a boss, its mark, its name, what is known
-  local x0, w = 8, 198
+  local x0, w = P, W
   f.rows = {}
   for i = 1, BF.ROWS do
     local r = secure(nil, f)
     r:SetSize(w, BF.ROW - 1)
-    r:SetPoint("TOPLEFT", x0, -24 - (i - 1) * BF.ROW)
+    r:SetPoint("TOPLEFT", f, "TOPLEFT", x0, -BF.ROWS_Y - (i - 1) * BF.ROW)
     k.tex(r, "BACKGROUND", "field", 0.6)
     r.bar = r:CreateTexture(nil, "ARTWORK")
     r.bar:SetPoint("TOPLEFT")
@@ -633,13 +652,18 @@ function BF.Build()
     r.bar:SetColorTexture(rgb("accent"))
     r.bar:SetAlpha(0)
     r.icon = r:CreateTexture(nil, "ARTWORK")
-    r.icon:SetSize(12, 12)
-    r.icon:SetPoint("LEFT", 4, 0)
-    r.num = k.fs(r, "", 7, "dim")
-    r.num:SetPoint("LEFT", 4, 0)
-    r.name = k.fs(r, "", 9, "ink")
-    r.name:SetPoint("LEFT", 20, 0)
-    r.name:SetWidth(w - 20 - 54)
+    r.icon:SetSize(13, 13)
+    r.icon:SetPoint("LEFT", 6, 0)
+    r.num = k.fs(r, "", 8, "dim")
+    r.num:SetPoint("LEFT", 6, 0)
+    r.check = r:CreateTexture(nil, "ARTWORK")          -- down: a green tick in the mark's place
+    r.check:SetTexture(BF.CHECK)
+    r.check:SetSize(12, 12)
+    r.check:SetPoint("LEFT", 6, 0)
+    r.check:Hide()
+    r.name = k.fs(r, "", 10, "ink")
+    r.name:SetPoint("LEFT", 24, 0)
+    r.name:SetWidth(w - 24 - 58)
     r.name:SetJustifyH("LEFT")
     r.name:SetWordWrap(false)                         -- one line: a long name is cut, never wrapped over the next row
     r.state = k.fs(r, "", 7, "ink2")
@@ -667,33 +691,22 @@ function BF.Build()
     r:Hide()
     f.rows[i] = r
   end
-  f.prev = key(f, "<", 22, 14, nil, function() BF.Turn(-1) end)
-  f.prev:SetPoint("TOPLEFT", x0, -24 - BF.ROWS * BF.ROW - 2)
-  f.next = key(f, ">", 22, 14, nil, function() BF.Turn(1) end)
-  f.next:SetPoint("LEFT", f.prev, "RIGHT", 4, 0)
-  f.pageNo = k.fs(f, "", 7, "dim")
-  f.pageNo:SetPoint("LEFT", f.next, "RIGHT", 6, 0)
+  -- under the list: what the last press did, left; the pages, right (more than eight bosses)
+  f.next = key(f, ">", 20, BF.PAGE_H, nil, function() BF.Turn(1) end)
+  f.next:SetPoint("TOPRIGHT", f, "TOPRIGHT", -P, -BF.PAGE_Y)
+  f.prev = key(f, "<", 20, BF.PAGE_H, nil, function() BF.Turn(-1) end)
+  f.prev:SetPoint("TOPRIGHT", f, "TOPRIGHT", -P - 24, -BF.PAGE_Y)
+  f.pageNo = k.fs(f, "", 8, "dim")
+  f.pageNo:SetPoint("TOPRIGHT", f, "TOPRIGHT", -P - 50, -BF.PAGE_Y - 2)
   f.say = k.fs(f, "", 8, "ink2")
-  f.say:SetPoint("LEFT", f.pageNo, "RIGHT", 8, 0)
-  f.say:SetWidth(w - 64)
+  f.say:SetPoint("TOPLEFT", f, "TOPLEFT", P, -BF.PAGE_Y - 2)
+  f.say:SetWidth(W - 78)
   f.say:SetJustifyH("LEFT")
   f.say:SetWordWrap(false)
-  -- the right: the screen (the sunset, the boss in 3D), the gauge and its readout
-  local rx, rw = x0 + w + 8, BF.W - (x0 + w + 8) - 8
-  BF.BuildScreen(f, rx, -24, rw, 92)
-  BF.BuildGauge(f, rx - 2, -120)
-  f.readDown = k.fs(f, "", 12, "ink")
-  f.readDown:SetPoint("TOPLEFT", rx + 58, -124)
-  f.readNear = k.fs(f, "", 7, "gold")
-  f.readNear:SetPoint("TOPLEFT", rx + 58, -142)
-  f.readMark = k.fs(f, "", 7, "accent")
-  f.readMark:SetPoint("TOPLEFT", rx + 58, -152)
-  f.readKind = k.fs(f, "", 7, "dim")
-  f.readKind:SetPoint("TOPLEFT", rx + 58, -162)
   -- the tape: one segment a boss, the colour of what is known
   f.tape = CreateFrame("Frame", nil, f)
-  f.tape:SetSize(BF.W - 16, 8)
-  f.tape:SetPoint("TOPLEFT", 8, -182)
+  f.tape:SetSize(W, BF.TAPE_H)
+  f.tape:SetPoint("TOPLEFT", f, "TOPLEFT", P, -BF.TAPE_Y)
   k.tex(f.tape, "BACKGROUND", "field", 0.9)
   f.segs = {}
   for i = 1, BF.TAPE_MAX do
@@ -703,8 +716,8 @@ function BF.Build()
     f.segs[i] = s
   end
   -- the keys: MARK ALL and FIND are secure (Blizzard's own commands), RESET is ours
-  f.all = key(f, "MARK ALL", 100, 20, "BiSToolsBossAll")
-  f.all:SetPoint("TOPLEFT", 8, -196)
+  f.all = key(f, "MARK ALL", W / 2 - 2, BF.KEYS_H, "BiSToolsBossAll")
+  f.all:SetPoint("TOPLEFT", f, "TOPLEFT", P, -BF.KEYS_Y)
   f.all:SetScript("PostClick", function(self) BF.AfterAll(self) end)
   f.all.tip = function(self)
     if not GameTooltip then return end
@@ -713,8 +726,9 @@ function BF.Build()
     GameTooltip:AddLine("A long list takes two presses", 1, 1, 1)
     GameTooltip:Show()
   end
-  f.find = key(f, "FIND", 100, 20, "BiSToolsBossFindKey")
-  f.find:SetPoint("LEFT", f.all, "RIGHT", 6, 0)
+  f.find = key(f, "FIND", W, BF.FIND_H, "BiSToolsBossFindKey")      -- the biggest button on it
+  f.find:SetPoint("TOPLEFT", f, "TOPLEFT", P, -BF.FIND_Y)
+  f.find.label:SetFont(STANDARD_TEXT_FONT, 13, "")
   f.find:SetScript("PostClick", function() BF.AfterFind() end)
   f.find.lit:SetColorTexture(rgb("gold"))
   f.find.lit:SetAlpha(0.8)
@@ -726,24 +740,44 @@ function BF.Build()
     GameTooltip:AddLine("/bist bosses key <KEY> binds it", 0.6, 0.6, 0.6)
     GameTooltip:Show()
   end
-  f.reset = key(f, "RESET", 60, 20, nil, function() BF.Reset() end)
-  f.reset:SetPoint("LEFT", f.find, "RIGHT", 6, 0)
+  f.reset = key(f, "RESET", W / 2 - 2, BF.KEYS_H, nil, function() BF.Reset() end)
+  f.reset:SetPoint("TOPLEFT", f, "TOPLEFT", P + W / 2 + 2, -BF.KEYS_Y)
   f.help = k.fs(f, BF.HELP, 7, "dim")
-  f.help:SetPoint("BOTTOMLEFT", 8, 6)
+  f.help:SetPoint("TOPLEFT", f, "TOPLEFT", P, -BF.HELP_Y)
+  f.help:SetWidth(W)
+  f.help:SetJustifyH("LEFT")
+  f.help:SetWordWrap(false)
+  f.home = k.tex(f, "ARTWORK", "ink2", 0.7)
+  f.home:ClearAllPoints()
+  f.home:SetSize(70, 3)
+  f.home:SetPoint("BOTTOM", f, "BOTTOM", 0, BF.HOME)
+  f.build = k.fs(f, "", 6, "dim")                    -- the fingerprint: faint, which copy this is
+  f.build:SetJustifyH("RIGHT")
+  f.build:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -P, BF.HOME + 4)
+  f.build:SetAlpha(0.6)
   -- the screen's clock: only while shown (the client runs no OnUpdate for a hidden frame)
   local acc = 0
   f.tick = function(_, elapsed)
     acc = acc + (elapsed or 0)
     if acc < 1 / BF.FPS then return end
     BF.t = (BF.t or 0) + acc * 0.5
+    BF.clockIn = (BF.clockIn or 0) - acc
     acc = 0
     BF.GridAt(BF.t)
+    if BF.clockIn <= 0 then BF.PaintClock(f) end
   end
   f:SetScript("OnUpdate", f.tick)
   -- hidden mid-drag (a zone change, the tool switched off): the drag ends with it
   f:SetScript("OnHide", function(self) BF.focus = nil BF.EndDrag(self) end)
   f:Hide()
   return f
+end
+
+--- The phone's clock (your own PC's time), written only when the minute changed.
+function BF.PaintClock(f)
+  BF.clockIn = BF.CLOCK_EVERY
+  local t = date and date("%H:%M") or ""
+  if f.clockSays ~= t then f.clockSays = t f.clock:SetText(t) end
 end
 
 function BF.Pages() return math.max(1, math.ceil(#(BF.list or {}) / BF.ROWS)) end
@@ -786,6 +820,14 @@ function BF.Screen()
   if not (f and f.screen) then return end
   local e = BF.focus or BF.FindNext() or (BF.list and BF.list[1])
   f.caption:SetText(e and e.name or "")
+  local st = e and BF.State(e) or "far"
+  f.capState:SetText(BF.STATE_WORD[st] or "")
+  f.capState:SetTextColor(rgb(BF.STATE_INK[st] or "ink2"))
+  for _, r in ipairs(f.rows or {}) do                -- the row of the boss on the screen is lit
+    local on = e ~= nil and r.entry == e
+    r.bar:SetAlpha(on and 1 or 0)
+    r.wash:SetAlpha(on and (BF.focus == e and BF.GLOW or BF.GLOW / 2) or 0)
+  end
   local m = f.model
   if not m then return end
   -- the same boss as last time: drawn, or missed a moment ago (the Codex's names come in by themselves) - leave it
@@ -829,14 +871,14 @@ function BF.PaintTape(f)
   local list = BF.list or {}
   local n = math.min(#list, BF.TAPE_MAX)
   local gap = 2
-  local wseg = n > 0 and ((BF.W - 16) - gap * (n - 1)) / n or 0
+  local wseg = n > 0 and ((BF.W - 2 * BF.PAD) - gap * (n - 1)) / n or 0
   for i = 1, BF.TAPE_MAX do
     local s = f.segs[i]
     local e = list[i]
     if i <= n and e then
       s:ClearAllPoints()
       s:SetPoint("TOPLEFT", f.tape, "TOPLEFT", (i - 1) * (wseg + gap), 0)
-      s:SetSize(wseg, 8)
+      s:SetSize(wseg, BF.TAPE_H)
       local st = BF.State(e)
       local r, g, b = rgb(st == "far" and "line2" or BF.STATE_INK[st])
       s:SetColorTexture(r, g, b, 1)
@@ -879,6 +921,7 @@ function BF.Paint()
         r.icon:Hide()
         r.num:SetText(tostring(idx))
       end
+      if st == "down" then r.icon:Hide() r.num:SetText("") r.check:Show() else r.check:Hide() end
       r.name:SetText(e.name)
       r.name:SetTextColor(rgb(st == "down" and "dim" or "ink"))
       r.state:SetText(BF.STATE_WORD[st] or "")
@@ -894,13 +937,9 @@ function BF.Paint()
   vis(f.next, pages > 1)
   local c = BF.Counts()
   f.readDown:SetText(c.down .. " / " .. c.all)
-  f.readNear:SetText(c.near .. " IN SIGHT")
-  f.readMark:SetText(c.marked .. " MARKED")
-  f.readKind:SetText(BF.data and (BF.data.kind == "raid" and "RAID" or "DUNGEON") or "")
-  local a = BF.NeedleAngle(c.down, c.all)
-  local g = f.gaugeAt
-  f.needle:SetStartPoint("TOPLEFT", f.gauge, g.cx, g.cy)
-  f.needle:SetEndPoint("TOPLEFT", f.gauge, g.cx + math.sin(a) * g.rad, g.cy + math.cos(a) * g.rad)
+  f.readNear:SetText(tostring(c.near))
+  f.readMark:SetText(tostring(c.marked))
+  BF.PaintClock(f)
   BF.PaintTape(f)
   if BF.said then f.say:SetText(BF.said) f.say:SetTextColor(rgb(BF.saidInk or "ink2")) end
   BF.Screen()
@@ -920,7 +959,7 @@ function BF.IsOpen() return BF.frame ~= nil and BF.frame:IsShown() end
 -- incombat they can still click stuff behind it"): barely there, and every part lets the mouse through to what is under it
 BF.FIGHT_ALPHA = 0.12
 BF.FIGHT_HELP = "FIGHT · screen quiet, keys locked - back after the fight"
-BF.HELP = "click: target + mark   shift: + ping   FIND: one at a time   x: close"
+BF.HELP = "click: target + mark   shift: + ping   FIND: the next one"
 
 function BF.Clickables(f)
   local list = { f.close, f.prev, f.next, f.all, f.find, f.reset }
@@ -955,9 +994,9 @@ function BF.Dim(on)
   f:SetAlpha(on and BF.FIGHT_ALPHA or 1)
   f:EnableMouse(not on)
   for _, b in ipairs(BF.Clickables(f)) do if b and b.EnableMouse then b:EnableMouse(not on) end end
-  -- the parts that never take a click are made sure of too: a model or a gauge that caught the mouse would block what is behind
+  -- the parts that never take a click are made sure of too: a model that caught the mouse would block what is behind
   if on then
-    for _, p in ipairs({ f.screen, f.model, f.gauge, f.tape }) do if p and p.EnableMouse then p:EnableMouse(false) end end
+    for _, p in ipairs({ f.screen, f.over, f.tape, f.boxes[1], f.boxes[2], f.boxes[3], f.model }) do if p and p.EnableMouse then p:EnableMouse(false) end end
   end
   f:SetScript("OnUpdate", (not on) and f.tick or nil)
   if f.help then

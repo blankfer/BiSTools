@@ -9696,13 +9696,73 @@ do
   local f = BiSToolsBosses
   ok(BS.map == 36 and #BS.list == 8 and BS.events.events.NAME_PLATE_UNIT_ADDED, "in the Deadmines: its list, and the eyes open")
   ok(f and f:IsShown() and f.place.text == "Deadmines", "the window comes up by itself, once a run", f and f.place.text)
-  ok(f.scale == 1.45 and math.abs(f.w / f.h - 1.43) < 0.01, "1.43:1, at 1.45 (Arn 8 Nov: 1.2 was 'lil small')", f.w .. "x" .. f.h)
+  ok(f.scale == 1.35 and math.abs(f.w / f.h - 9 / 16) < 0.01, "a phone, 9:16 (Arn, 21 Nov: 'this like a phone too')", f.w .. "x" .. f.h)
+  -- MEASURED, not just the shape (the probe deck's first phone was 9:16 and its list ran through its buttons): every part
+  -- the window builds, top to bottom, nothing sharing a pixel, nothing past the edges
+  do
+    local function rect(o)
+      if o == f then return 0, 0, f.w, f.h end
+      local p = o.point or o.anchor
+      local pt, rel, rp, x, y = p[1], p[2], p[3], p[4], p[5]
+      if type(rel) ~= "table" then pt, rel, rp, x, y = p[1], o.parent or f, p[1], type(rel) == "number" and rel or 0, type(rel) == "number" and rp or 0 end
+      local w, h = o.w or (o.GetStringWidth and o:GetStringWidth()) or 0, o.h or (o.size and o.size + 2) or 0
+      local l0, t0, r0, b0 = rect(rel)
+      local ax = (rp:find("LEFT") and l0 or rp:find("RIGHT") and r0 or (l0 + r0) / 2) + (x or 0)
+      local ay = (rp:find("TOP") and t0 or rp:find("BOTTOM") and b0 or (t0 + b0) / 2) - (y or 0)
+      local l = pt:find("LEFT") and ax or pt:find("RIGHT") and ax - w or ax - w / 2
+      local tt = pt:find("TOP") and ay or pt:find("BOTTOM") and ay - h or ay - h / 2
+      return l, tt, l + w, tt + h
+    end
+    local function above(what, a, b)
+      local _, _, _, ab = rect(a)
+      local _, bt = rect(b)
+      ok(ab <= bt + 0.01, "phone: " .. what, ab .. " > " .. bt)
+    end
+    above("the screen clear of the place's name", f.screen, f.place)
+    above("the name clear of the number boxes", f.place, f.boxes[1])
+    above("the boxes clear of the strip", f.boxes[1], f.tape)
+    above("the strip clear of the first row", f.tape, f.rows[1])
+    for i = 2, BS.ROWS do above("row " .. i, f.rows[i - 1], f.rows[i]) end
+    for _, o in ipairs({ f.say, f.prev, f.next, f.pageNo }) do
+      above("the last row clear of the line under it", f.rows[BS.ROWS], o)
+      above("that line clear of FIND", o, f.find)
+    end
+    above("FIND clear of MARK ALL", f.find, f.all)
+    above("FIND clear of RESET", f.find, f.reset)
+    above("the keys clear of the help", f.all, f.help)
+    above("the help clear of the build mark", f.help, f.build)
+    above("the build mark clear of the home bar", f.build, f.home)
+    local _, _, ar = rect(f.all)
+    local rl = rect(f.reset)
+    ok(ar <= rl, "phone: MARK ALL clear of RESET", ar .. " > " .. rl)
+    for i = 2, 3 do
+      local _, _, r0 = rect(f.boxes[i - 1])
+      local l1 = rect(f.boxes[i])
+      ok(r0 <= l1, "phone: number box " .. i .. " clear of the one before")
+    end
+    local _, _, sr = rect(f.say)
+    local pl = rect(f.pageNo)
+    local _, _, pr = rect(f.pageNo)
+    local vl = rect(f.prev)
+    ok(sr <= pl and pr <= vl, "phone: the last press's words, the page number, the page keys, side by side", sr .. " " .. pl .. " " .. pr .. " " .. vl)
+    for _, o in ipairs({ f.screen, f.place, f.title, f.boxes[3], f.rows[1], f.rows[8], f.next, f.find, f.reset, f.help, f.build, f.close, f.home }) do
+      local l, tt, rr, bb = rect(o)
+      ok(l >= 0 and tt >= 0 and rr <= f.w and bb <= f.h, "phone: inside its edges", l .. " " .. tt .. " " .. rr .. " " .. bb)
+    end
+    ok(f.over.level > (f.model.level or 1) and f.caption.parent == f.over, "the boss's name is drawn over the boss, not behind it")
+    ok(f.gauge == nil and f.needle == nil and BS.BuildGauge == nil, "the needle gauge is gone (Arn: 'drop')")
+    local keepDate = _G.date
+    _G.date = function(fmt) return fmt == "%H:%M" and "20:31" or "" end
+    BS.PaintClock(f)
+    ok(f.clock.text == "20:31", "the phone's clock", f.clock.text)
+    _G.date = keepDate
+  end
   local esc = false
   for _, n in ipairs(UISpecialFrames) do if n == "BiSToolsBosses" then esc = true end end
   ok(not esc, "Escape leaves it alone (Arn 8 Nov: 'even if i am not clicked on the window if i hit esc it closes it' - "
     .. "Escape drops a target all run long)")
   -- where you left it (Arn 8 Nov: "the bis bosses always open in the middle of the screen")
-  ok(f.point and f.point[1] == "CENTER" and f.point[5] == 80 and bdb.pos == nil, "never dragged: a little above the middle")
+  ok(f.point and f.point[1] == "CENTER" and f.point[4] == 300 and f.point[5] == 0 and bdb.pos == nil, "never dragged: right of your character")
   f.scripts.OnDragStart(f)
   f.scripts.OnDragStop(f)
   ok(type(bdb.pos) == "table" and bdb.pos[1] == "TOPLEFT" and bdb.pos[2] == "CENTER" and bdb.pos[3] == 12 and bdb.pos[4] == -34,
@@ -9734,6 +9794,7 @@ do
   BS.focus = cookie
   BS.Screen()
   ok(f.model._creature == 99645 and f.model:GetModelFileID() == 0 and f.caption.text == "Cookie", "Cookie (hovered): asked by npc, nothing yet")
+  ok(f.rows[7].bar.alpha == 1 and f.rows[1].bar.alpha == 0, "the row of the boss on the screen is lit, only that one")
   W.runAfters(1)
   ok(f.model:GetModelFileID() ~= 0 and f.model._anim == 0, "and asked again, he draws")
   BS.focus = nil
@@ -9790,12 +9851,12 @@ do
   BS.events.scripts.OnEvent(BS.events, "ENCOUNTER_END", D[36].bosses[1].id, "Rhahk'Zor", 1, 5, 0)
   ok(not BS.run.down[D[36].bosses[1].id], "a wipe (success 0) is not a kill")
   BS.events.scripts.OnEvent(BS.events, "ENCOUNTER_END", D[36].bosses[1].id, "Rhahk'Zor", 1, 5, 1)
-  ok(BS.run.down[D[36].bosses[1].id] and r1.state.text == "DOWN" and not r1.icon.shown and r1.num.text == "1",
-    "a kill: DOWN, his mark gone, his number instead")
+  ok(BS.run.down[D[36].bosses[1].id] and r1.state.text == "DOWN" and not r1.icon.shown and r1.num.text == "" and r1.check.shown,
+    "a kill: DOWN, his mark gone, a green tick instead")
+  ok(not f.rows[2].check.shown and f.rows[2].icon.shown, "the others keep their marks")
   ok(BS.mark[D[36].bosses[2].id] == 8 and f.rows[2].attrs.macrotext:find("!8", 1, true), "Sneed has the skull now, his row rewritten")
   ok(f.readDown.text == "1 / 8" and f.say.text == "Rhahk'Zor down - 1 of 8", "the readout and the line", f.say.text)
-  local a = BS.NeedleAngle(1, 8)
-  ok(math.abs(a - math.rad(-135 + 270 / 8)) < 1e-9 and math.abs(BS.NeedleAngle(8, 8) - math.rad(135)) < 1e-9, "the needle: an eighth of the way round")
+  ok(f.readNear.text == "2" and f.readMark.text ~= "", "the boxes: how many in sight, how many marked", f.readNear.text)
   ok(f.segs[1].shown and f.segs[1].color[1] == select(1, F.color("good")) and not f.segs[9].shown, "the tape: eight lights, the first green")
   -- seen dead: down too
   W.target = { name = "Gilnid", guid = "Creature-0-1-36-1-1763-0001", dead = true }
@@ -9825,7 +9886,7 @@ do
   for _, n in ipairs(UISpecialFrames) do if n == "BiSToolsBosses" then onEsc = true end end
   ok(f:IsShown() and not BS.back and f.alpha == BS.FIGHT_ALPHA and f.dimmed,
      "a pull: the window stays, dimmed", tostring(f.alpha))
-  for _, p in ipairs({ f.screen, f.model, f.gauge, f.tape }) do if p and p.mouse == true then anyMouse = true end end
+  for _, p in ipairs({ f.screen, f.over, f.tape, f.boxes[1], f.boxes[2], f.boxes[3], f.model }) do if p and p.mouse == true then anyMouse = true end end
   ok(not anyMouse, "and nothing on it takes a click - not a row, not a key, not the window, not its picture: what is behind it can be clicked")
   ok(BS.FIGHT_ALPHA <= 0.15, "barely there (Arn: 'dim it way more')", BS.FIGHT_ALPHA)
   ok(not onEsc, "and Escape still leaves it alone mid-fight")
