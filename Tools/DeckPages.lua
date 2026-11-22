@@ -214,7 +214,7 @@ function DP.Page(key, tool, name, app)
   for k, v in pairs(p) do out[k] = v end                     -- (tour, tick, steps as they are)
   out.title = p.title or function() return name end
   out.kicker = p.kicker or function() return "BiS Tools" end
-  for _, k in ipairs({ "boxes", "hero", "say", "find", "big" }) do out[k] = part(k) end
+  for _, k in ipairs({ "boxes", "hero", "icons", "say", "find", "big" }) do out[k] = part(k) end
   out.tabs = app and function()
     local t = {}
     for i, x in ipairs(p.tabs and p.tabs() or { name:upper() }) do t[i] = x end

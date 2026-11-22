@@ -57,6 +57,34 @@ return function(H)
   ok(b.ok() == true and at[141] == 2 and at[142] == 3 and at[143] == nil and at[144] == 6 and at[133] == 1, "the click fills it first, the Elements untouched")
   local before = writes
   ok(b.ok() == true and writes == before, "again: it stands already, nothing written")
+  -- THE COMBO APP'S ICONS: the chosen Call's four totems (the water one too), and the Calls you know
+  do
+    local cp = Dk.defs["BiSTools:tool-combo"].page
+    local cdb = R:DBFor(R:Get("combo"))
+    local was, fights = cdb.callNow, cdb.fights
+    cdb.callNow, cdb.fights = nil, {}
+    at[135] = 5
+    local ic = cp.icons(1)
+    ok(#ic == 2 and #ic[1] == 4 and #ic[2] == 2 and T.Now() == 1 and ic[2][1].lit and not ic[2][2].lit and ic[2][2].word == "Spirits", "two Calls known: the first is chosen", ic and #ic[2])
+    ok(ic[1][1].word == "Flametongue" and ic[1][1].pic == 1001 and ic[1][3].word == "Mana Spring" and ic[1][3].pic == 1005 and ic[1][4].word == "Windfury", "its four totems, water too", ic[1][3].word)
+    ok(cp.hero(1).big == "-" and cp.hero(1).small:find("FT, SoE, WF", 1, true) and cp.hero(1).under:find("never fought", 1, true), "the number is that set-up's: not fought yet", cp.hero(1).small)
+    ok(cp.big(1).spell == "Call of the Elements" and cp.big(1).word == "DROP: ELEMENTS" and Dk.IsSecure(cp.big(1)), "the big button drops that Call")
+    press(ic[2][2].act)
+    ok(T.Now() == 3 and cp.icons(1)[2][2].lit and cp.big(1).spell == "Call of the Spirits", "another chosen")
+    ok(cp.icons(1)[1][3].word == "Water" and cp.icons(1)[1][3].pic == nil and cp.icons(1)[1][1].word == "Magma", "its totems; an empty place says which", cp.icons(1)[1][1].word)
+    H.Paint("combo", 1)
+    press(cp.icons(1)[1][4].act)
+    ok(Dk.page == "BiSTools:totems" and def.tab == 2 and p.rows(2)[1].text == "Back", "a totem's icon: that place, to change it", Dk.page)
+    press(p.rows(2)[1].act)
+    Dk.page = "home" Dk.Hide()
+    local key
+    for _, x in ipairs(cp.keys(1)) do if x.word == "TRY: DROP" then key = x end end
+    ok(key and key.spell == "Call of the Spirits", "TRY: DROP fills its own Call with the one to try and drops it")
+    T.Choose(1)
+    ok(key.ok() == true and T.Now() == 3, "and that Call is the chosen one then")
+    cdb.callNow, cdb.fights = was, fights
+    at[135] = 5
+  end
   refuse, at[144] = true, 7 ok(b.ok() == false, "the game refuses: no cast of the wrong totems") refuse = false
   ok(b.ok() == true, "and the next click does it")
   press(row("The Combo app drops").act) ok(T.ComboPage() == 1 and row("The Combo app drops").verb == "YES", "or with the Call you say")

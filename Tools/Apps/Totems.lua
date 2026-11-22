@@ -109,6 +109,31 @@ function T.ComboPage()
   if T.CALLS[db.callPage or 0] and T.Knows(db.callPage) then return db.callPage end
   for i = #T.CALLS, 1, -1 do if T.Knows(i) then return i end end
 end
+--- The Calls you know: their places.
+function T.Known()
+  local out = {}
+  for i in ipairs(T.CALLS) do if T.Knows(i) then out[#out + 1] = i end end
+  return out
+end
+--- The Call that is chosen (the Combo app's icons), else the first you know.
+function T.Now()
+  local db = R:Get("combo") and R:DBFor(R:Get("combo")) or {}
+  if T.CALLS[db.callNow or 0] and T.Knows(db.callNow) then return db.callNow end
+  return T.Known()[1]
+end
+function T.Choose(page)
+  local db = R:Get("combo") and R:DBFor(R:Get("combo"))
+  if db and T.CALLS[page or 0] then db.callNow = page end
+end
+--- Its totems by their plain names: { [slot] = name }.
+function T.Names(page)
+  local C, out = NS.Combo, {}
+  for slot = 1, 4 do
+    local n = T.Name(T.Get(page, slot))
+    if n then out[slot] = C and C.Base and C.Base(n) or n end
+  end
+  return out
+end
 --- A button that fills that Call with these totems and casts it, in one click (nil = this character cannot).
 function T.DropAll(names, word)
   local page = T.Can() and T.ComboPage()
@@ -117,6 +142,7 @@ function T.DropAll(names, word)
     ok = function()
       local _, bad = T.Fill(page, names)
       T.said = bad > 0 and (bad .. " did not go into " .. T.CALLS[page].name) or nil
+      if bad == 0 then T.Choose(page) end
       if bad > 0 then NS.Print("totems: %s - click again, or open the Totems app", T.said) end
       return bad == 0
     end }
@@ -125,10 +151,18 @@ end
 -- THE APP ------------------------------------------------------------------------------------------------------------------
 local D = BiSTheme and BiSTheme.Deck
 local pick                                                 -- the place being changed: { page, slot }
-local function known()
-  local out = {}
-  for i in ipairs(T.CALLS) do if T.Knows(i) then out[#out + 1] = i end end
-  return out
+local function known() return T.Known() end
+--- The app on one Call, on one of its places.
+function T.Open(page, slot)
+  for i, x in ipairs(known()) do
+    if x == page and D and D.defs["BiSTools:totems"] then
+      D.defs["BiSTools:totems"].tab = i
+      pick = slot and { page = page, slot = slot } or nil
+      D.Open("BiSTools:totems")
+      return true
+    end
+  end
+  return false
 end
 local function words(id) local n = T.Name(id) local C = NS.Combo return n and (C and C.Base and C.Base(n) or n):gsub(" Totem$", "") or nil end
 

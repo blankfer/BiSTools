@@ -51,6 +51,15 @@ return function(H)
   ok(def.card.prio() == 6, "a fight just read: the card comes by itself")
   fight(WF, 1500, 10, "Bloodsnout", { wf = 0.3, active = 8, procs = { extra1 = 2, extra2 = 1, more = 0, fire = 0 }, swings = 20 })
   moment()
+  -- the huge number: this set-up's own, the breakdown on hover, its boxes at a press
+  local h = p.hero(1)
+  ok(h.art == "number" and h.big == "188" and h.small == "DPS  WF + SoE, GoA" and h.right == "last 188  +88%" and h.under == "1 fight, #1 of 2" and h.ink == "gold", "NOW: the set-up's dps, huge", h.big .. " / " .. h.small .. " / " .. h.right .. " / " .. h.under)
+  local lines = {}
+  for _, x in ipairs(h.lines) do lines[x[1]] = x[2] end
+  ok(lines.Place == "1 of 2" and lines.Fights == "1" and lines.Average == "188" and lines["Last fight"] == "Bloodsnout, 8 of 10 s swinging" and lines.Versus == "+88%" and lines.Procs == "3 WF", "every number on hover", tostring(lines.Place))
+  ok(p.hero(2) == nil and p.icons(1) == nil and #p.boxes(1) == 0, "only on NOW; no Calls on this character: no icons; no boxes")
+  H.Paint("combo", 1)
+  h.fn()
   local b = p.boxes(1)
   ok(b[1][2] == "188" and b[2][2] == "1/2" and b[3][2] == "+88%" and b[3][3] == "good" and b[4][2] == "30%",
     "NOW: 188 dps over the 8 s of swinging, first of two, 88% over the others, 30% Windfury", b[1][2] .. " " .. b[2][2] .. " " .. b[3][2])

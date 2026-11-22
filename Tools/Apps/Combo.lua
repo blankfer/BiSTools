@@ -11,6 +11,7 @@ DP.App.combo = function(tool, db)
   local ID = "BiSTools:tool-combo"
   local FRESH, MANY = 120, C.KEEP                            -- seconds a fight's card stays; as many fights as the tool keeps
   local pick                                                 -- the combo whose page is open in BEST
+  local opened                                               -- NOW: the breakdown's boxes are open
   local kept = {}                                            -- what this very moment's paint already worked out
 
   local function int(n) return tostring(math.floor((tonumber(n) or 0) + 0.5)) end
@@ -135,6 +136,79 @@ DP.App.combo = function(tool, db)
     end
     return out
   end
+  --- The window's number boxes (C.StatTiles) by their label, and in their order.
+  local function tiles(combo)
+    local by, order = {}, {}
+    for i, t in pairs((C.StatTiles(combo))) do
+      by[t[1]] = t
+      order[#order + 1] = { i = i, t = t }
+    end
+    table.sort(order, function(a, b) return a.i < b.i end)
+    return by, order
+  end
+  local function cap(w) return w:sub(1, 1):upper() .. w:sub(2):lower() end
+  --[[ THE SET-UP THAT IS CHOSEN (Arn, 22 Nov: "combo DPS number huge of current selected set up, all the break down numbers when hover
+    over it , under the DPS use the totem api choose which Call of the icons" - "on top of the icons show the icons of the totems that
+    is in the current set up" - "even the water one"): the imbue on your weapon and the totems of the chosen Call. Its number is the
+    average of its fights; a Call's icon chooses it, a totem's icon changes that place. ]]
+  local function setup()
+    local To = NS.Totems
+    local page = To and To.Shaman() and To.Can() and To.Now() or nil
+    local im = not (InCombatLockdown and InCombatLockdown()) and C.ImbueNow() or nil
+    if not im and last() then im = last().imbue end
+    local set, names, at = {}, {}, {}
+    if page then
+      at = To.Names(page)
+      for slot = 1, 4 do local n = at[slot] if n and C.TOTEMS[n] and not set[n] then set[n] = true names[#names + 1] = n end end
+    elseif last() then
+      for _, n in ipairs(last().totems or {}) do set[n] = true names[#names + 1] = n end
+    end
+    local combo = C.Label(im, set)
+    local k, n, g = place(combo)
+    return { page = page, imbue = im, names = names, at = at, combo = combo, k = k, of = n, g = g }
+  end
+  local function breakdown(s)
+    local out = {}
+    if s.g then
+      local _, order = tiles(s.combo)
+      for _, x in ipairs(order) do if x.t[2] ~= "-" then out[#out + 1] = { cap(x.t[1]) .. (x.i <= 3 and " procs" or ""), x.t[2] } end end
+      if s.k then table.insert(out, 1, { "Place", s.k .. " of " .. s.of }) end
+    end
+    local f = last()
+    if f then
+      out[#out + 1] = { " ", " " }
+      out[#out + 1] = { "Last fight", (f.mob or "?") .. ", " .. secs(f) }
+      for i, b in ipairs(nowBoxes()) do if b[1] ~= "PLACE" then out[#out + 1] = { i == 1 and "Its dps" or b[1] == "WF" and "Windfury damage" or cap(b[1]), b[2] } end end
+    end
+    return out
+  end
+  local function number()
+    local s, f = setup(), last()
+    if not (f or s.page) then return nil end
+    local vs, ink
+    if f then vs, ink = versus(f) end
+    return { art = "number", big = s.g and int(s.g.dps) or "-", ink = s.g and (s.k == 1 and "gold" or "good") or "dim", small = "DPS  " .. whole(s.imbue, s.names),
+      right = f and ("last " .. int(dps(f)) .. (vs ~= "-" and "  " .. vs or "")) or "", rightInk = ink == "warn" and "warn" or ink == "good" and "good" or "ink2",
+      under = s.g and (plural(s.g.n, "fight") .. (s.k and ", #" .. s.k .. " of " .. s.of or "")) or "never fought: go and fight",
+      tip = long(s.imbue, s.names), lines = breakdown(s), peek = true, fn = function() opened = not opened end }
+  end
+  local function icons()
+    local s = setup()
+    if not s.page then return nil end
+    local To = NS.Totems
+    local row, calls = {}, {}
+    for slot = 1, 4 do
+      local n = s.at[slot]
+      row[slot] = { pic = n and (To.Icon(To.Get(s.page, slot)) or C.IconFor(n)) or nil, word = n and n:gsub(" Totem$", "") or To.SLOTS[slot], done = n == nil, tip = To.SLOTS[slot] .. ": " .. (n or "nothing") .. ". Click: change it",
+        act = { word = "change", peek = true, fn = function() To.Open(s.page, slot) end } }
+    end
+    for i, page in ipairs(To.Known()) do
+      local c = To.CALLS[page]
+      calls[i] = { pic = C.IconFor(c.name) or To.Icon(c.id), word = cap(c.tab), lit = page == s.page, tip = c.name .. (page == s.page and ": the one chosen" or ". Click: choose it"),
+        act = { word = "choose", peek = true, fn = function() To.Choose(page) end } }
+    end
+    return { row, calls }
+  end
   local function nowRows()
     local out, f = {}, last()
     local function add(row) out[#out + 1] = row end
@@ -171,16 +245,6 @@ DP.App.combo = function(tool, db)
   end
 
   -- BEST ------------------------------------------------------------------------------------------------------------------
-  --- The window's number boxes (C.StatTiles) by their label, and in their order.
-  local function tiles(combo)
-    local by, order = {}, {}
-    for i, t in pairs((C.StatTiles(combo))) do
-      by[t[1]] = t
-      order[#order + 1] = { i = i, t = t }
-    end
-    table.sort(order, function(a, b) return a.i < b.i end)
-    return by, order
-  end
   local function bestBoxes()
     local all = rank()
     if #all == 0 then return {} end
@@ -299,10 +363,12 @@ DP.App.combo = function(tool, db)
       kicker = function() return "imbue + totems" end,
       tabs = function() return { "NOW", "BEST", "FIGHTS" } end,
       boxes = function(tab)
-        if tab == 1 then return nowBoxes() end
+        if tab == 1 then return opened and nowBoxes() or {} end
         if tab == 3 then return fightBoxes() end
         return inCombo(tab) and comboBoxes() or bestBoxes()
       end,
+      hero = function(tab) return tab == 1 and number() or nil end,
+      icons = function(tab) return tab == 1 and icons() or nil end,
       rows = function(tab)
         if tab == 1 then return nowRows() end
         if tab == 3 then return fightRows() end
@@ -310,6 +376,7 @@ DP.App.combo = function(tool, db)
       end,
       text = function(tab)
         if #list() > 0 then return nil end
+        if tab == 1 and setup().page then return nil end
         if tab == 1 then return "No fight yet. Put an imbue on your weapon, drop your totems and fight: the result comes here." end
         return "No fight yet. Each one is kept here once you have fought."
       end,
@@ -324,9 +391,10 @@ DP.App.combo = function(tool, db)
       end,
       big = function(tab)
         if tab == 1 then
-          local c = try()
-          local To = NS.Totems
-          return c and (To and To.DropAll(c.totems, "DROP ALL: " .. totems(nil, c.totems)) or deckKey(c.totems)) or nil
+          local c, To = try(), NS.Totems
+          local page = To and To.Shaman() and To.Can() and To.Now()
+          if page then return { word = "DROP: " .. To.CALLS[page].tab, spell = To.CALLS[page].name, tip = To.CALLS[page].name .. ": all four at once" } end
+          return c and deckKey(c.totems) or nil
         elseif inCombo(tab) then
           local _, _, g = place(pick)
           local To = NS.Totems
@@ -338,7 +406,9 @@ DP.App.combo = function(tool, db)
         if tab == 1 then
           local c = try()
           if c and c.imbue then out[1] = { word = "IMBUE " .. short(c.imbue), spell = c.imbue, peek = true } end
-          local dk = c and NS.Totems and NS.Totems.DropAll(c.totems, "x") and deckKey(c.totems)
+          local all = c and NS.Totems and NS.Totems.DropAll(c.totems, "TRY: DROP")
+          if all then out[#out + 1] = all end
+          local dk = all and deckKey(c.totems)
           if dk then dk.word = "SET DECK" out[#out + 1] = dk end
         elseif inCombo(tab) then
           local combo = pick
