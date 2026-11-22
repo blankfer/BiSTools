@@ -10754,6 +10754,48 @@ do
   _G.issecretvalue = keep.is
 end
 
+-- EVERY TOOL IN THE PHONE (22 Nov 2026, dev/APPS.md): each app's own test, dev/apps/<name>.lua
+do
+  local Dk, DP = BiSTheme.Deck, NS.DeckPages
+  DP.Tools()
+  local H = { NS = NS, R = R, ok = ok, S = S, fireAll = fireAll, W = W, Dk = Dk, DP = DP }
+  function H.Page(key) return Dk.defs["BiSTools:tool-" .. key] end
+  function H.Paint(key, tab)
+    local id = "BiSTools:tool-" .. key
+    BiSTheme.DECK_LOGIN = true
+    local st = Dk.Store()
+    st.welcomed = true
+    Dk.Show()
+    for _, z in ipairs({ { 220, 300 }, { 260, 462 }, { 600, 420 } }) do
+      Dk.W, Dk.H, Dk.shape, Dk.page = z[1], z[2], BiSTheme.DeckShape(z[1], z[2]), id
+      Dk.defs[id].tab = tab or 1
+      local parked = Dk.defs[id].parked
+      Dk.Paint()
+      ok(not Dk.defs[id].parked or parked, "the page of " .. key .. " paints at " .. z[1])
+      ok(Dk.page == id, "and stays on it", Dk.page)
+    end
+    Dk.page = "home"
+    Dk.Hide()
+    st.open, st.welcomed = false, nil
+  end
+  for _, name in ipairs({ "sounds", "party", "social", "rivals", "recap", "bg", "map", "alts", "combo", "windfury", "xp", "disenchant", "processing", "codex" }) do
+    local fh = io.open("dev/apps/" .. name .. ".lua", "r")
+    if fh then
+      fh:close()
+      local chunk = assert(loadfile("dev/apps/" .. name .. ".lua"))
+      local was = R:Enabled(name)
+      R:SetEnabled(name, true)
+      local errs, keepE = {}, _G.geterrorhandler
+      _G.geterrorhandler = function() return function(e) errs[#errs + 1] = tostring(e) end end
+      chunk()(H)
+      H.Paint(name, 1)
+      _G.geterrorhandler = keepE
+      ok(#errs == 0, "no error in the app " .. name, errs[1])
+      R:SetEnabled(name, was)
+    end
+  end
+end
+
 local allowed = { BiSTools = true, BiSToolsDB = true, BiSToolsAlts = true, SLASH_BISTOOLS1 = true, SLASH_BISTOOLS2 = true,
   SLASH_BISTOOLS3 = true,
   -- the embedded third-party libs' own globals (Libs/THIRD-PARTY.txt): LibStub, and the world-map

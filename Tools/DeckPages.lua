@@ -179,6 +179,36 @@ function DP.ToolRows(tool)
   for _, opt in ipairs(tool.options or {}) do out[#out + 1] = DP.OptionRow(tool, opt) end
   return out
 end
+-- THE TOOL ITSELF, IN THE PHONE (Arn, 22 Nov: "these apps i want them to open in the phone like apps, right now the apps are just
+-- options"): Tools/Apps/<Name>.lua hands DP.App[key] = function(tool, db) -> { page, card, badge, art } (dev/APPS.md). Its options
+-- are the last tab, SETTINGS. A tool without one shows its options alone.
+DP.App = DP.App or {}
+DP.SET = "SETTINGS"
+function DP.Page(key, tool, name, app)
+  local about = (tool.desc:sub(1, 1):upper() .. tool.desc:sub(2)) .. "."
+  local p = app and app.page or {}
+  local function own(tab) return app and tab <= DP.OwnTabs(p) end
+  local function part(k) return p[k] and function(tab) if own(tab) then return p[k](tab) end end or nil end
+  local out = {}
+  for k, v in pairs(p) do out[k] = v end                     -- (tour, tick, steps as they are)
+  out.title = p.title or function() return name end
+  out.kicker = p.kicker or function() return "BiS Tools" end
+  for _, k in ipairs({ "boxes", "hero", "say", "find", "big" }) do out[k] = part(k) end
+  out.tabs = app and function()
+    local t = {}
+    for i, x in ipairs(p.tabs and p.tabs() or { name:upper() }) do t[i] = x end
+    t[#t + 1] = DP.SET
+    return t
+  end or nil
+  out.rows = function(tab) if own(tab) then return p.rows and p.rows(tab) or {} end return DP.ToolRows(tool) end
+  out.text = function(tab) if own(tab) then return p.text and p.text(tab) or nil end return about end
+  out.keys = function(tab)
+    if own(tab) then return p.keys and p.keys(tab) or {} end
+    return { { word = "TURN OFF", peek = true, fn = function() R:SetEnabled(key, false) D.page = "home" end } }
+  end
+  return out
+end
+function DP.OwnTabs(p) return p.tabs and #p.tabs() or 1 end
 function DP.Tools()
   if not (D and D.Register) or DP.toolsIn then return false end
   DP.toolsIn = true
@@ -188,19 +218,19 @@ function DP.Tools()
     if not DP.OWN[key] then
       local name = tool.title or tool.name
       name = ({ bg = "BG", xp = "XP" })[name] or (name:sub(1, 1):upper() .. name:sub(2))
+      local app = DP.App[key]
+      if app then
+        local fine, a = pcall(app, tool, function() return R:DBFor(tool) end)
+        if not fine and geterrorhandler then geterrorhandler()(a) end
+        app = fine and type(a) == "table" and a or nil
+      end
       D.Register{
-        owner = "BiSTools", key = "tool-" .. key, name = name, icon = name:sub(1, 2), order = 40 + n / 100, quietOff = true,
+        owner = "BiSTools", key = "tool-" .. key, name = app and app.name or name, icon = name:sub(1, 2), art = app and app.art, order = 40 + n / 100, quietOff = true,
         about = (tool.desc:sub(1, 1):upper() .. tool.desc:sub(2)) .. ".",
         state = function() return on(key) and "on" or "off" end,
         turnOn = { word = "TURN ON", fn = function() R:SetEnabled(key, true) end },
-        page = {
-          title = function() return name end,
-          kicker = function() return "BiS Tools" end,
-          text = function() return (tool.desc:sub(1, 1):upper() .. tool.desc:sub(2)) .. "." end,
-          rows = function() return DP.ToolRows(tool) end,
-          big = function() return tool.OnOpen and { word = "OPEN", peek = true, fn = function() tool:OnOpen(R:DBFor(tool)) end } or nil end,
-          keys = function() return { { word = "TURN OFF", peek = true, fn = function() R:SetEnabled(key, false) D.page = "home" end } } end,
-        },
+        badge = app and app.badge, card = app and app.card,
+        page = DP.Page(key, tool, name, app),
       }
     end
   end
