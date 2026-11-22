@@ -18,6 +18,7 @@ T.CALLS = {
   { id = 66843, name = "Call of the Ancestors", tab = "ANCESTORS" },
   { id = 66844, name = "Call of the Spirits", tab = "SPIRITS" },
 }
+T.BRING = "Totemic Call"
 T.SLOTS = { "Fire", "Earth", "Water", "Air" }
 T.SLOT_OF = { fire = 1, earth = 2, water = 3, air = 4 }
 

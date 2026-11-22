@@ -149,8 +149,8 @@ DP.App.combo = function(tool, db)
   local function cap(w) return w:sub(1, 1):upper() .. w:sub(2):lower() end
   --[[ THE SET-UP THAT IS CHOSEN (Arn, 22 Nov: "combo DPS number huge of current selected set up, all the break down numbers when hover
     over it , under the DPS use the totem api choose which Call of the icons" - "on top of the icons show the icons of the totems that
-    is in the current set up" - "even the water one"): the imbue on your weapon and the totems of the chosen Call. Its number is the
-    average of its fights; a Call's icon chooses it, a totem's icon changes that place. ]]
+    is in the current set up" - "even the water one" - "under the totem row have the 4 call buttons and it sets it and drops it"): the imbue on your weapon and the totems of the chosen Call. Its number is the
+    average of its fights; a Call's icon chooses it and drops it, a totem's icon changes that place. The fourth is Totemic Call. ]]
   local function setup()
     local To = NS.Totems
     local page = To and To.Shaman() and To.Can() and To.Now() or nil
@@ -187,7 +187,7 @@ DP.App.combo = function(tool, db)
     if not (f or s.page) then return nil end
     local vs, ink
     if f then vs, ink = versus(f) end
-    return { art = "number", big = s.g and int(s.g.dps) or "-", ink = s.g and (s.k == 1 and "gold" or "good") or "dim", small = "DPS  " .. whole(s.imbue, s.names),
+    return { art = "number", big = s.g and int(s.g.dps) or "NEW", ink = s.g and (s.k == 1 and "gold" or "good") or "dim", small = "DPS  " .. whole(s.imbue, s.names),
       right = f and ("last " .. int(dps(f)) .. (vs ~= "-" and "  " .. vs or "")) or "", rightInk = ink == "warn" and "warn" or ink == "good" and "good" or "ink2",
       under = s.g and (plural(s.g.n, "fight") .. (s.k and ", #" .. s.k .. " of " .. s.of or "")) or "never fought: go and fight",
       tip = long(s.imbue, s.names), lines = breakdown(s), peek = true, fn = function() opened = not opened end }
@@ -204,9 +204,10 @@ DP.App.combo = function(tool, db)
     end
     for i, page in ipairs(To.Known()) do
       local c = To.CALLS[page]
-      calls[i] = { pic = C.IconFor(c.name) or To.Icon(c.id), word = cap(c.tab), lit = page == s.page, tip = c.name .. (page == s.page and ": the one chosen" or ". Click: choose it"),
-        act = { word = "choose", peek = true, fn = function() To.Choose(page) end } }
+      calls[i] = { pic = C.IconFor(c.name) or To.Icon(c.id), word = cap(c.tab), lit = page == s.page, tip = c.name .. ". Click: it is chosen, and drops all four",
+        act = { word = "DROP", spell = c.name, peek = true, ok = function() To.Choose(page) return true end } }
     end
+    if C.Knows(To.BRING) then calls[#calls + 1] = { pic = C.IconFor(To.BRING), word = "Bring", tip = To.BRING .. ": the ones that stand come to you", act = { word = "BRING", spell = To.BRING, peek = true } } end
     return { row, calls }
   end
   local function nowRows()
@@ -218,15 +219,10 @@ DP.App.combo = function(tool, db)
     end
     local c, total, untried = try()
     if c then
-      add({ head = true, text = "TRY NEXT: " .. whole(c.imbue, c.totems):upper(), right = c.n == 0 and "NEW" or plural(c.n, "fight"), ink = "accent",
+      -- (Arn, 22 Nov: "we can get rid of the imbue and drop" - one row: what to try, and one press that fills a Call with it and drops it)
+      add({ pic = C.IconFor(c.imbue), mark = ">", text = "Try: " .. beside(c.imbue, c.totems), sub = c.n == 0 and "never fought" or plural(c.n, "fight") .. " so far", verb = "TRY",
+        act = NS.Totems and NS.Totems.DropAll(c.totems, "TRY") or nil,
         tip = "Try next. " .. long(c.imbue, c.totems) .. ". " .. (untried or 0) .. " of " .. (total or 0) .. " combos never tried." })
-      local names = {}
-      if c.imbue then names[1] = c.imbue end
-      for _, n in ipairs(c.totems) do names[#names + 1] = n end
-      for _, n in ipairs(names) do
-        local imbue = n == c.imbue
-        add({ pic = C.IconFor(n), mark = " ", text = n, verb = imbue and "IMBUE" or "DROP", act = { word = imbue and "IMBUE" or "DROP", spell = n, peek = true }, tip = imbue and "Puts it on your weapon" or "Drops this one" })
-      end
     elseif total then
       add({ mark = ">", text = "Every combo is tried", right = C.TRY_ENOUGH .. "+ each", ink = "good", tip = "Each has enough fights: the ranking holds" })
     end
@@ -392,8 +388,7 @@ DP.App.combo = function(tool, db)
       big = function(tab)
         if tab == 1 then
           local c, To = try(), NS.Totems
-          local page = To and To.Shaman() and To.Can() and To.Now()
-          if page then return { word = "DROP: " .. To.CALLS[page].tab, spell = To.CALLS[page].name, tip = To.CALLS[page].name .. ": all four at once" } end
+          if To and To.Shaman() and To.Can() and To.Now() then return nil end       -- (the Calls' icons drop them)
           return c and deckKey(c.totems) or nil
         elseif inCombo(tab) then
           local _, _, g = place(pick)
@@ -406,9 +401,7 @@ DP.App.combo = function(tool, db)
         if tab == 1 then
           local c = try()
           if c and c.imbue then out[1] = { word = "IMBUE " .. short(c.imbue), spell = c.imbue, peek = true } end
-          local all = c and NS.Totems and NS.Totems.DropAll(c.totems, "TRY: DROP")
-          if all then out[#out + 1] = all end
-          local dk = all and deckKey(c.totems)
+          local dk = c and NS.Totems and NS.Totems.DropAll(c.totems, "x") and deckKey(c.totems)
           if dk then dk.word = "SET DECK" out[#out + 1] = dk end
         elseif inCombo(tab) then
           local combo = pick

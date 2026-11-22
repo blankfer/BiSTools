@@ -67,10 +67,13 @@ return function(H)
     local ic = cp.icons(1)
     ok(#ic == 2 and #ic[1] == 4 and #ic[2] == 2 and T.Now() == 1 and ic[2][1].lit and not ic[2][2].lit and ic[2][2].word == "Spirits", "two Calls known: the first is chosen", ic and #ic[2])
     ok(ic[1][1].word == "Flametongue" and ic[1][1].pic == 1001 and ic[1][3].word == "Mana Spring" and ic[1][3].pic == 1005 and ic[1][4].word == "Windfury", "its four totems, water too", ic[1][3].word)
-    ok(cp.hero(1).big == "-" and cp.hero(1).small:find("FT, SoE, WF", 1, true) and cp.hero(1).under:find("never fought", 1, true), "the number is that set-up's: not fought yet", cp.hero(1).small)
-    ok(cp.big(1).spell == "Call of the Elements" and cp.big(1).word == "DROP: ELEMENTS" and Dk.IsSecure(cp.big(1)), "the big button drops that Call")
-    press(ic[2][2].act)
-    ok(T.Now() == 3 and cp.icons(1)[2][2].lit and cp.big(1).spell == "Call of the Spirits", "another chosen")
+    ok(cp.hero(1).big == "NEW" and cp.hero(1).small:find("FT, SoE, WF", 1, true) and cp.hero(1).under:find("never fought", 1, true), "the number is that set-up's: not fought yet", cp.hero(1).small)
+    ok(cp.big(1) == nil and ic[2][1].act.spell == "Call of the Elements" and Dk.IsSecure(ic[2][2].act), "a Call's icon casts it; no big button beside them")
+    ok(ic[2][2].act.spell == "Call of the Spirits" and ic[2][2].act.ok() == true and T.Now() == 3 and cp.icons(1)[2][2].lit, "another: chosen by the same click")
+    local knows = C.Knows
+    C.Knows = function(n) return n == "Totemic Call" or knows(n) end
+    ok(#cp.icons(1)[2] == 3 and cp.icons(1)[2][3].act.spell == "Totemic Call", "Totemic Call beside them, when you know it")
+    C.Knows = knows
     ok(cp.icons(1)[1][3].word == "Water" and cp.icons(1)[1][3].pic == nil and cp.icons(1)[1][1].word == "Magma", "its totems; an empty place says which", cp.icons(1)[1][1].word)
     H.Paint("combo", 1)
     press(cp.icons(1)[1][4].act)
@@ -78,8 +81,8 @@ return function(H)
     press(p.rows(2)[1].act)
     Dk.page = "home" Dk.Hide()
     local key
-    for _, x in ipairs(cp.keys(1)) do if x.word == "TRY: DROP" then key = x end end
-    ok(key and key.spell == "Call of the Spirits", "TRY: DROP fills its own Call with the one to try and drops it")
+    for _, x in ipairs(cp.rows(1)) do if x.text:find("Try: ", 1, true) then key = x.act ok(x.verb == "TRY", "the one to try: TRY") end end
+    ok(key and key.spell == "Call of the Spirits", "fills its own Call with it and drops it")
     T.Choose(1)
     ok(key.ok() == true and T.Now() == 3, "and that Call is the chosen one then")
     cdb.callNow, cdb.fights = was, fights
