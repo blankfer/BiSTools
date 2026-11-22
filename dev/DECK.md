@@ -61,6 +61,19 @@ numbers, and buttons it made itself.
 One set of switches: a card or page switched off asks nothing of its owner. A page's errors are the kit's to catch (pcall, the
 card says so) - one addon's bug never takes the deck down.
 
+## The first day, and our own tools (Arn, 22 Nov: "build the infrastructure for the onboarding stuff / Put my tools in there but grayed out")
+BiSTheme/DeckApps.lua, data only; Deck.lua grew `state`, `about`, `turnOn`, `open`, `dev`, `hidden`, `page.tour`.
+- Icons: what is on is lit, what is off says OFF, what is not installed says GET, our own tools come last and say DEV (or their
+  count). Never gray alone. OFF / GET open a page that says what it is (TURN ON, or the name to search for). A switch hides
+  what you do not have; LEAN and BARE have it off.
+- The catalogue = the seven public addons, opened by their own door (API Open, else the slash word). An addon that hands in
+  its own "app" wins. Guides and BiSProbe are never in it.
+- Our tools hand THEMSELVES in with `dev = true` at PLAYER_LOGIN (BiSProbe: Probe deck, Reload, Errors when BugSack is there),
+  so who does not have them never sees them. One click does the work.
+- Apps page: every icon SHOWN / HIDDEN by a click; WELCOME plays everything again.
+- The welcome: the step card, once, at the first Show; it goes on when it sees the drag, the size, the flip; a card keeps its
+  place until done or NO THANKS. `/bist deck welcome` = again. A page's `tour` = its own words, once.
+
 ## Data
 BiS>Guides = a separate, NOT public library (Arn, 21 Nov) behind a BiSGuidesAPI (to build): dungeon quests, chains, givers,
 levels, what each needs (kill / loot / use / click) and the item. The deck works without it: own quest log, BQ.OWN (our own

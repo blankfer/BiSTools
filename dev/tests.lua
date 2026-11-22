@@ -2805,6 +2805,7 @@ do
     { "Libs/BiSTheme/Console.lua",              "../BiSTheme/Console.lua" },
     { "Libs/BiSTheme/DeckLayout.lua",           "../BiSTheme/DeckLayout.lua" },
     { "Libs/BiSTheme/Deck.lua",                 "../BiSTheme/Deck.lua" },
+    { "Libs/BiSTheme/DeckApps.lua",             "../BiSTheme/DeckApps.lua" },
     { "Libs/BiSTheme/Pad.lua",                  "../BiSTheme/Pad.lua" },
     { "Libs/BiSTheme/Options.lua",              "../BiSTheme/Options.lua" },
     { "Libs/BiSTheme/Settings.lua",             "../BiSTheme/Settings.lua" },
@@ -10270,7 +10271,10 @@ do
   for _, f in ipairs(W.frames or {}) do if f.template and tostring(f.template):find("Secure") then secureBefore = secureBefore + 1 end end
   local okShow, why = pcall(function() S("on deck") end)
   ok(okShow and Dk.frame and Dk.frame:IsShown(), "/bist on deck: it comes up", tostring(why))
-  for _, pg in ipairs({ "home", "BiSTools:bosses", "BiSTools:run", "BiSTools:rides", "switches" }) do
+  ok(Dk.page == "BiSDeck:welcome", "the first time: the welcome", Dk.page)
+  ok(Dk.defs["BiSTools:bosses"].page.tour and Dk.Tour(Dk.defs["BiSTools:bosses"]) ~= nil, "the bosses page has its first-time words")
+  Dk.Store().toured["BiSTools:bosses"] = true
+  for _, pg in ipairs({ "home", "BiSTools:bosses", "BiSTools:run", "BiSTools:rides", "switches", "BiSDeck:apps", "BiSDeck:welcome" }) do
     for _, shape in ipairs({ "portrait", "landscape" }) do
       local okP, whyP = pcall(function() Dk.page = pg Dk.Flip(shape) end)
       ok(okP, "draws " .. pg .. " " .. shape, tostring(whyP))
@@ -10282,6 +10286,14 @@ do
   S("deck pin raid night")
   ok(Dk.profile == "Raid night", "/bist deck pin raid night", Dk.profile)
   S("deck unpin")
+  S("deck welcome")
+  ok(Dk.page == "BiSDeck:welcome", "/bist deck welcome: again")
+  -- a tool that is off: its icon is gray, its page has one button
+  ok(Dk.State(Dk.defs["BiSTools:bosses"]) == "on", "bosses on: lit")
+  S("off bosses")
+  ok(Dk.State(Dk.defs["BiSTools:bosses"]) == "off" and Dk.Open("BiSTools:bosses") and Dk.Model().about == "off" and Dk.Model().big.word == "TURN ON", "bosses off: gray, what it is, TURN ON")
+  Dk.Press(Dk.defs["BiSTools:bosses"], Dk.Model().big)()
+  ok(R:Enabled("bosses") and Dk.Model().about == nil, "and one press turns it on")
   S("off deck")
   ok(not Dk.frame:IsShown(), "off: gone")
   _G.IsInInstance = function() return false, "none" end

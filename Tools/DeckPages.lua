@@ -83,12 +83,20 @@ end
 
 -- what it hands in ---------------------------------------------------------------------------------------------------------
 
+--- A tool's own switch as the deck asks it: off = its icon is gray and its page has one button, TURN ON.
+local function gate(tool)
+  return function() return on(tool) and "on" or "off" end,
+    { word = "TURN ON", fn = function() R:SetEnabled(tool, true) end }
+end
+
 function DP.Register()
   if not (D and D.Register) or DP.done then return false end
   DP.done = true
   local store = function() local d = NS.DB() d.deckStore = type(d.deckStore) == "table" and d.deckStore or {} return d.deckStore end
+  local state, turnOn = gate("bosses")
   DP.bosses = D.Register{
     owner = "BiSTools", key = "bosses", name = "Bosses", icon = "Bo", order = 10, store = store,
+    state = state, turnOn = turnOn, about = "The bosses of the dungeon you are in, and your quests for it: who is down, who is found, one button to mark them.",
     badge = function() local c = DP.Boss() return c and (c.all - c.down) or nil end,
     card = {
       prio = function() local c = DP.Boss() return c and c.down < c.all and 8 or nil end,
@@ -99,6 +107,8 @@ function DP.Register()
       buttons = function() return { { word = "OPEN", fn = function() D.Open("BiSTools:bosses") end }, { word = "BOSS PHONE", fn = function() if NS.Bosses then NS.Bosses.Toggle(true) end end } } end,
     },
     page = {
+      tour = { { text = "The bosses of where you stand, in order. A green word: down.", note = "QUESTS has what your log wants here." },
+        { text = "Finding and marking is still on the boss phone: the big button opens it." } },
       title = function() local BF = DP.Place() return BF and (BF.data and BF.data.name or BF.outName) or "Bosses" end,
       kicker = function() return "bosses" end,
       boxes = function()
@@ -114,12 +124,16 @@ function DP.Register()
   }
   D.Register{
     owner = "BiSTools", key = "run", name = "Run", icon = "Rn", order = 11,
+    state = state, turnOn = turnOn, about = "A dungeon as steps: the quests outside, the quests inside, then the bosses. It goes on by itself as you do them.",
     badge = function() local n = 0 for _, s in ipairs(DP.Steps()) do if not s.done() then n = n + 1 end end return n > 0 and n or nil end,
-    page = { title = function() local BF = DP.Place() return BF and ((BF.data and BF.data.name or BF.outName or "") .. " run") or "Run" end, steps = DP.Steps,
+    page = { tour = { { text = "A dungeon as steps. It goes on by itself when the game says a step is done.", note = "Back, skip and next are yours." } },
+      title = function() local BF = DP.Place() return BF and ((BF.data and BF.data.name or BF.outName or "") .. " run") or "Run" end, steps = DP.Steps,
       text = function() return "Walk into a dungeon: its quests and bosses come up as steps." end },
   }
+  local rState, rTurnOn = gate("rides")
   D.Register{
     owner = "BiSTools", key = "rides", name = "Rides", icon = "Ri", order = 30,
+    state = rState, turnOn = rTurnOn, about = "When the next zeppelin or boat leaves, timed by your guild.",
     card = {
       prio = function() local r = DP.Ride() return r and (r.docked and 9 or 5) or nil end,
       lines = function() local r = DP.Ride() return { "RIDES", "", (r.kind == "boat" and "Boat to " or "Zeppelin to ") .. tostring(r.to or r.name), clock(r.left), "gold", hot = r.docked } end,
@@ -141,7 +155,7 @@ DP.Register()
 R:Register({
   name = "deck",
   desc = "the one BiS deck, tall or wide: live cards, pages, steps (first try: look, do not lean on it yet)",
-  usage = "/bist deck  |  /bist deck wide|tall|pad|pin <profile>|unpin",
+  usage = "/bist deck  |  /bist deck wide|tall|pad|welcome|pin <profile>|unpin",
   defaultOff = true,
   defaults = {},
   OnEnable = function() if D then D.Show() end end,
@@ -158,6 +172,7 @@ R:Register({
     elseif cmd == "pad" then
       -- the pad holds the deck only while asked to (B gives it back): it stands open all evening
       if not D.Focus(not D.focused) then NS.Print("deck: no gamepad kit, or a fight") end
+    elseif cmd == "welcome" then D.Show() if D.Replay then D.Replay() end
     elseif cmd == "unpin" then D.Pin(nil) NS.Print("deck: it follows you again")
     else D.Toggle() end
   end,
