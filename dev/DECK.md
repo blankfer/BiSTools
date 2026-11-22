@@ -108,6 +108,12 @@ everything have an app or do some only have a live card ... we need to make all 
 - NEXT: cards size themselves S / M / L (proposal https://claude.ai/artifact/NJCTxoummvEmEmjgHExQE7), then Combo and Windfury as full
   apps with live cards.
 
+## The signs at the top (Arn, 22 Nov, with his phone's status bar: "the signal strength does something WiFi guild communication battery")
+BiSTheme/DeckStatus.lua: SIGNAL = the worse of home / world ping (4 bars to 80 ms, 3 to 150, 2 to 300); WIFI = people with a BiS addon heard
+in group and guild (LibBiSComm peers + vers; stroke = off, unlit = paused by a chat lockdown); BATTERY = AUTO (rested XP while leveling, worst
+gear at the top, gear under 20 always) or rested / gear / bags; teal = filling; THE BED = resting. One click = the Status page (words, numbers,
+who was heard, what the battery shows). Switch "Signal, WiFi, battery". Lines are tinted textures (bislint line-paint).
+
 ## Data
 BiS>Guides = a separate, NOT public library (Arn, 21 Nov) behind a BiSGuidesAPI (to build): dungeon quests, chains, givers,
 levels, what each needs (kill / loot / use / click) and the item. The deck works without it: own quest log, BQ.OWN (our own

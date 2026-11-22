@@ -2807,6 +2807,7 @@ do
     { "Libs/BiSTheme/Deck.lua",                 "../BiSTheme/Deck.lua" },
     { "Libs/BiSTheme/DeckApps.lua",             "../BiSTheme/DeckApps.lua" },
     { "Libs/BiSTheme/DeckPins.lua",             "../BiSTheme/DeckPins.lua" },
+    { "Libs/BiSTheme/DeckStatus.lua",           "../BiSTheme/DeckStatus.lua" },
     { "Libs/BiSTheme/Pad.lua",                  "../BiSTheme/Pad.lua" },
     { "Libs/BiSTheme/Options.lua",              "../BiSTheme/Options.lua" },
     { "Libs/BiSTheme/Settings.lua",             "../BiSTheme/Settings.lua" },
