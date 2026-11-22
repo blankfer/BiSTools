@@ -73,6 +73,15 @@ function DP.Rides()
   return ok and type(list) == "table" and list or {}
 end
 --- The ride worth a card: one at the dock, else the next timed one within two minutes.
+--- The other timed rides from here, soonest first (a large card's lines).
+function DP.OtherRides(mine)
+  local out = {}
+  for _, r in ipairs(DP.Rides()) do if r ~= mine and r.timed and type(r.left) == "number" and not (mine and r.to == mine.to and r.left == mine.left) then out[#out + 1] = r end end
+  table.sort(out, function(a, b) return a.left < b.left end)
+  local lines = {}
+  for i = 1, math.min(3, #out) do lines[i] = { tostring(out[i].to or out[i].name), clock(out[i].left) } end
+  return lines
+end
 function DP.Ride(any)
   local best
   for _, r in ipairs(DP.Rides()) do
@@ -107,6 +116,11 @@ function DP.Farm()
   end
   table.sort(c.spots, function(a, b) return (a.key or 0) < (b.key or 0) end)
   return c
+end
+function DP.SpotLines(c)
+  local out = {}
+  for i = 1, math.min(3, #c.spots) do out[i] = { "Spot " .. tostring(c.spots[i].z.mark or i), c.spots[i].words } end
+  return out
 end
 function DP.FarmRows(tab)
   local F, db = NS.Farm, DP.FarmDB()
@@ -205,7 +219,10 @@ function DP.Register()
       prio = function() local c = DP.Boss() return c and c.down < c.all and 8 or nil end,
       lines = function()
         local c = DP.Boss()
-        return { "BOSSES", c.down .. " of " .. c.all .. " down", "Next: " .. (c.next and c.next.name or "-"), c.down .. " / " .. c.all, "ink2", hot = c.found > 0 }
+        -- (a large card: who comes after)
+        local list, BF = {}, DP.Place()
+        for _, e in ipairs(BF and BF.bosses or {}) do if e ~= c.next and BF.State(e) ~= "down" and #list < 3 then list[#list + 1] = { e.name, BF.State(e) == "marked" and "MARKED" or nil } end end
+        return { "BOSSES", c.down .. " of " .. c.all .. " down", "Next: " .. (c.next and c.next.name or "-"), c.down .. " / " .. c.all, "ink2", hot = c.found > 0, list = list }
       end,
       buttons = function() return { { word = "OPEN", fn = function() D.Open("BiSTools:bosses") end }, { word = "BOSS PHONE", fn = function() if NS.Bosses then NS.Bosses.Toggle(true) end end } } end,
     },
@@ -244,7 +261,7 @@ function DP.Register()
       prio = function() local c = DP.Farm() return c and (c.up > 0 and 6 or 3) or nil end,
       lines = function()
         local c = DP.Farm()
-        return { "FARM", "", c.mob, c.up > 0 and (c.up .. " up") or c.next and clock(c.next) or "", c.up > 0 and "good" or "ink2" }
+        return { "FARM", "", c.mob, c.up > 0 and (c.up .. " up") or c.next and clock(c.next) or "", c.up > 0 and "good" or "ink2", list = DP.SpotLines(c) }
       end,
       buttons = function()
         return { { word = "STOP", fn = function() NS.Farm.SetActive(DP.FarmDB(), nil) end },
@@ -274,7 +291,7 @@ function DP.Register()
       tick = true,
       -- pulled out, it always shows the next ride (you put it there on purpose); in the deck only one that is close
       prio = function(out) local r = DP.Ride(out) return r and (r.docked and 9 or 5) or nil end,
-      lines = function(out) local r = DP.Ride(out) return { "RIDES", "", (r.kind == "boat" and "Boat to " or "Zeppelin to ") .. tostring(r.to or r.name), clock(r.left), "gold", hot = r.docked } end,
+      lines = function(out) local r = DP.Ride(out) return { "RIDES", "", (r.kind == "boat" and "Boat to " or "Zeppelin to ") .. tostring(r.to or r.name), clock(r.left), "gold", hot = r.docked, list = DP.OtherRides(r) } end,
     },
     page = {
       title = function() return "Rides" end, kicker = function() return "timed by your guild" end,

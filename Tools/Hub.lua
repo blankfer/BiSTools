@@ -230,6 +230,36 @@ function H.BuildHub()
       if GameTooltip then GameTooltip:Hide() end
     end)
   end
+  -- TRY THE DECK (Arn, 22 Nov: "A TRY THE DECK button at the top of the Hub? Yes"): one big button over the window's top edge. It
+  -- switches the deck on and opens it; with the deck on it opens and closes it (and the minimap button does the same from then on).
+  local deck = CreateFrame("Button", "BiSToolsHubDeck", f)
+  deck:SetPoint("BOTTOMLEFT", f, "TOPLEFT", 0, 4)
+  deck:SetPoint("BOTTOMRIGHT", f, "TOPRIGHT", 0, 4)
+  deck:SetHeight(26)
+  K.tex(deck, "BACKGROUND", "field", 0.95)
+  deck.edge = K.border(deck, "gold", 1)
+  deck.label = K.fs(deck, "TRY THE DECK", 11, "gold")
+  deck.label:SetPoint("CENTER")
+  deck.wash = K.tex(deck, "BORDER", "accent", 0.35)
+  deck.wash:SetAllPoints()
+  deck.wash:SetAlpha(0)
+  deck:SetScript("OnClick", function()
+    local DP = NS.DeckPages
+    if not (DP and DP.Toggle) then return end
+    if not DP.Toggle() then R:SetEnabled("deck", true) f.con:Say("the deck is on: the minimap button opens it", "good") end
+    H.PaintHub()
+  end)
+  deck:SetScript("OnEnter", function(self)
+    deck.wash:SetAlpha(1)
+    if GameTooltip then
+      GameTooltip:SetOwner(self, "ANCHOR_TOP")
+      GameTooltip:AddLine("The BiS deck")
+      GameTooltip:AddLine("All your BiS addons on one phone: live cards, apps, games, the radio. Right-click its row below to switch it off.", 1, 1, 1, true)
+      GameTooltip:Show()
+    end
+  end)
+  deck:SetScript("OnLeave", function() deck.wash:SetAlpha(0) if GameTooltip then GameTooltip:Hide() end end)
+  f.deckButton = deck
   -- footer: one button, full width
   local foot = CreateFrame("Button", "BiSToolsHubOptions", f)
   foot:SetPoint("BOTTOMLEFT") foot:SetPoint("BOTTOMRIGHT")
@@ -261,6 +291,7 @@ function H.PaintHub()
     r.name:SetTextColor(cr, cg, cb, 1)
     r.state:SetText(en and T.text("good", "on") or T.text("warn", "off"))
   end
+  if f.deckButton then f.deckButton.label:SetText(R:Enabled("deck") and "THE DECK" or "TRY THE DECK") end
   f.con:Set("count", on .. " of " .. #f.rows .. " on", "ink2")
 end
 

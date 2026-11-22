@@ -10267,7 +10267,21 @@ do
   local st = DP.Steps()
   ok(#st == 8 and st[1].done() and not st[2].done() and st[2].phase == "BOSS", "the run as steps: the first is done")
   local l = Dk.defs["BiSTools:bosses"].card.lines()
-  ok(l[1] == "BOSSES" and l[3] == "Next: Sneed" and l[4] == "1 / 8", "the live card", l[3])
+  ok(l[1] == "BOSSES" and l[3] == "Next: Sneed" and l[4] == "1 / 8" and #l.list == 3 and l.list[1][1] ~= "Sneed", "the live card, and who comes after when it is large", l[3])
+  do
+    local hub = BiSToolsHub
+    if not hub then NS.Hub.BuildHub() hub = BiSToolsHub end
+    local b = BiSToolsHubDeck
+    ok(b and b.label.text == "TRY THE DECK", "the Hub's big button", b and b.label.text)
+    BiSTheme.DECK_LOGIN = true
+    b:GetScript("OnClick")(b)
+    ok(R:Enabled("deck") and Dk.frame and Dk.frame:IsShown() and b.label.text == "THE DECK", "a click: the deck is on and open", b.label.text)
+    b:GetScript("OnClick")(b)
+    ok(not Dk.frame:IsShown() and R:Enabled("deck"), "again: shut, still on")
+    S("off deck")
+    Dk.Store().welcomed = nil
+    Dk.page = "home"
+  end
   -- drawn for real, both shapes, and nothing secure on it
   BiSTheme.DECK_LOGIN = true
   local secureBefore = 0
