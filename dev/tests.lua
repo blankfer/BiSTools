@@ -826,7 +826,7 @@ do
     if sv.enabled[key] ~= want then wrong[#wrong + 1] = key .. "=" .. tostring(sv.enabled[key]) end
     wrote = wrote + 1
   end
-  ok(sv.forever10 == true and wrote == 19 and #wrong == 0, "an existing save at the 1.0 load: every tool frozen as it was, written out", table.concat(wrong, " "))
+  ok(sv.forever10 == true and wrote == 20 and #wrong == 0, "an existing save at the 1.0 load: every tool frozen as it was, written out", table.concat(wrong, " "))
   -- a tool 0.20.2 never had is not "as it was" - it was nothing (Arn, 8 Nov: his cousin's pups came up on)
   ok(sv.enabled.codex == false, "the codex, new in 1.0, starts OFF on an existing save too", tostring(sv.enabled.codex))
   ok(R:DBFor(R:Get("farm")).shown == true and R:DBFor(R:Get("summon")).nag == true, "and the farm window and the summon nag as they were (on)")
@@ -2218,7 +2218,7 @@ do
   -- left click: the Hub, one row per tool
   mm.scripts.OnClick(mm, "LeftButton")
   local hub = BiSToolsHub
-  ok(hub and hub:IsShown() and #hub.rows == 19 and hub.rows[14].key == "codex" and hub.rows[15].key == "bosses" and hub.rows[16].key == "alts" and hub.rows[17].key == "combo" and hub.rows[18].key == "windfury", "left click opens the Hub with a row per registered tool")   -- +disenchant, +processing, 6 Nov; threat and pups retired 9 Nov; +windfury 18 Nov
+  ok(hub and hub:IsShown() and #hub.rows == 20 and hub.rows[14].key == "codex" and hub.rows[15].key == "bosses" and hub.rows[16].key == "alts" and hub.rows[17].key == "combo" and hub.rows[18].key == "windfury", "left click opens the Hub with a row per registered tool")   -- +disenchant, +processing, 6 Nov; threat and pups retired 9 Nov; +windfury 18 Nov
   ok(hub.scale == 1.2, "the Tools list is 20% bigger (Arn: \"lets make this 20% bigger\")")
   ok(hub.rows[1].key == "farm" and hub.rows[2].key == "summon" and hub.rows[3].key == "recap" and hub.rows[4].key == "rivals"
      and hub.rows[5].key == "social" and hub.rows[6].key == "bg" and hub.rows[7].key == "map" and hub.rows[8].key == "party"
@@ -2227,10 +2227,10 @@ do
   -- RIVALS & PALS, their own tool (Arn, 14 Oct: "decouple from recap ... be its own thing")
   ok(hub.rows[4].name.text == "rivals & pals", "the rivals tool's row is titled rivals & pals")
   ok(hub.rows[1].name.text == "farm" and hub.rows[1].state.text:find("on", 1, true), "row: name + on")
-  ok(hub.con.slots.count and hub.con.slots.count.text == "12 of 19 on", "prompt slot counts the tools that are on (party, codex, bosses and alts - new in 1.0 - start off; rides, sounds, xp, disenchant and processing on)", hub.con.slots.count.text)
+  ok(hub.con.slots.count and hub.con.slots.count.text == "12 of 20 on", "prompt slot counts the tools that are on (party, codex, bosses and alts - new in 1.0 - start off; rides, sounds, xp, disenchant and processing on)", hub.con.slots.count.text)
   ok(hub.con:Width() <= H.W - 15 - 8, "hub prompt fits its header budget")
   ok(hub.closeBtn.point[4] == -3, "only an x in the header, at -3")
-  ok(hub.foot and hub.foot.label.text == "options" and hub.h == 16 + 19 * 16 + 4 + 16, "footer 'options' button; height = header + rows + footer")
+  ok(hub.foot and hub.foot.label.text == "options" and hub.h == 16 + 20 * 16 + 4 + 16, "footer 'options' button; height = header + rows + footer")
   -- row click opens the tool window; shift-click drags it to the middle
   BiSToolsFarm:Hide() F.db.pos = { "TOPLEFT", 400, -300, "TOPLEFT" }
   hub.rows[1].scripts.OnClick(hub.rows[1], "LeftButton")
@@ -2280,7 +2280,7 @@ do
   for _, r in ipairs(BiSToolsOptions and BiSToolsOptions.rows or {}) do end
   -- right click toggles the tool; opening an off tool switches it on first
   hub.rows[2].scripts.OnClick(hub.rows[2], "RightButton")
-  ok(not R:Enabled("summon") and hub.rows[2].state.text:find("off", 1, true) and hub.con.slots.count.text == "11 of 19 on", "right click: summon off, row and count follow", hub.con.slots.count.text)
+  ok(not R:Enabled("summon") and hub.rows[2].state.text:find("off", 1, true) and hub.con.slots.count.text == "11 of 20 on", "right click: summon off, row and count follow", hub.con.slots.count.text)
   ok(lib:Enabled(), "and the lib is untouched by it")
   hub.rows[2].scripts.OnClick(hub.rows[2], "LeftButton")
   ok(R:Enabled("summon") and BiSToolsSummon:IsShown() and db_summon().mode == "on", "click on an off tool: switched on and its window pinned open")
@@ -2325,7 +2325,8 @@ do
   -- (+ windfury (1), 18 Nov: the lamp's test button - and its section header)
   -- (+ deck (0), 21 Nov: its section header, the on/off)
   -- (+1 in combo, 22 Nov: the fights that count)
-  ok(#opt.rows == 11 + 3 + 5 + 7 + 1 + 8 + 2 + 4 + 7 + 4 + 4 + 5 + 1 + 1 + 1 + 1 + 3 + 2 + 4 + 2 + 6 + 3 + 2 + 1 + 1, "one row per section header and per option", #opt.rows)
+  -- (+ innervate (2), 22 Nov: the bar, how people look - and its header)
+  ok(#opt.rows == 11 + 3 + 5 + 7 + 1 + 8 + 2 + 4 + 7 + 4 + 4 + 5 + 1 + 1 + 1 + 1 + 3 + 2 + 4 + 2 + 6 + 3 + 2 + 1 + 1 + 3, "one row per section header and per option", #opt.rows)
   -- THE BiSTheme STANDARD, 1.43:1 (Arn, 14 Oct): its sections poured into columns, the window that shape
   ok(math.abs(opt.w / opt.h - 1.43) < 0.01 and (opt.columns or 1) >= 2, "options: 1.43:1, in columns", opt.w .. "x" .. opt.h)
   local function find(label) for _, r in ipairs(opt.rows) do if r.name and r.name.text == label then return r end end end
@@ -2412,7 +2413,7 @@ do
   local farmHdr = opt.rows[5]
   ok(farmHdr.ctl and farmHdr.ctl.on == true, "farm section box shows on")
   farmHdr.ctl.scripts.OnClick(farmHdr.ctl)
-  ok(not R:Enabled("farm") and farmHdr.ctl.on == false and hub.con.slots.count.text == "11 of 19 on", "box off: farm off, hub count follows", hub.con.slots.count.text)
+  ok(not R:Enabled("farm") and farmHdr.ctl.on == false and hub.con.slots.count.text == "11 of 20 on", "box off: farm off, hub count follows", hub.con.slots.count.text)
   farmHdr.ctl.scripts.OnClick(farmHdr.ctl)
   ok(R:Enabled("farm"), "and back on")
   -- toggle: nag
@@ -2528,7 +2529,7 @@ do
     local spec = page.spec
     ok(spec.title == "Tools" and spec.api and spec.api.name == "BiSToolsAPI" and spec.open and spec.open.label == "the tools list",
        "titled Tools, the API named, a big button to the tools")
-    ok(spec.status() == H.Status() and spec.status():find("of 19 tools on", 1, true), "its status line: N of 19 tools on", spec.status())
+    ok(spec.status() == H.Status() and spec.status():find("of 20 tools on", 1, true), "its status line: N of 19 tools on", spec.status())
     -- THE DASHBOARD (Arn, 7 Nov live: "dont just shrink remake them all"): the page draws itself and never takes
     -- the options window in
     ok(spec.build and spec.refresh and spec.window == nil, "the page is a dashboard, not the options window in a box")
@@ -2537,7 +2538,7 @@ do
     local optParent = BiSToolsOptions.parent
     ok(optParent ~= page.frame.body and not BiSToolsOptions:IsShown(), "the options window stays where it lives, hidden")
     local d = page.frame.body.dash
-    ok(d and #d.rows == 20 and d.rows[1].entry.general, "the list: BiS Tools itself, then all 19 tools", d and #d.rows)
+    ok(d and #d.rows == 21 and d.rows[1].entry.general, "the list: BiS Tools itself, then all 20 tools", d and #d.rows)
     -- THE FAMILY RULE (Arn, 8 Nov: "its a theme so itll keep all the pages looking the same"): the page is the kit's
     -- BiSTheme.Dashboard, fed the Registry's own tables; the hand-built copy in Hub.lua is gone
     ok(d.model and d.model.list == "TOOLS" and d.list.head.text == "TOOLS" and type(d.Paint) == "function"
@@ -2653,7 +2654,7 @@ do
         if r.isSection and r.ctl and r.name and r.name.text == want then found[#found + 1] = key break end
       end
     end
-    ok(#found == 19, "all 19 tools have an on/off tick in the options window", #found)
+    ok(#found == 20, "all 20 tools have an on/off tick in the options window", #found)
     -- the minimap's right-click: the OWN options window, and again closes it (Arn, 7 Nov live); the open button: the Hub
     BiSToolsHub:Hide()
     BiSToolsOptions:Hide()
@@ -2725,8 +2726,8 @@ do
   for _, tool in R:Each() do if tool.__real then tool.OnLogin, tool.__real = tool.__real, nil end end
   ok(logins == 0, "at login no tool wakes: nothing hooks, nothing opens, nothing plays", logins)
   NS.Hub.ToggleHub(true)
-  ok(BiSToolsHub.con.slots.count.text == "0 of 19 on", "the Hub, the main page: 0 of 19 on", BiSToolsHub.con.slots.count.text)
-  ok(NS.Hub.Status() == "0 of 19 tools on", "the BiS> page's status line says it", NS.Hub.Status())
+  ok(BiSToolsHub.con.slots.count.text == "0 of 20 on", "the Hub, the main page: 0 of 20 on", BiSToolsHub.con.slots.count.text)
+  ok(NS.Hub.Status() == "0 of 20 tools on", "the BiS> page's status line says it", NS.Hub.Status())
   -- the user chooses: a switch writes TRUE (not nil) and off writes FALSE
   R:SetEnabled("social", true)
   ok(fresh.enabled.social == true and R:Enabled("social"), "switched on: stored as true")
@@ -10856,7 +10857,7 @@ do
     Dk.Hide()
     st.open, st.welcomed = false, nil
   end
-  for _, name in ipairs({ "sounds", "party", "social", "rivals", "recap", "bg", "map", "alts", "combo", "windfury", "xp", "disenchant", "processing", "codex" }) do
+  for _, name in ipairs({ "sounds", "party", "social", "rivals", "recap", "bg", "map", "alts", "combo", "windfury", "xp", "disenchant", "processing", "codex", "innervate" }) do
     local fh = io.open("dev/apps/" .. name .. ".lua", "r")
     if fh then
       fh:close()

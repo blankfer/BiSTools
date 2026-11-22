@@ -233,6 +233,7 @@ function DP.OwnTabs(p) return p.tabs and #p.tabs() or 1 end
 function DP.Tools()
   if not (D and D.Register) or DP.toolsIn then return false end
   DP.toolsIn = true
+  if DP.InnervateHello then DP.InnervateHello() end        -- (the first day's card for who gives or asks)
   if NS.Totems then NS.Totems.Register() end               -- (a shaman's: the three Calls)
   local n = 0
   for key, tool in R:Each() do
@@ -433,6 +434,11 @@ R:Register({
 })
 
 --- The minimap button's left click (Tools/Hub.lua): is the deck switched on? Then open / close it. Answers true when it did.
+--- A tool's app on the phone, when the deck is on. Answers whether it opened.
+function DP.OpenApp(key)
+  if not (DP.IsOn() and D.defs["BiSTools:tool-" .. key]) then return false end
+  return D.Open("BiSTools:tool-" .. key) and true or false
+end
 function DP.IsOn() return (D and R:Enabled("deck")) and true or false end
 function DP.Toggle()
   if not DP.IsOn() then return false end

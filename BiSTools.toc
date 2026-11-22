@@ -59,6 +59,7 @@ Tools\BossQuests.lua
 Tools\Alts.lua
 Tools\Combo.lua
 Tools\Windfury.lua
+Tools\Innervate.lua
 API.lua
 Tools\DeckPages.lua
 Tools\Apps\Sounds.lua
@@ -72,6 +73,7 @@ Tools\Apps\Alts.lua
 Tools\Apps\Totems.lua
 Tools\Apps\Combo.lua
 Tools\Apps\Windfury.lua
+Tools\Apps\Innervate.lua
 Tools\Apps\XP.lua
 Tools\Apps\Disenchant.lua
 Tools\Apps\Processing.lua
