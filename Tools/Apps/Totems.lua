@@ -135,6 +135,37 @@ function T.Names(page)
   end
   return out
 end
+--- Put these totems on the row: into the combo's own Call (the one you use every day stays yours, unless it is the only one), which
+--- is the chosen one then. An empty water place takes the water totem you had. Answers how many did not go in.
+function T.Load(names)
+  local page = T.Can() and T.ComboPage()
+  if not page or fighting() then return nil end
+  local water = T.Get(T.Now() or page, 3)
+  local _, bad = T.Fill(page, names)
+  if water and not T.Get(page, 3) then T.Set(page, 3, water) end
+  T.said = bad > 0 and (bad .. " did not go into " .. T.CALLS[page].name) or nil
+  T.Choose(page)
+  return bad
+end
+--- A button that puts these totems into THAT Call and drops them, in one click (an empty water place takes `water`, a spell id).
+function T.SetDrop(page, names, water, after)
+  return { word = "DROP", spell = T.CALLS[page].name, peek = true, ok = function()
+    local _, bad = T.Fill(page, names)
+    if water and not T.Get(page, 3) then T.Set(page, 3, water) end
+    T.said = bad > 0 and (bad .. " did not go into " .. T.CALLS[page].name) or nil
+    if bad > 0 then NS.Print("totems: %s - click again, or open the Totems app", T.said) return false end
+    T.Choose(page)
+    if after then after() end
+    return true
+  end }
+end
+--- A totem's name under an icon: short enough to be read there.
+T.SHORT = { ["Strength of Earth"] = "Strength", ["Grace of Air"] = "Grace", ["Frost Resistance"] = "Frost Res", ["Fire Resistance"] = "Fire Res", ["Nature Resistance"] = "Nature Res",
+  ["Healing Stream"] = "Healing", ["Poison Cleansing"] = "Poison", ["Disease Cleansing"] = "Disease", ["Tranquil Air"] = "Tranquil" }
+function T.Short(name)
+  local n = tostring(name or ""):gsub(" Totem$", ""):gsub(" Weapon$", "")
+  return T.SHORT[n] or (#n > 12 and n:match("^%S+")) or n
+end
 --- A button that fills that Call with these totems and casts it, in one click (nil = this character cannot).
 function T.DropAll(names, word)
   local page = T.Can() and T.ComboPage()

@@ -150,11 +150,15 @@ DP.App.combo = function(tool, db)
   --[[ THE SET-UP THAT IS CHOSEN (Arn, 22 Nov: "combo DPS number huge of current selected set up, all the break down numbers when hover
     over it , under the DPS use the totem api choose which Call of the icons" - "on top of the icons show the icons of the totems that
     is in the current set up" - "even the water one" - "under the totem row have the 4 call buttons and it sets it and drops it"): the imbue on your weapon and the totems of the chosen Call. Its number is the
-    average of its fights; a Call's icon chooses it and drops it, a totem's icon changes that place. The fourth is Totemic Call. ]]
+    average of its fights; a Call's icon chooses it and drops it, a totem's icon changes that place. The fourth is Totemic Call. The imbue is
+    first on the row ("add the imbue to to top row"): a press puts it on. LAST and TRY put theirs on the row ("if i click the last it
+    should put that imbue and totems on the row"); a weapon imbued by hand is followed. ]]
   local function setup()
     local To = NS.Totems
     local page = To and To.Shaman() and To.Can() and To.Now() or nil
-    local im = not (InCombatLockdown and InCombatLockdown()) and C.ImbueNow() or nil
+    local on = not (InCombatLockdown and InCombatLockdown()) and C.ImbueNow() or nil
+    if on and on ~= db().imbueSeen then db().imbueSeen, db().imbueNow = on, nil end
+    local im = db().imbueNow or on
     if not im and last() then im = last().imbue end
     local set, names, at = {}, {}, {}
     if page then
@@ -165,7 +169,7 @@ DP.App.combo = function(tool, db)
     end
     local combo = C.Label(im, set)
     local k, n, g = place(combo)
-    return { page = page, imbue = im, names = names, at = at, combo = combo, k = k, of = n, g = g }
+    return { page = page, imbue = im, on = on, names = names, at = at, combo = combo, k = k, of = n, g = g }
   end
   local function breakdown(s)
     local out = {}
@@ -192,14 +196,53 @@ DP.App.combo = function(tool, db)
       under = s.g and (plural(s.g.n, "fight") .. (s.k and ", #" .. s.k .. " of " .. s.of or "")) or "never fought: go and fight",
       tip = long(s.imbue, s.names), lines = breakdown(s), peek = true, fn = function() opened = not opened end }
   end
+  --- Put a set-up on the row: its imbue, its totems.
+  local function put(imbue, names)
+    db().imbueNow = imbue or nil
+    if NS.Totems then NS.Totems.Load(names) end
+    kept = {}
+  end
+  local function setKey(imbue, names, tip)
+    local To = NS.Totems
+    if not (To and To.Shaman() and To.Can() and To.ComboPage()) then return nil end
+    return { word = "SET", peek = true, tip = tip, fn = function() put(imbue, names) end }
+  end
+  --[[ TRY, and the TOP ONE (Arn, 22 Nov: "on the try next just say try: imbue and 4 totem icons can click them and have the 4 call of the
+    icons to set it" - "on the bottom of try have Tops dps and same have the imbue and totems and the 4 call of the icons"): two lines
+    of icons each - the set-up, a press casts that one; the Calls, a press puts the set-up into that Call and drops it. ]]
+  local function block(word, sub, ink, imbue, names, tip)
+    local To, s = NS.Totems, setup()
+    if not s.page then return nil end
+    local by = C.CellNames(imbue, names)
+    local function one(n, slot)
+      if not n then return { word = To.SLOTS[slot], done = true, tip = To.SLOTS[slot] .. ": nothing" } end
+      return { pic = C.IconFor(n), word = C.COL_WORD[n] or C.IMBUE_SHORT[n] or To.Short(n), tip = n .. (slot and ". Click: drops it" or ". Click: puts it on your weapon"),
+        act = C.Knows(n) and { word = slot and "DROP" or "IMBUE", spell = n, peek = true } or nil }
+    end
+    local water = To.Get(s.page, 3)
+    local row = { one(imbue), one(by.fire[1], 1), one(by.earth[1], 2), one(s.at[3], 3), one(by.air[1], 4) }
+    if not imbue then row[1] = { word = "No imbue", done = true, tip = "No imbue" } end
+    local calls = {}
+    for i, page in ipairs(To.Known()) do
+      local c = To.CALLS[page]
+      calls[i] = { pic = C.IconFor(c.name) or To.Icon(c.id), word = cap(c.tab), lit = To.Holds(page, names) or nil, tip = c.name .. ". Click: these go into it, and all drop",
+        act = To.SetDrop(page, names, water, function() db().imbueNow = imbue or nil kept = {} end) }
+    end
+    if C.Knows(To.BRING) then calls[#calls + 1] = { pic = C.IconFor(To.BRING), word = "Bring", tip = To.BRING .. ": the ones that stand come to you", act = { word = "BRING", spell = To.BRING, peek = true } } end
+    return { text = word, sub = sub, ink = ink, tip = tip, icons = row }, { text = "", sub = "set in", ink = "dim", icons = calls, tip = "Puts it into that Call and drops it" }
+  end
   local function icons()
     local s = setup()
     if not s.page then return nil end
     local To = NS.Totems
     local row, calls = {}, {}
+    local isOn = s.imbue ~= nil and s.on == s.imbue
+    row[1] = { pic = C.IconFor(s.imbue), word = s.imbue and To.Short(s.imbue) or "No imbue", lit = isOn, done = s.imbue == nil,
+      tip = s.imbue and (s.imbue .. (isOn and ": on your weapon. Click: again" or ". Click: puts it on your weapon")) or "No imbue",
+      act = s.imbue and C.Knows(s.imbue) and { word = "IMBUE", spell = s.imbue, peek = true } or nil }
     for slot = 1, 4 do
       local n = s.at[slot]
-      row[slot] = { pic = n and (To.Icon(To.Get(s.page, slot)) or C.IconFor(n)) or nil, word = n and n:gsub(" Totem$", "") or To.SLOTS[slot], done = n == nil, tip = To.SLOTS[slot] .. ": " .. (n or "nothing") .. ". Click: change it",
+      row[slot + 1] = { pic = n and (To.Icon(To.Get(s.page, slot)) or C.IconFor(n)) or nil, word = n and To.Short(n) or To.SLOTS[slot], done = n == nil, tip = To.SLOTS[slot] .. ": " .. (n or "nothing") .. ". Click: change it",
         act = { word = "change", peek = true, fn = function() To.Open(s.page, slot) end } }
     end
     for i, page in ipairs(To.Known()) do
@@ -212,20 +255,31 @@ DP.App.combo = function(tool, db)
   end
   local function nowRows()
     local out, f = {}, last()
+    local lastRow
     local function add(row) out[#out + 1] = row end
     if f then
-      add({ pic = C.IconFor(f.imbue), mark = "-", text = "Last: " .. beside(f.imbue, f.totems), right = f.mixed and "MIXED" or "", ink = "gold",
-        tip = fightTip(f), verb = "OPEN", act = open(f.combo) })
+      lastRow = ({ pic = C.IconFor(f.imbue), mark = "-", text = "Last: " .. beside(f.imbue, f.totems), right = f.mixed and "MIXED" or "", ink = "gold",
+        tip = fightTip(f), verb = setKey() and "SET" or "OPEN", act = setKey(f.imbue, f.totems, "Its imbue and totems onto the row") or open(f.combo) })
     end
     local c, total, untried = try()
-    if c then
+    local a, b
+    if c then a, b = block("TRY", c.n == 0 and "never fought" or plural(c.n, "fight"), "gold", c.imbue, c.totems, "Try next. " .. long(c.imbue, c.totems) .. ". " .. (untried or 0) .. " of " .. (total or 0) .. " combos never tried.") end
+    if a then add(a) add(b)
+      local top = rank()[1]
+      local x, y
+      if top then x, y = block("TOP " .. int(top.dps), plural(top.n, "fight"), "good", top.imbue, top.totems, "Your best. " .. long(top.imbue, top.totems) .. ", " .. int(top.dps) .. " dps") end
+      if x then add(x) add(y) end
+    elseif c then
       -- (Arn, 22 Nov: "we can get rid of the imbue and drop" - one row: what to try, and one press that fills a Call with it and drops it)
-      add({ pic = C.IconFor(c.imbue), mark = ">", text = "Try: " .. beside(c.imbue, c.totems), sub = c.n == 0 and "never fought" or plural(c.n, "fight") .. " so far", verb = "TRY",
-        act = NS.Totems and NS.Totems.DropAll(c.totems, "TRY") or nil,
-        tip = "Try next. " .. long(c.imbue, c.totems) .. ". " .. (untried or 0) .. " of " .. (total or 0) .. " combos never tried." })
+      add({ pic = C.IconFor(c.imbue), mark = ">", text = "Try: " .. beside(c.imbue, c.totems), sub = c.n == 0 and "never fought" or plural(c.n, "fight") .. " so far",         tip = "Try next. " .. long(c.imbue, c.totems) .. ". " .. (untried or 0) .. " of " .. (total or 0) .. " combos never tried." })
     elseif total then
+      local top = rank()[1]
+      local x, y
+      if top then x, y = block("TOP " .. int(top.dps), plural(top.n, "fight"), "good", top.imbue, top.totems, "Your best. " .. long(top.imbue, top.totems)) end
+      if x then add(x) add(y) end
       add({ mark = ">", text = "Every combo is tried", right = C.TRY_ENOUGH .. "+ each", ink = "good", tip = "Each has enough fights: the ranking holds" })
     end
+    if lastRow then table.insert(out, a and #out + 1 or 1, lastRow) end
     if not (InCombatLockdown and InCombatLockdown()) then
       local im, up = C.ImbueNow(), C.ScanTotems({})
       local names = {}
@@ -378,6 +432,7 @@ DP.App.combo = function(tool, db)
       end,
       say = function(tab)
         local f = last()
+        if tab == 1 and setup().page then return NS.Totems.said end
         if not f then return C.lastWhy end
         if tab == 1 then return (f.grp and C.Scope() == "solo" and "In a group: not counted. " or "") .. secs(f) .. (f.mob and ", " .. f.mob or "") end
         if tab == 2 and not inCombo(tab) then return "dps as if the mobs were your level (fights)" end
@@ -400,11 +455,15 @@ DP.App.combo = function(tool, db)
         local out = {}
         if tab == 1 then
           local c = try()
+          if setKey() and setup().page then return {} end       -- (the icons are the buttons there)
           if c and c.imbue then out[1] = { word = "IMBUE " .. short(c.imbue), spell = c.imbue, peek = true } end
           local dk = c and NS.Totems and NS.Totems.DropAll(c.totems, "x") and deckKey(c.totems)
           if dk then dk.word = "SET DECK" out[#out + 1] = dk end
         elseif inCombo(tab) then
           local combo = pick
+          local _, _, g = place(pick)
+          local set = g and setKey(g.imbue, g.totems, "Its imbue and totems onto the row (NOW)")
+          if set then out[2] = set end
           out[1] = { word = C.Armed(combo) and "SURE?" or "FORGET", peek = true, tip = "Forget every fight with this combo", fn = function()
             kept = {}
             C.ForgetAsk(combo)
