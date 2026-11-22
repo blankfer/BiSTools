@@ -1,5 +1,5 @@
 -- BiSTools / Tools / Apps / Processing.lua - the tool in the phone (dev/APPS.md).
--- READY = what can be disenchanted now, LATER = above your skill, needs a rod, skipped; HAUL = what it gave. All of it is P.Items /
+-- READY = what can be disenchanted now, LATER = above your skill, needs a rod, in an equipment set of yours, skipped; HAUL = what it gave. All of it is P.Items /
 -- P.haul / db.totals. The click that disenchants is secure: the next one is drawn dim, OLD WINDOW has the working buttons.
 local _, NS = ...
 local DP, R = NS.DeckPages, NS.Registry
@@ -23,7 +23,7 @@ DP.App.processing = function(tool, db)
     kept = { at = at, ready = {}, later = {} }
     for _, e in ipairs((P.Items(db()))) do
       if not e.ignored then
-        local to = (e.above or e.blocked) and kept.later or kept.ready
+        local to = (e.above or e.blocked or e.sets) and kept.later or kept.ready
         to[#to + 1] = e
       end
     end
@@ -35,6 +35,7 @@ DP.App.processing = function(tool, db)
   end
   local function tip(e)
     local out = { e.name .. " (" .. (COLOUR[e.quality] or "gear") .. (e.ilvl and ", level " .. e.ilvl or "") .. ")" }
+    if e.sets then out[#out + 1] = "In your set " .. table.concat(e.sets, ", ") .. ": left alone" end
     if e.kind == "bound" then out[#out + 1] = "Soulbound: shift-click it in the old window" end
     if e.enchanted then out[#out + 1] = "Somebody enchanted it" end
     if e.warn then out[#out + 1] = "Another of the same name is not like it: look twice" end
@@ -60,7 +61,8 @@ DP.App.processing = function(tool, db)
   local function laterRows()
     local out = {}
     for _, e in ipairs(work().later) do
-      out[#out + 1] = { pic = e.icon or 134400, text = e.name, right = e.above and ("SKILL " .. tostring(e.need)) or "ROD", ink = e.above and "accent" or "gold",
+      out[#out + 1] = { pic = e.icon or 134400, text = e.name, right = e.sets and table.concat(e.sets, ", ") or e.above and ("SKILL " .. tostring(e.need)) or "ROD",
+        ink = e.above and not e.sets and "accent" or "gold",
         done = true, tip = tip(e) }
     end
     for _, e in ipairs(skipped()) do
@@ -134,7 +136,7 @@ DP.App.processing = function(tool, db)
         if tab == 3 then return not next(db().totals or {}) and "Nothing yet. What your disenchanting gives is counted here." or nil end
         if not P.Knows() then return "This character does not know Disenchant. Enchanting is the one profession it works on so far." end
         if tab == 1 and #work().ready == 0 then return "Nothing in your bags that you can disenchant now." end
-        if tab == 2 and #work().later == 0 and #skipped() == 0 then return "Nothing is waiting: no gear above your skill, none you skipped." end
+        if tab == 2 and #work().later == 0 and #skipped() == 0 then return "Nothing is waiting: no gear above your skill or in your sets, none you skipped." end
       end,
       say = function(tab)
         if tab ~= 1 or not P.Knows() then return nil end
@@ -147,6 +149,8 @@ DP.App.processing = function(tool, db)
         return e and { word = "NEXT: " .. e.name, spell = P.SpellName(), bag = e.bag, slot = e.slot, guid = e.guid, peek = true,
           ok = function()                                   -- (the last word: is it still that item?)
             if not e.guid or P.GUID(e.bag, e.slot) ~= e.guid then P.Say("ITEM MOVED - LIST REFRESHED, CLICK AGAIN") kept = nil return false end
+            local sets = NS.DE.InSets(e.bag, e.slot)
+            if sets then P.Say("IN YOUR SET " .. table.concat(sets, ", "):upper() .. " - LEFT ALONE") kept = nil return false end
             P.clicked = { e = e, at = GetTime() }
             P.Say("")
             return true

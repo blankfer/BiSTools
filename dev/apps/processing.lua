@@ -49,6 +49,18 @@ return function(H)
   local big = p.big(1)
   ok(big.word == "NEXT: Cloak" and Dk.IsSecure(big) and not big.fn and big.slot == 3 and big.guid == "G-C", "the next plain one, never bound, enchanted or of a mixed name; secure, so dim", big.word)
   H.Paint("processing", 1)
+  do                                                        -- in an equipment set of yours: never the next one, and in LATER by its name
+    local was, kept = rawget(_G, "C_EquipmentSet"), NS.DE.setsKept
+    _G.C_EquipmentSet = { GetEquipmentSetIDs = function() return { 0 } end, GetEquipmentSetInfo = function() return "DMg" end, GetItemIDs = function() return { [15] = 2002 } end }
+    NS.DE.setsKept = nil
+    moment()
+    ok(not row(1, "Cloak") and p.big(1) == nil and row(2, "Cloak").right == "DMg" and row(2, "Cloak").ink == "gold" and row(2, "Cloak").tip:find("In your set DMg", 1, true), "in a set: left alone")
+    local n = P.Recount()
+    _G.C_EquipmentSet, NS.DE.setsKept = was, nil
+    moment()
+    ok(P.Recount() == n + 1 and row(1, "Cloak"), "and not counted as ready", n)
+    NS.DE.setsKept = kept
+  end
   press(row(1, "Cloak").side)
   ok(db.ignore["G-C"] == "Cloak" and not row(1, "Cloak") and p.big(1) == nil and p.say(1):find("second look", 1, true), "SKIP leaves it alone; nothing plain is left")
   H.Paint("processing", 1)

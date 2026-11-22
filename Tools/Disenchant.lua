@@ -40,7 +40,45 @@ local function ask(fn, ...)
   return unpack(r, 2, table.maxn(r))
 end
 
---- "bound" (red), "free" (purple), or nil: not gear worth disenchanting.
+--- YOUR EQUIPMENT SETS (Arn, 22 Nov 2026, looking at "DMg" on his bags: "need more info on this if we can tie it to the equipment
+--- manager like how it says dmg"): item id -> the names of the sets it is in, from the game's own Equipment Manager, read again after
+--- D.SETS_FOR s. By ITEM, not by place: C_EquipmentSet.GetItemLocations can CRASH the Forever client (a shipped bag addon keeps away
+--- from it for that), and a crash cannot be caught. So the twin of a set's item counts as in it too: the careful way round.
+D.SETS_FOR = 2
+function D.Sets()
+  local at = GetTime and GetTime() or 0
+  local k = D.setsKept
+  if k and at >= k.at and at - k.at < D.SETS_FOR then return k.by, k.names end
+  local E, by, names = C_EquipmentSet, {}, {}
+  local ids = E and ask(E.GetEquipmentSetIDs)
+  for _, set in ipairs(type(ids) == "table" and ids or {}) do
+    local name = plain((ask(E.GetEquipmentSetInfo, set)))
+    if type(name) == "string" and name ~= "" then
+      names[#names + 1] = name
+      local has = ask(E.GetItemIDs, set)
+      for _, id in pairs(type(has) == "table" and has or {}) do
+        id = plain(id)
+        if type(id) == "number" and id > 1 then                 -- (0, 1 and -1 are the game's empty and ignored places)
+          by[id] = by[id] or {}
+          local twice = false
+          for _, n in ipairs(by[id]) do twice = twice or n == name end
+          if not twice then table.insert(by[id], name) end
+        end
+      end
+    end
+  end
+  table.sort(names)
+  for _, l in pairs(by) do table.sort(l) end
+  D.setsKept = { at = at, by = by, names = names }
+  return by, names
+end
+--- The sets this bag slot's item is in: a list of names, or nil.
+function D.InSets(bag, slot)
+  local id = plain(ask(C_Container and C_Container.GetContainerItemID, bag, slot))
+  return type(id) == "number" and D.Sets()[id] or nil
+end
+
+--- "bound" (red), "free" (purple; in a set of yours, either = a gold edge), or nil: not gear worth disenchanting.
 function D.Kind(bag, slot)
   local info = ask(C_Container and C_Container.GetContainerItemInfo, bag, slot)
   if type(info) ~= "table" then return nil end
@@ -126,7 +164,7 @@ function D.Slots()
   return out
 end
 
-local function paint(b, colour)
+local function paint(b, colour, edgeOnly)
   local g = b.bisDE
   if not g then
     g = {}
@@ -140,7 +178,7 @@ local function paint(b, colour)
     b.bisDE = g
   end
   local r, gr, bl = colour[1], colour[2], colour[3]
-  g.wash:SetColorTexture(r, gr, bl, 0.30)
+  g.wash:SetColorTexture(r, gr, bl, edgeOnly and 0 or 0.30)
   for _, side in ipairs({ "top", "bottom", "left", "right" }) do g[side]:SetColorTexture(r, gr, bl, 1) g[side]:Show() end
   g.wash:Show()
   g.on = true
@@ -169,7 +207,8 @@ function D.Show()
   for _, s in ipairs(slots) do
     local kind = D.Kind(s.bag, s.slot)
     if kind then
-      paint(s.b, kind == "bound" and D.RED or D.PURPLE)
+      local mine = D.InSets(s.bag, s.slot)
+      paint(s.b, mine and { NS.T.rgb("gold") } or kind == "bound" and D.RED or D.PURPLE, mine)
       D.lit[#D.lit + 1] = s.b
     end
   end
@@ -200,7 +239,7 @@ end
 
 R:Register({
   name = "disenchant",
-  desc = "hold Alt over your bags: gear you can disenchant glows purple, soulbound gear red",
+  desc = "hold Alt over your bags: gear you can disenchant glows purple, soulbound gear red, gear in your equipment sets gold",
   usage = "/bist on|off disenchant",
   defaults = {},
   OnDisable = function() D.Clear() end,

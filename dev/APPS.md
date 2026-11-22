@@ -35,7 +35,8 @@ page parts (every one is handed the tab number; only your own tabs reach you, SE
 - `boxes = fn(tab) -> { { "LABEL", value, ink }, ... }` 1-4 number boxes. ink: "ink" "ink2" "dim" "good" "gold" "accent" (rose/danger exist too: look at what DeckPages.lua uses)
 - `rows = fn(tab) -> { row, ... }`, row = { text, right = words, ink = colour of right, mark = one letter or pic = icon texture/file id, done = true (dim),
   act = button (a click on the row: it gets a chip at its right, `verb` = the word on it, else a secure button's word, else ">"; `act.chip = true` = the
-  right words are the chip, a switch's ON / OFF), head = true (a small heading, no ground), side = button (a second key, 48 px, at the right - then no `right`), less = / more = buttons, tip = words on hover }.
+  right words are the chip, a switch's ON / OFF), sub = a line of its own under the name (two lines high, the picture bigger), tint = the name's ink (an item's
+  quality: "uncommon" "rare" "epic"; say it in words too), head = true (a small heading, no ground), side = button (a second key, 48 px, at the right - then no `right`), less = / more = buttons, tip = words on hover }.
   The list scrolls by itself (wheel / pad). Give the whole list; no paging of your own. A very long one (thousands): build it once and keep it until it changes.
 - `text = fn(tab) -> words` (wraps), mostly for "nothing here yet: do this to fill it". nil when there is a list.
 - `say = fn -> one short line` under the list. `hero = fn -> { art = "model", creature = npcId | display = displayId, big, small }` (the picture on top).

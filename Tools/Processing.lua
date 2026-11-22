@@ -146,6 +146,7 @@ function P.Items(db)
             enchanted = P.Enchanted(link), ignored = isIgnored,
             above = type(skill) == "number" and type(need) == "number" and need > skill or false,
             blocked = P.BlockedAt(db, lv),
+            sets = NS.DE.InSets and NS.DE.InSets(bag, slot) or nil,      -- in an equipment set: never by a plain click
           }
         end
       end
@@ -179,7 +180,7 @@ end
 function P.Recount()
   local n = 0
   if R:Enabled("processing") and P.Knows() then
-    for _, e in ipairs(P.Items(P.db)) do if not (e.above or e.blocked or e.ignored) then n = n + 1 end end
+    for _, e in ipairs(P.Items(P.db)) do if not (e.above or e.blocked or e.ignored or e.sets) then n = n + 1 end end
   end
   local was = P.count
   P.count = n
@@ -324,8 +325,8 @@ end
 local function arm(r, e)
   local a = r.act
   local name = P.SpellName()
-  local free = e and e.kind == "free" and not e.above
-  local bound = e and e.kind == "bound" and not e.above
+  local free = e and e.kind == "free" and not e.sets and not e.above
+  local bound = e and (e.kind == "bound" or e.sets) and not e.above
   a:SetAttribute("target-bag", e and e.bag or nil)
   a:SetAttribute("target-slot", e and e.slot or nil)
   a:SetAttribute("type1", free and "spell" or nil)
@@ -350,7 +351,7 @@ function P.Paint()
   P.list = list
   local ready, above, blocked = 0, 0, 0
   for _, e in ipairs(list) do
-    if e.above then above = above + 1 elseif e.blocked then blocked = blocked + 1 elseif not e.ignored then ready = ready + 1 end
+    if e.above then above = above + 1 elseif e.blocked then blocked = blocked + 1 elseif not (e.ignored or e.sets) then ready = ready + 1 end
   end
   P.offset = math.max(0, math.min(P.offset or 0, math.max(0, #list - P.ROWS)))
   for i, r in ipairs(f.rows) do
@@ -374,7 +375,8 @@ function P.Paint()
       local tags = {}
       if e.ignored then tags[#tags + 1] = "IGNORED" end
       if e.enchanted then tags[#tags + 1] = "ENCHANTED" end
-      if e.kind == "bound" then tags[#tags + 1] = "SOULBOUND - SHIFT" end
+      if e.sets then tags[#tags + 1] = "SET " .. table.concat(e.sets, ", "):upper() .. " - SHIFT"
+      elseif e.kind == "bound" then tags[#tags + 1] = "SOULBOUND - SHIFT" end
       if e.warn then tags[#tags + 1] = "SAME NAME - CHECK" end
       if e.above then tags[#tags + 1] = "SKILL " .. tostring(e.need) end
       if e.blocked then tags[#tags + 1] = tostring((e.blocked:match("[Rr]equires (.+)") or e.blocked)):upper() end
@@ -610,6 +612,12 @@ function P.PreClick(a, button)
     return
   end
   if e.above then return P.Say(("NEEDS ENCHANTING %d"):format(e.need or 0)) end
+  local sets = NS.DE.InSets and NS.DE.InSets(e.bag, e.slot) or nil       -- (asked again: a set may be new since the button was aimed)
+  if sets and not (IsShiftKeyDown and IsShiftKeyDown()) then
+    e.sets = sets
+    a:SetAttribute("type1", nil)
+    return P.Say("IN YOUR SET " .. table.concat(sets, ", "):upper() .. " - SHIFT-CLICK TO DISENCHANT")
+  end
   if e.kind == "bound" and not (IsShiftKeyDown and IsShiftKeyDown()) then
     return P.Say("SOULBOUND - SHIFT-CLICK TO DISENCHANT")
   end

@@ -8808,6 +8808,19 @@ do
      "grey gear, an herb, a shirt, a white sword: no glow")
   ok(lit(blz), "Blizzard's own bag open beside it glows too")
   ok(btn[1].bisDE.top and btn[1].bisDE.top.shown ~= false, "an edge round the slot, not only a wash")
+  -- in one of your equipment sets (22 Nov): a gold edge, no wash, whatever else it is
+  do
+    local was = rawget(_G, "C_EquipmentSet")
+    _G.C_EquipmentSet = { GetEquipmentSetIDs = function() return { 0 } end, GetEquipmentSetInfo = function() return "DMg" end, GetItemIDs = function() return { [5] = 1002 } end,
+      GetItemLocations = function() error("the client would crash here") end }
+    D.setsKept = nil
+    fire("BAG_UPDATE_DELAYED")
+    ok(lit(btn[2]) and colour(btn[2])[2] > 0.7 and colour(btn[2])[4] == 0 and btn[2].bisDE.top.shown ~= false, "gear in a set: a gold edge, no wash", colour(btn[2])[4])
+    ok(colour(btn[1])[4] > 0, "the rest as ever")
+    _G.C_EquipmentSet, D.setsKept = was, nil
+    fire("BAG_UPDATE_DELAYED")
+    ok(colour(btn[2])[2] < 0.5, "out of the set: red again")
+  end
   ALT = false
   fire("MODIFIER_STATE_CHANGED", "LALT", 0)
   ok(not lit(btn[1]) and not lit(btn[2]) and not lit(blz), "alt let go: every glow gone")
@@ -9028,6 +9041,26 @@ do
      "a free item: shift-click works too")
   local shield = rowFor("G-SHIELD")
   ok(shield.act.attrs.type1 == nil and shield.act.attrs["shift-type1"] == "spell", "soulbound: SHIFT-click only")
+  -- IN AN EQUIPMENT SET (22 Nov): shift only as well, its name on the row - and a set made after the button was aimed stops the click
+  do
+    local was, shift = rawget(_G, "C_EquipmentSet"), rawget(_G, "IsShiftKeyDown")
+    _G.IsShiftKeyDown = function() return false end
+    _G.C_EquipmentSet = { GetEquipmentSetIDs = function() return { 0 } end, GetEquipmentSetInfo = function() return "DMg" end, GetItemIDs = function() return { [15] = 2002 } end }
+    NS.DE.setsKept = nil
+    local c = rowFor("G-CLOAK-1")
+    ok(c.act.attrs.type1 == "spell", "aimed before the set was made")
+    P.clicked = nil
+    c.act.scripts.PreClick(c.act, "LeftButton", true)
+    ok(c.act.attrs.type1 == nil and P.clicked == nil and P.said:find("IN YOUR SET DMG", 1, true), "the click is stopped, and says why", P.said)
+    P.Paint()
+    c = rowFor("G-CLOAK-1")
+    ok(c.act.attrs.type1 == nil and c.act.attrs["shift-type1"] == "spell" and c.tag.text:find("SET DMG", 1, true), "painted again: shift only, its set on the row", c.tag.text)
+    ok(f.summary.text:find("3 READY", 1, true), "and not counted as ready", f.summary.text)
+    _G.C_EquipmentSet, _G.IsShiftKeyDown, NS.DE.setsKept = was, shift, nil
+    P.Say("")
+    P.Paint()
+    ok(rowFor("G-CLOAK-1").act.attrs.type1 == "spell", "out of the set: a plain click again")
+  end
   ok(shield.tag.text:find("SOULBOUND", 1, true), "and it says so", shield.tag.text)
   -- THE NAME IN ITS QUALITY'S COLOUR (Arn, 6 Nov, the first live look: "the items names should reflect the quality
   -- green items green name text epic epic name color"); soulbound is said in red by the tag and the button's edge
