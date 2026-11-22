@@ -246,8 +246,9 @@ function H.BuildHub()
   deck:SetScript("OnClick", function()
     local DP = NS.DeckPages
     if not (DP and DP.Toggle) then return end
-    if not DP.Toggle() then R:SetEnabled("deck", true) f.con:Say("the deck is on: the minimap button opens it", "good") end
+    if not DP.Toggle() then R:SetEnabled("deck", true) end
     H.PaintHub()
+    f:Hide()                                                -- (out of the deck's way: Arn's first look, 22 Nov)
   end)
   deck:SetScript("OnEnter", function(self)
     deck.wash:SetAlpha(1)
