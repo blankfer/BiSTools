@@ -30,6 +30,11 @@ STEPS: { text, note, phase, button = { word, macro | item | fn }, done = fn, wat
 quest accepted / turned in (QUEST_LOG_UPDATE, IsQuestFlaggedCompleted), an objective's `finished`, an item in the bags,
 ENCOUNTER_END; never a creature's name (secret inside, solved.md 21 Nov).
 
+## One look (Arn, 21 Nov: "our ui strays sometimes need a way to unify it", "bis healing black background wokrs becuause we can hide boxes")
+The deck stands on the healing deck's BLACK: a part switched off leaves no hole. Every colour is BiSTheme's, owned by the kit - a
+page hands in words and numbers and never a colour. `_bisdev/colours.lua` (check.sh) counts hand-picked colours per addon and only
+lets the number go down.
+
 ## One deck for every addon (Arn, 21 Nov: "this makes api our apps way easier", "unifed ui", "we can put a bis memoris live cardd")
 The deck is not BiS Tools' alone. The kit is embedded in every addon (a synced BiSTheme copy, newest minor wins, as Settings
 does for the BiS> options page), and whichever addon loads first makes the ONE frame. Registering a page or a card IS the
