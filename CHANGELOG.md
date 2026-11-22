@@ -1,6 +1,9 @@
 ## Next
 
 - **BiS> Bosses is a phone.** The boss finder is tall and narrow now: the boss in 3D on top with its name, how many are down, in sight and marked in boxes, the list under it, and FIND as the biggest button. A dead boss gets a green tick. It opens right of your character until you drag it.
+- **BiS> Bosses: quest targets.** A QUESTS tab lists who your quests need in this dungeon - and outside its entrance, in the same zone (Maraudon's khans, Razorfen Downs' camps and Ambassador Malcin). Click a row to target and mark them; the quest itself ticks the row off. Who in your party is on the quest too shows as initials. Kill quests work alone; with Questie installed, item quests know who carries the item.
+- **BiS> Bosses: FOUND works inside.** Inside a dungeon the game hides creatures' names from addons, so a press always said "not in sight". It now knows when it hit without reading a name.
+- A few bosses go by another name than their fight's (Kirtonos the Herald, Ras Frostwhisper, Gelihast, War Handler Ashka, Overlord Mugg): both are tried. A /reload late in a long run no longer forgets who is dead.
 
 ## 1.7.3
 

@@ -44,11 +44,12 @@ BF.W, BF.H = 240, 427              -- 9:16
 BF.SCALE = 1.35                    -- as high as the probe deck's phone; its letters are a point bigger than the wide one's
 BF.PAD = 8
 BF.ROWS, BF.ROW = 8, 18
-BF.SCREEN_H = 122                  -- the boss, edge to edge (top of the phone)
+BF.SCREEN_H = 112                  -- the boss, edge to edge (top of the phone)
 BF.TITLE_Y = BF.SCREEN_H + 5       -- the place's name
 BF.BOX_Y, BF.BOX_H = BF.TITLE_Y + 17, 25          -- down / in sight / marked
-BF.TAPE_Y, BF.TAPE_H = BF.BOX_Y + BF.BOX_H + 3, 5
-BF.ROWS_Y = BF.TAPE_Y + BF.TAPE_H + 4
+BF.TAB_Y, BF.TAB_H = BF.BOX_Y + BF.BOX_H + 3, 17              -- BOSSES / QUESTS (BossQuests.lua)
+BF.TAPE_Y, BF.TAPE_H = BF.TAB_Y + BF.TAB_H + 2, 3
+BF.ROWS_Y = BF.TAPE_Y + BF.TAPE_H + 3
 BF.PAGE_Y, BF.PAGE_H = BF.ROWS_Y + BF.ROWS * BF.ROW + 2, 13   -- < > and what the last press did
 BF.FIND_Y, BF.FIND_H = BF.PAGE_Y + BF.PAGE_H + 4, 26
 BF.KEYS_Y, BF.KEYS_H = BF.FIND_Y + BF.FIND_H + 4, 18          -- MARK ALL, RESET
@@ -75,7 +76,13 @@ BF.SKY = { { 0.09, 0.04, 0.20 }, { 0.20, 0.05, 0.33 }, { 0.38, 0.07, 0.42 }, { 0
 BF.SUN = { 1.00, 0.55, 0.35 }
 BF.GRID = { 1.00, 0.25, 0.75 }
 BF.STATE_INK = { down = "good", near = "gold", marked = "accent", far = "ink2", group = "slate" }
-BF.STATE_WORD = { down = "DOWN", near = "IN SIGHT", marked = "MARKED", far = "", group = "GROUP" }
+BF.STATE_WORD = { down = "DOWN", near = "IN SIGHT", marked = "FOUND", far = "", group = "GROUP" }
+-- AN ENCOUNTER'S NAME IS NOT ALWAYS THE CREATURE'S (21 Nov: /targetexact wants the creature's): tried second. Infurnus and
+-- The Butcher are unknown still.
+BF.ALT = {
+  ["Kirtonos"] = "Kirtonos the Herald", ["Ras Frostwhisperer"] = "Ras Frostwhisper", ["Geilhast"] = "Gelihast",
+  ["Handler Ashka"] = "War Handler Ashka", ["Overseer Mugg"] = "Overlord Mugg",
+}
 
 local TAU = 2 * math.pi
 local function K() return NS.Farm end
@@ -127,6 +134,11 @@ end
 --- Each boss's state word: down, near (in sight), marked, group (a fight of several, never targeted), far.
 function BF.State(e)
   local r = BF.run
+  if e.q then                                             -- a quest's row: its own count says done, never a name
+    if e.done then return "down" end
+    for _, n in ipairs(e.names) do if BF.near[n] then return "near" end end
+    return BF.found[e.id] and "marked" or "far"
+  end
   if r and r.down[e.id] then return "down" end
   if e.group then return "group" end
   if BF.near[e.name] then return "near" end
@@ -139,7 +151,7 @@ end
 function BF.Assign()
   local m, k = {}, 0
   for _, e in ipairs(BF.list or {}) do
-    if not e.group and not (BF.run and BF.run.down[e.id]) then
+    if not e.group and BF.State(e) ~= "down" then
       k = k + 1
       m[e.id] = BF.MARKS[k]
     end
@@ -153,12 +165,13 @@ function BF.Counts()
   local c = { down = 0, near = 0, marked = 0, all = 0 }
   local r = BF.run
   for _, e in ipairs(BF.list or {}) do
+    local st = BF.State(e)
     c.all = c.all + 1
-    if r and r.down[e.id] then
+    if st == "down" then
       c.down = c.down + 1
     else
-      if BF.near[e.name] then c.near = c.near + 1 end
-      if r and r.marked[e.id] then c.marked = c.marked + 1 end
+      if st == "near" then c.near = c.near + 1 end
+      if (e.q and BF.found[e.id]) or (not e.q and r and r.marked[e.id]) then c.marked = c.marked + 1 end
     end
   end
   return c
@@ -167,8 +180,16 @@ end
 -- ------------------------------------------------------------------ the macros (the suite runs them)
 
 --- The lines that look for one boss: clear, search, mark (when it has one), ping (find, or shift on a row).
-function BF.Lines(e, ping)
-  local out = { "/cleartarget", "/targetexact " .. e.name }
+function BF.Names(e)
+  if e.names then return e.names end
+  return BF.ALT[e.name] and { e.name, BF.ALT[e.name] } or { e.name }
+end
+function BF.Lines(e, ping, most)
+  local out = { "/cleartarget" }
+  for i, n in ipairs(BF.Names(e)) do
+    if i > (most or 9) then break end
+    out[#out + 1] = "/targetexact " .. (i > 1 and "[noexists] " or "") .. n
+  end
   local m = BF.mark and BF.mark[e.id]
   if m then out[#out + 1] = "/tm [exists] !" .. m end
   -- the ping NAMES its unit (8 Nov, Arn: "bis tools boss no ping on shift click" - "/ping [mod:shift,exists]" pinged
@@ -178,10 +199,22 @@ function BF.Lines(e, ping)
   return table.concat(out, "\n")
 end
 
+--- The whole macro of one entry. FOUND WITHOUT A NAME (21 Nov: inside a dungeon a living creature's name is secret, so a
+--- press could never tell it had hit - "not in sight" even when the skull went on): the last line but one clicks our own
+--- plain button only when somebody is targeted. It stands after the work, and the line after it does nothing then - so a
+--- client that will not run it loses nothing (UNVERIFIED live). As many names as fit in BF.MACRO_MAX.
+function BF.One(e, ping)
+  for most = 9, 1, -1 do
+    local m = BF.Lines(e, ping, most) .. "\n/click [exists] BiSToolsBossHit\n/targetlasttarget [noexists]"
+    if #m <= BF.MACRO_MAX then return m end
+  end
+  return ""
+end
+
 --- A row's macro: that boss, pinged when shift is held, your old target back when it is not in sight.
 function BF.RowMacro(e)
   if not e or e.group then return "" end
-  return BF.Lines(e, "shift") .. "\n/targetlasttarget [noexists]"
+  return BF.One(e, "shift")
 end
 
 --- The bosses a press may look for, standing and targetable, from `from` round the list.
@@ -190,7 +223,7 @@ function BF.Standing(from)
   local n = #list
   for i = 0, n - 1 do
     local e = list[((from or 1) - 1 + i) % n + 1]
-    if e and not e.group and not (BF.run and BF.run.down[e.id]) then out[#out + 1] = e end
+    if e and not e.group and BF.State(e) ~= "down" then out[#out + 1] = e end
   end
   return out
 end
@@ -213,14 +246,14 @@ end
 --- FIND: one boss a press - the ones in sight first, then round the list - targeted, marked and pinged.
 function BF.FindNext()
   local standing = BF.Standing(BF.findAt)
-  for _, e in ipairs(standing) do if BF.near[e.name] then return e end end
+  for _, e in ipairs(standing) do if BF.State(e) == "near" then return e end end
   return standing[1]
 end
 
 function BF.FindMacro()
   local e = BF.FindNext()
   if not e then return "", nil end
-  return BF.Lines(e, "always") .. "\n/targetlasttarget [noexists]", e
+  return BF.One(e, "always"), e
 end
 
 --- Where an entry sits in the list (the next press goes on from the one after).
@@ -253,6 +286,7 @@ function BF.Write()
   if fighting() then BF.dirty = true return false end
   BF.dirty = nil
   BF.Assign()
+  BF.Hit()
   local fm, fe = BF.FindMacro()
   BF.FindKey():SetAttribute("macrotext", fm)
   BF.findFor = fe
@@ -287,19 +321,47 @@ local function targetName()
   return ask(UnitName, "target")
 end
 
---- After a press: if your target is the boss, it is MARKED (and its creature id learned for the screen).
+--- The button the macro clicks when somebody is targeted (BF.One): a plain one of ours, it only remembers.
+function BF.Hit()
+  if BF.hit then return BF.hit end
+  local b = CreateFrame("Button", "BiSToolsBossHit", UIParent)
+  b:SetSize(1, 1)
+  b:RegisterForClicks("AnyUp", "AnyDown")
+  b:SetScript("OnClick", function() BF.heard = true end)
+  BF.hit = b
+  return b
+end
+
+--- Did the press find him? true / false, or nil = somebody is targeted but nobody may say who (inside, his name is
+--- secret; it may be your old target back).
+function BF.Got(e)
+  local heard = BF.heard
+  BF.heard = nil
+  local name = targetName()
+  if name then
+    for _, n in ipairs(BF.Names(e)) do if n == name then return true end end
+    return false
+  end
+  if heard then return true end
+  if not (UnitExists and ask(UnitExists, "target")) then return false end
+  return nil
+end
+
+--- After a press: found = FOUND (a boss's creature id learned for the screen when his name may be read).
 function BF.Took(e)
   if not e or e.group then return false end
-  local got = targetName() == e.name
-  if got and BF.run then
-    BF.run.marked[e.id] = true
+  local got = BF.Got(e)
+  if got then
+    if e.q then BF.found[e.id] = true elseif BF.run then BF.run.marked[e.id] = true end
     BF.LearnUnit("target")
     BF.Say(e.name .. (BF.mark and BF.mark[e.id] and " marked" or " targeted"), "good")
-  elseif not got then
+  elseif got == false then
     BF.Say(e.name .. " is not in sight", "ink2")
+  else
+    BF.Say("looked for " .. e.name, "ink2")
   end
   BF.Paint()
-  return got
+  return got and true or false
 end
 
 function BF.AfterAll(b)
@@ -356,7 +418,7 @@ function BF.Look(unit)
   if not e then return nil end
   if unit:find("^nameplate") then BF.near[name] = true end
   BF.LearnUnit(unit)
-  if ask(UnitIsDead, unit) == true then BF.Down(e, "seen") end
+  if not e.q and ask(UnitIsDead, unit) == true then BF.Down(e, "seen") end
   return e
 end
 
@@ -378,39 +440,115 @@ function BF.Down(e, how)
   local r = BF.run
   if not (e and r) or r.down[e.id] then return false end
   r.down[e.id] = true
+  r.at = now()                             -- a kill keeps the run alive (a /reload past BF.RUN_GAP forgot the dead, 21 Nov)
   BF.near[e.name] = nil
-  local c = BF.Counts()
-  BF.Say(e.name .. " down - " .. c.down .. " of " .. c.all, "good")
+  local all, down = 0, 0
+  for _, x in ipairs(BF.bosses or {}) do all = all + 1 if r.down[x.id] then down = down + 1 end end
+  BF.Say(e.name .. " down - " .. down .. " of " .. all, "good")
   BF.lastHow = how
   BF.Write()
   BF.Paint()
   return true
 end
 
---- Into a place (or out of one): the list, the run, the eyes on or off.
+BF.near, BF.found, BF.quests, BF.tab = {}, {}, {}, "boss"
+
+--- The list of the open tab, and every name the eyes look for.
+function BF.Index()
+  BF.list = (BF.tab == "quest") and BF.quests or BF.bosses
+  BF.byName = {}
+  for _, e in ipairs(BF.quests or {}) do for _, n in ipairs(e.names) do BF.byName[n] = e end end
+  for _, e in ipairs(BF.bosses or {}) do BF.byName[e.name] = e end
+  BF.page = math.max(1, math.min(BF.Pages(), BF.page or 1))
+end
+
+--- The quest log read again for this place (out of a fight: the rows are secure buttons).
+function BF.ReadQuests()
+  local BQ = NS.BossQuests
+  BF.quests, BF.unknown, BF.focus = {}, 0, nil
+  if BQ and BF.spot then
+    BF.quests, BF.unknown = BQ.Rows(BF.spot)
+    if not BF.map then                                   -- outside: the title, and that dungeon's bosses for a look
+      local one
+      BF.outName, one = BQ.Title(BF.spot, BF.quests)
+      BF.bosses = one and NS.BossData[one] and NS.BossData[one].bosses or nil
+    end
+  end
+  BF.Index()
+end
+
+--- The log changed. In a fight the rows keep their places and only their counts move; the list itself waits.
+function BF.QuestsNow()
+  if not BF.spot then return end
+  if fighting() then
+    local by = {}
+    for _, e in ipairs(NS.BossQuests.Rows(BF.spot)) do by[e.id] = e end
+    for _, e in ipairs(BF.quests) do
+      local x = by[e.id]
+      if x then e.have, e.need, e.done, e.who = x.have, x.need, x.done, x.who end
+    end
+    BF.questsLate = true
+    BF.Paint()
+    return
+  end
+  BF.questsLate = nil
+  local had = #BF.quests
+  BF.ReadQuests()
+  BF.Write()
+  if not BF.map and had == 0 and #BF.quests > 0 and BF.db and BF.db.open and not BF.IsOpen() then BF.Toggle(true) end
+  if NS.Box and NS.Box.Refresh then NS.Box.Refresh() end
+  BF.Paint()
+end
+
+--- BOSSES or QUESTS. Not in a fight: the rows are secure.
+function BF.SetTab(tab)
+  if fighting() then return false end
+  BF.tab = (tab == "quest") and "quest" or "boss"
+  BF.page, BF.allAt, BF.findAt, BF.focus, BF.screenFor = 1, 1, 1, nil, nil
+  BF.Index()
+  BF.Say("", "ink2")
+  BF.Write()
+  BF.Paint()
+  return true
+end
+
+--- Into a place (or out of one): the list, the run, the eyes on or off. A place = a dungeon of the list, or the zone of
+--- one's entrance (its quests only, BossQuests.lua).
 function BF.Enter()
   local db = BF.db
   if not db then return end
-  local map, data = nil, nil
-  if R:Enabled("bosses") then map, data = BF.Here() end
-  if map ~= BF.map then
-    BF.map, BF.data = map, data
-    BF.list, BF.byName, BF.near = data and data.bosses or nil, {}, {}
+  local BQ = NS.BossQuests
+  local map, data, spot, soon = nil, nil, nil, nil
+  if R:Enabled("bosses") then
+    map, data = BF.Here()
+    if map then spot = BQ and BQ.Place({ map }, true)
+    elseif BQ and ask(IsInInstance) ~= true then spot, soon = BQ.Outside() end
+  end
+  -- a loading screen's end: the game has no map for you yet - look once more, a few times at most
+  if soon and (BF.soonTries or 0) < 3 and C_Timer and C_Timer.After then
+    BF.soonTries = (BF.soonTries or 0) + 1
+    C_Timer.After(2, function() BF.Enter() end)
+  elseif not soon then BF.soonTries = nil end
+  local place = map and ("in:" .. map) or (spot and spot.key) or nil
+  if place ~= BF.key then
+    BF.key, BF.map, BF.data, BF.spot = place, map, data, spot
+    BF.near, BF.found, BF.run = {}, {}, nil
+    BF.bosses, BF.outName = data and data.bosses or nil, nil
     BF.page, BF.allAt, BF.findAt = 1, 1, 1
-    for _, e in ipairs(BF.list or {}) do BF.byName[e.name] = e end
-    BF.Eyes(map ~= nil)
+    BF.tab = (place and not map) and "quest" or "boss"
+    local was = db.run
+    if map then BF.run = BF.Run(db, map) end
+    BF.ReadQuests()
+    BF.Eyes(place ~= nil)
+    if place then BF.Scan() end
     if map then
-      local was = db.run
-      BF.run = BF.Run(db, map)
-      BF.Scan()
       -- up by itself once a run; and back again if it was open when you left (a wipe's run back, a hearth) -
       -- leaving shuts it below without touching db.open; only your own close does
       local fresh = db.auto ~= false and BF.run ~= was
       if (fresh or db.open) and not fighting() then BF.Toggle(true) end
-    else
-      BF.run = nil
-      if BF.frame and BF.frame:IsShown() and not fighting() then BF.frame:Hide() end
-    end
+    elseif place and #BF.quests > 0 and db.open then     -- outside the entrance: only if it was yours and open
+      if not fighting() then BF.Toggle(true) end
+    elseif BF.frame and BF.frame:IsShown() and not fighting() then BF.frame:Hide() end
     BF.Write()
     if NS.Box and NS.Box.Refresh then NS.Box.Refresh() end
   elseif map then
@@ -631,12 +769,30 @@ function BF.Build()
     w:SetPoint("TOPLEFT", b, "TOPLEFT", 5, -3)
     local n = k.fs(b, "", 12, ink)
     n:SetPoint("TOPLEFT", b, "TOPLEFT", 5, -10)
+    b.word = w
     f.boxes[i] = b
     return n
   end
   f.readDown = box(1, "DOWN", "good")
-  f.readNear = box(2, "IN SIGHT", "gold")
-  f.readMark = box(3, "MARKED", "accent")
+  f.readNear = box(2, "LEFT", "gold")
+  f.readMark = box(3, "FOUND", "accent")
+  -- the tabs: plain buttons (they only turn the page; what they change is written out of a fight)
+  f.tabs = {}
+  for i, which in ipairs({ "boss", "quest" }) do
+    local b = key(f, "", W / 2 - 2, BF.TAB_H, nil, function() BF.SetTab(which) end)
+    b:SetPoint("TOPLEFT", f, "TOPLEFT", P + (i - 1) * (W / 2 + 2), -BF.TAB_Y)
+    b.which = which
+    b.tip = function(self)
+      if not GameTooltip then return end
+      GameTooltip:SetOwner(self, "ANCHOR_TOP")
+      GameTooltip:AddLine(which == "boss" and "The bosses of this place" or "Who your quests need here")
+      if which == "quest" and (BF.unknown or 0) > 0 then
+        GameTooltip:AddLine(BF.unknown .. " more need things nobody can name yet - the Questie addon knows most", 0.6, 0.6, 0.6, true)
+      end
+      GameTooltip:Show()
+    end
+    f.tabs[i] = b
+  end
   -- the list: a row a boss, its mark, its name, what is known
   local x0, w = P, W
   f.rows = {}
@@ -663,9 +819,14 @@ function BF.Build()
     r.check:Hide()
     r.name = k.fs(r, "", 10, "ink")
     r.name:SetPoint("LEFT", 24, 0)
-    r.name:SetWidth(w - 24 - 58)
+    r.name:SetWidth(w - 24 - 92)
     r.name:SetJustifyH("LEFT")
     r.name:SetWordWrap(false)                         -- one line: a long name is cut, never wrapped over the next row
+    r.who = k.fs(r, "", 8, "ink2")                    -- who in your party is on the quest too: initials
+    r.who:SetPoint("RIGHT", -58, 0)
+    r.who:SetWidth(34)
+    r.who:SetJustifyH("RIGHT")
+    r.who:SetWordWrap(false)
     r.state = k.fs(r, "", 7, "ink2")
     r.state:SetPoint("RIGHT", -4, 0)
     r.state:SetWidth(52)
@@ -679,6 +840,11 @@ function BF.Build()
       if not (e and GameTooltip) then return end
       GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
       GameTooltip:AddLine(e.name)
+      if e.q then
+        GameTooltip:AddLine((e.title or "") .. "  " .. e.have .. " / " .. e.need, 1, 0.82, 0)
+        for i = 2, #e.names do GameTooltip:AddLine("or: " .. e.names[i], 0.6, 0.6, 0.6) end
+        for _, u in ipairs(e.who or {}) do GameTooltip:AddLine(u.name .. " is on it too", 0.6, 0.85, 1) end
+      end
       if e.group then
         GameTooltip:AddLine("A fight of several - ticked off when it ends", 1, 1, 1)
       else
@@ -802,6 +968,10 @@ end
 function BF.NpcOf(e)
   local db = BF.db
   local C = NS.Codex
+  if e.q and e.npc then
+    local s = C and C.DATA and C.DATA.creatures and C.DATA.creatures[e.npc]
+    return e.npc, s and s.display or nil
+  end
   local met = db and db.npcs and db.npcs[e.name]
   if met then                                  -- met: its own id, and the Codex's model id when the book has it
     local s = C and C.DATA and C.DATA.creatures and C.DATA.creatures[met]
@@ -814,6 +984,24 @@ function BF.NpcOf(e)
   return nil
 end
 
+--- An entry's word and its colour: its state, or a quest's count ("0 / 1").
+function BF.Word(e, st)
+  if e and e.q and st == "down" then return "DONE", "good" end
+  if e and e.q and st == "far" then return e.have .. " / " .. e.need, "ink2" end
+  return BF.STATE_WORD[st] or "", BF.STATE_INK[st] or "ink2"
+end
+
+--- The initials of the party on a quest, each in its class colour.
+function BF.Initials(who)
+  local out = {}
+  for _, u in ipairs(who or {}) do
+    local c = RAID_CLASS_COLORS and u.class and RAID_CLASS_COLORS[u.class]
+    local l = u.name:match("^[%z\1-\127\194-\244][\128-\191]*") or "?"
+    out[#out + 1] = c and c.colorStr and ("|c" .. c.colorStr .. l .. "|r") or l
+  end
+  return table.concat(out, " ")
+end
+
 --- The screen: the boss under the mouse, else the next one to find - in 3D over the sunset, or the sunset alone.
 function BF.Screen()
   local f = BF.frame
@@ -821,8 +1009,10 @@ function BF.Screen()
   local e = BF.focus or BF.FindNext() or (BF.list and BF.list[1])
   f.caption:SetText(e and e.name or "")
   local st = e and BF.State(e) or "far"
-  f.capState:SetText(BF.STATE_WORD[st] or "")
-  f.capState:SetTextColor(rgb(BF.STATE_INK[st] or "ink2"))
+  local word, ink = BF.Word(e, st)
+  if e and e.note and st ~= "down" then word, ink = e.note, "gold" end
+  f.capState:SetText(word)
+  f.capState:SetTextColor(rgb(ink))
   for _, r in ipairs(f.rows or {}) do                -- the row of the boss on the screen is lit
     local on = e ~= nil and r.entry == e
     r.bar:SetAlpha(on and 1 or 0)
@@ -840,7 +1030,8 @@ function BF.Screen()
   if not (npc or display) then
     m:ClearModel()
     m:Hide()
-    f.nopic:SetText(e and (e.group and "A FIGHT OF SEVERAL" or "NO PICTURE YET") or "")
+    f.nopic:SetText(e and (e.group and "A FIGHT OF SEVERAL" or "NO PICTURE YET")
+      or (BF.tab == "quest" and "NO QUEST NEEDS ANYONE HERE") or "")
     BF.showing, BF.missAt = nil, t
     return
   end
@@ -893,7 +1084,7 @@ function BF.Paint()
   local f = BF.frame
   if not (f and f:IsShown()) then return end
   local list = BF.list or {}
-  f.place:SetText(BF.data and BF.data.name or "not in a dungeon")
+  f.place:SetText(BF.data and BF.data.name or BF.outName or "not in a dungeon")
   f.build:SetText(NS.Stamp and NS.Stamp() or "")
   local page = BF.page or 1
   -- IN A FIGHT THE ROWS AND KEYS ARE SECURE BUTTONS: showing or hiding one is protected, even one already shown
@@ -924,8 +1115,10 @@ function BF.Paint()
       if st == "down" then r.icon:Hide() r.num:SetText("") r.check:Show() else r.check:Hide() end
       r.name:SetText(e.name)
       r.name:SetTextColor(rgb(st == "down" and "dim" or "ink"))
-      r.state:SetText(BF.STATE_WORD[st] or "")
-      r.state:SetTextColor(rgb(BF.STATE_INK[st] or "ink2"))
+      local word, ink = BF.Word(e, st)
+      r.state:SetText(word)
+      r.state:SetTextColor(rgb(ink))
+      r.who:SetText(BF.Initials(e.who))
       vis(r, true)
     else
       vis(r, false)
@@ -937,7 +1130,19 @@ function BF.Paint()
   vis(f.next, pages > 1)
   local c = BF.Counts()
   f.readDown:SetText(c.down .. " / " .. c.all)
-  f.readNear:SetText(tostring(c.near))
+  f.boxes[1].word:SetText(BF.tab == "quest" and "DONE" or "DOWN")
+  f.readNear:SetText(tostring(c.all - c.down))
+  local left = { boss = 0, quest = 0 }
+  for _, e in ipairs(BF.bosses or {}) do if BF.State(e) ~= "down" then left.boss = left.boss + 1 end end
+  for _, e in ipairs(BF.quests or {}) do if not e.done then left.quest = left.quest + 1 end end
+  for _, b in ipairs(f.tabs) do
+    local on = b.which == BF.tab
+    b.label:SetText((b.which == "boss" and "BOSSES " or "QUESTS ") .. left[b.which])
+    b.ink = on and "ink" or "dim"
+    b.label:SetTextColor(rgb(b.ink))
+    b.lit:SetColorTexture(rgb(on and "accent" or "line2"))
+    b.lit:SetAlpha(on and 1 or 0.4)
+  end
   f.readMark:SetText(tostring(c.marked))
   BF.PaintClock(f)
   BF.PaintTape(f)
@@ -962,7 +1167,7 @@ BF.FIGHT_HELP = "FIGHT · screen quiet, keys locked - back after the fight"
 BF.HELP = "click: target + mark   shift: + ping   FIND: the next one"
 
 function BF.Clickables(f)
-  local list = { f.close, f.prev, f.next, f.all, f.find, f.reset }
+  local list = { f.close, f.prev, f.next, f.all, f.find, f.reset, f.tabs[1], f.tabs[2] }
   for _, r in ipairs(f.rows or {}) do list[#list + 1] = r end
   return list
 end
@@ -1030,8 +1235,9 @@ end
 
 --- RESET: a fresh run here - nothing down, nothing marked.
 function BF.Reset()
-  if not (BF.db and BF.map) then return end
-  BF.run = BF.Run(BF.db, BF.map, true)
+  if not (BF.db and BF.key) then return end
+  BF.found = {}
+  if BF.map then BF.run = BF.Run(BF.db, BF.map, true) end
   BF.allAt, BF.findAt = 1, 1
   BF.Say("a fresh run", "gold")
   BF.Write()
@@ -1041,7 +1247,7 @@ end
 -- ------------------------------------------------------------------ the door: a button in the BiS> tools box
 
 function BF.ShowBox()
-  return (R:Enabled("bosses") and BF.db and BF.db.button ~= false and BF.map ~= nil and not fighting()) and true or false
+  return (R:Enabled("bosses") and BF.db and BF.db.button ~= false and (BF.map ~= nil or (BF.key ~= nil and #BF.quests > 0)) and not fighting()) and true or false
 end
 
 function BF.BoxButton()
@@ -1092,11 +1298,12 @@ function BF.Eyes(on)
     if on then pcall(ev.RegisterEvent, ev, e) else pcall(ev.UnregisterEvent, ev, e) end
   end
   BF.eyes = on and true or false
+  if NS.BossQuests then NS.BossQuests.Listen(on) end
 end
 
 function BF.OnEvent(event, a1, a2, _, _, a5)
   if event == "PLAYER_ENTERING_WORLD" or event == "ZONE_CHANGED_NEW_AREA" then return BF.Enter() end
-  if not BF.map then return end
+  if not BF.key then return end
   if event == "NAME_PLATE_UNIT_ADDED" then
     if type(a1) == "string" and BF.Look(a1) then BF.Paint() end
   elseif event == "NAME_PLATE_UNIT_REMOVED" then
@@ -1113,7 +1320,7 @@ function BF.OnEvent(event, a1, a2, _, _, a5)
     BF.fight = nil
     local id, name, success = plain(a1), plain(a2), plain(a5)
     if success == 1 or success == true then
-      for _, e in ipairs(BF.list or {}) do
+      for _, e in ipairs(BF.map and BF.bosses or {}) do
         if e.id == id or e.name == name then BF.Down(e, "fight") break end
       end
     end
@@ -1121,6 +1328,7 @@ function BF.OnEvent(event, a1, a2, _, _, a5)
     -- the fight starts: the window stays, dimmed and unclickable (BF.Dim) - it no longer steps away
     if BF.frame and BF.frame:IsShown() then BF.Dim(true) end
   elseif event == "PLAYER_REGEN_ENABLED" then
+    if BF.questsLate then BF.QuestsNow() end
     if BF.dirty then BF.Write() end
     if BF.keyDirty and BF.db then BF.ApplyKey(BF.db) end
     if BF.frame and BF.frame.dimmed then BF.Dim(false) end
@@ -1155,11 +1363,12 @@ R:Register({
   },
   OnInit = function(_, db) BF.db = db end,
   OnLogin = function(_, db) BF.db = db BF.ApplyKey(db) end,
-  OnEnable = function(_, db) BF.db = db BF.map = false BF.Enter() BF.ApplyKey(db) end,
+  OnEnable = function(_, db) BF.db = db BF.map, BF.key = false, false BF.Enter() BF.ApplyKey(db) end,
   OnDisable = function()
     if BF.frame and not fighting() then BF.frame:Hide() end
     BF.Eyes(false)
-    BF.map, BF.list, BF.run = nil, nil, nil
+    BF.map, BF.key, BF.spot, BF.list, BF.bosses, BF.run = nil, nil, nil, nil, nil, nil
+    BF.quests, BF.found = {}, {}
     if BF.fkey and not InCombatLockdown() then ClearOverrideBindings(BF.fkey) end
     if NS.Box and NS.Box.Refresh then NS.Box.Refresh() end
   end,
