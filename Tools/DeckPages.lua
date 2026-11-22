@@ -141,7 +141,7 @@ DP.Register()
 R:Register({
   name = "deck",
   desc = "the one BiS deck, tall or wide: live cards, pages, steps (first try: look, do not lean on it yet)",
-  usage = "/bist deck  |  /bist deck wide|tall|pin <profile>|unpin",
+  usage = "/bist deck  |  /bist deck wide|tall|pad|pin <profile>|unpin",
   defaultOff = true,
   defaults = {},
   OnEnable = function() if D then D.Show() end end,
@@ -155,6 +155,9 @@ R:Register({
     elseif cmd == "pin" then
       for _, p in ipairs(D.PROFILES) do if p:lower() == rest:lower() then D.Pin(p) return NS.Print("deck: pinned to %s", p) end end
       NS.Print("deck: profiles are %s", table.concat(D.PROFILES, ", "))
+    elseif cmd == "pad" then
+      -- the pad holds the deck only while asked to (B gives it back): it stands open all evening
+      if not D.Focus(not D.focused) then NS.Print("deck: no gamepad kit, or a fight") end
     elseif cmd == "unpin" then D.Pin(nil) NS.Print("deck: it follows you again")
     else D.Toggle() end
   end,

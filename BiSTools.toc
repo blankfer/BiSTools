@@ -10,6 +10,7 @@
 ## X-Curse-Project-ID: 1686340
 
 Libs\BiSTheme\Console.lua
+Libs\BiSTheme\Pad.lua
 Libs\BiSTheme\Options.lua
 Libs\BiSTheme\Settings.lua
 Libs\BiSTheme\DeckLayout.lua

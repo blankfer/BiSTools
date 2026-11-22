@@ -35,6 +35,18 @@ The deck stands on the healing deck's BLACK: a part switched off leaves no hole.
 page hands in words and numbers and never a colour. `_bisdev/colours.lua` (check.sh) counts hand-picked colours per addon and only
 lets the number go down.
 
+## For everyone (Arn, 22 Nov: "design in mind going forward, let's make it easy for people with accessibility and gamepad support")
+- EASY TO HIT: nothing to click under 24 wide and 22 high before the deck's 1.25 (the sweep fails otherwise); one press, never
+  a hold, never a double click; a button and its opposite stand apart.
+- EASY TO READ: no words under 11 units (the faint code aside), SIZE scales all of it, "Stronger words" turns grey into white.
+- NEVER BY COLOUR ALONE: gold has a "!", done has a tick, a switch says ON / OFF, the chosen row has a bar.
+- EASY TO HEAR: "Read aloud" (off until asked for) speaks what the mouse or the pad is on; never in a fight.
+- QUIET: nothing flashes or loops; a fight makes it almost vanish.
+- THE PAD: D-pad = nearest piece, A = press, B = back then out, LB / RB = tabs or steps (BiSTheme Pad.lua). The deck stands open
+  all evening, so it holds the pad only while asked (`/bist deck pad`) and gives it back at B and at every pull. A secure button
+  cannot be pressed by the pad's :Click() - the overlay must bind PAD1 to it out of a fight (UNPROVEN).
+- Nothing lives only on hover: what a tooltip says, focus says too.
+
 ## One deck for every addon (Arn, 21 Nov: "this makes api our apps way easier", "unifed ui", "we can put a bis memoris live cardd")
 The deck is not BiS Tools' alone. The kit is embedded in every addon (a synced BiSTheme copy, newest minor wins, as Settings
 does for the BiS> options page), and whichever addon loads first makes the ONE frame. Registering a page or a card IS the
