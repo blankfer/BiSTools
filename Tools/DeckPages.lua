@@ -324,6 +324,16 @@ R:Register({
   end,
 })
 
+--- The minimap button's left click (Tools/Hub.lua): is the deck switched on? Then open / close it. Answers true when it did.
+function DP.IsOn() return (D and R:Enabled("deck")) and true or false end
+function DP.Toggle()
+  if not DP.IsOn() then return false end
+  D.Toggle()
+  return true
+end
+function BiSTools_ToggleDeck() if not DP.Toggle() and D then R:SetEnabled("deck", true) end end    -- the key (Key Bindings > BiS Tools)
+_G.BINDING_NAME_BISTOOLS_DECK = "The deck"
+
 --- Is the Rides card out on the screen? Then the old rides card stays away: one or the other (Tools/Rides.lua asks).
 function DP.RidePinned() return D and D.IsPinned and R:Enabled("deck") and D.IsPinned("BiSTools:rides") or false end
 

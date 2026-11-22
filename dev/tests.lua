@@ -10287,6 +10287,19 @@ do
   S("deck pin raid night")
   ok(Dk.profile == "Raid night", "/bist deck pin raid night", Dk.profile)
   S("deck unpin")
+  -- NO COMMAND TO TYPE: with the deck on, the minimap button opens and closes it
+  do
+    local mm = BiSToolsMinimap
+    local was = Dk.frame:IsShown()
+    mm:GetScript("OnClick")(mm, "LeftButton")
+    ok(Dk.frame:IsShown() ~= was, "deck on: the minimap's left click opens / closes it")
+    mm:GetScript("OnClick")(mm, "LeftButton")
+    ok(Dk.frame:IsShown() == was, "and again")
+    BiSTools_ToggleDeck()
+    ok(Dk.frame:IsShown() ~= was, "so does the key")
+    BiSTools_ToggleDeck()
+    Dk.Show()
+  end
   ok(Dk.Theme().key == "dark", "the clean dark one until you change it")
   S("deck theme Night drive")
   ok(Dk.Theme().key == "drive", "/bist deck theme night drive")
@@ -10400,6 +10413,7 @@ do
   Dk.PinBack("BiSTools:rides")
   S("off deck")
   ok(not Dk.frame:IsShown(), "off: gone")
+  ok(DP.Toggle() == false and not Dk.frame:IsShown(), "off: the minimap's left click is the Hub's again")
   _G.IsInInstance = function() return false, "none" end
   fireAll("ZONE_CHANGED_NEW_AREA")
   ok(DP.Boss() == nil and #DP.Steps() == 0 and Dk.defs["BiSTools:bosses"].card.prio() == nil, "outside: no card, no steps")
@@ -10734,7 +10748,8 @@ local allowed = { BiSTools = true, BiSToolsDB = true, BiSToolsAlts = true, SLASH
   BiSTheme = true,    -- the embedded Libs/BiSTheme/Console.lua guards on this global on purpose
   BiSToolsAPI = true, -- API.lua, for other addons (16 Oct: BiS Guild's invites)
   -- the overlay map's key binding: Bindings.xml calls a global, and the client reads these two names
-  BiSTools_ToggleOverlayMap = true, BINDING_HEADER_BISTOOLS = true, BINDING_NAME_BISTOOLS_OVERLAYMAP = true }
+  BiSTools_ToggleOverlayMap = true, BINDING_HEADER_BISTOOLS = true, BINDING_NAME_BISTOOLS_OVERLAYMAP = true,
+  BiSTools_ToggleDeck = true, BINDING_NAME_BISTOOLS_DECK = true }
 for k in pairs(_G) do
   if not before[k] and not allowed[k] and not frames[k] then error("leaked global: " .. k) end
 end

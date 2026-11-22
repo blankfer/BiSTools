@@ -117,8 +117,12 @@ function H.BuildMinimap()
   -- ONE STANDARD for every BiS minimap button (Forever 1.0, Arn 7 Nov: "we gotta get everything on the same
   -- page"): left = the main window (the Hub), right = options - the BiS> Tools page in the game's own options,
   -- else the own options window. No shift/ctrl/middle extras.
+  -- NO COMMAND TO TYPE (Arn, 22 Nov: "it was very hard for me to get my cousins to type /pws game name command"): with the deck
+  -- switched on it IS the main window - left-click opens and closes it; its Tools icon is the Hub
   b:SetScript("OnClick", function(self, button)
-    if button == "RightButton" then H.OpenOptions() else H.ToggleHub() end
+    if button == "RightButton" then H.OpenOptions()
+    elseif NS.DeckPages and NS.DeckPages.Toggle and NS.DeckPages.Toggle() then -- the deck
+    else H.ToggleHub() end
     H.UnburyIcon(self)
   end)
   b:SetScript("OnDragStart", function(self) self.dragging = true self:SetScript("OnUpdate", H.DragMinimap) end)
@@ -127,7 +131,7 @@ function H.BuildMinimap()
     if not GameTooltip then return end
     GameTooltip:SetOwner(self, "ANCHOR_LEFT")
     GameTooltip:AddLine(T.text("accent", "BiS") .. " Tools " .. T.text("muted", NS.VERSION))
-    GameTooltip:AddLine("left-click  the tools", 1, 1, 1)
+    GameTooltip:AddLine(NS.DeckPages and NS.DeckPages.IsOn and NS.DeckPages.IsOn() and "left-click  the deck" or "left-click  the tools", 1, 1, 1)
     GameTooltip:AddLine("right-click  options", 1, 1, 1)
     GameTooltip:AddLine("drag  move", 1, 1, 1)
     GameTooltip:Show()
