@@ -1,3 +1,7 @@
+## Next
+
+- **BiS> Bosses is a phone.** The boss finder is tall and narrow now: the boss in 3D on top with its name, how many are down, in sight and marked in boxes, the list under it, and FIND as the biggest button. A dead boss gets a green tick. It opens right of your character until you drag it.
+
 ## 1.7.3
 
 - **Combo: your party's procs are no longer counted as yours.** In a fight the game hides your weapon speed, and the combo tape fell back to a guess - with a slow weapon, a party member's hits could pass as your swings and procs. Your real speed is now read at the pull. And after each fight the damage meter has the last word: Windfury or Flametongue procs it says weren't yours come off that fight.
