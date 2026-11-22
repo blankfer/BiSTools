@@ -186,7 +186,8 @@ function DP.Tools()
   for key, tool in R:Each() do
     n = n + 1
     if not DP.OWN[key] then
-      local name = tool.title or (tool.name:sub(1, 1):upper() .. tool.name:sub(2))
+      local name = tool.title or tool.name
+      name = ({ bg = "BG", xp = "XP" })[name] or (name:sub(1, 1):upper() .. name:sub(2))
       D.Register{
         owner = "BiSTools", key = "tool-" .. key, name = name, icon = name:sub(1, 2), order = 40 + n / 100, quietOff = true,
         about = (tool.desc:sub(1, 1):upper() .. tool.desc:sub(2)) .. ".",
