@@ -116,7 +116,7 @@ DP.App.processing = function(tool, db)
     },
     page = {
       tour = { { text = "What your enchanting can take apart now. SKIP leaves one item alone.", note = "BOUND, ENCH, CHECK: look twice." },
-        { text = "The click that does it is in the old window until the deck can hold it." } },
+        { text = "The big button takes the next one apart. One click, one item." } },
       kicker = function() return "enchanting" end,
       tabs = function() return { "READY", "LATER", "HAUL" } end,
       boxes = function(tab)
@@ -140,11 +140,17 @@ DP.App.processing = function(tool, db)
         if tab ~= 1 or not P.Knows() then return nil end
         if type(P.said) == "string" and P.said ~= "" then return P.said end
         if #work().ready == 0 then return nil end
-        return nextOne() and "One click in the old window, one item" or "All of these want a second look"
+        return nextOne() and "One click, one item" or "All of these want a second look"
       end,
       big = function(tab)
         local e = tab == 1 and nextOne()
-        return e and { word = "NEXT: " .. e.name, spell = P.SpellName(), bag = e.bag, slot = e.slot, guid = e.guid } or nil
+        return e and { word = "NEXT: " .. e.name, spell = P.SpellName(), bag = e.bag, slot = e.slot, guid = e.guid, peek = true,
+          ok = function()                                   -- (the last word: is it still that item?)
+            if not e.guid or P.GUID(e.bag, e.slot) ~= e.guid then P.Say("ITEM MOVED - LIST REFRESHED, CLICK AGAIN") kept = nil return false end
+            P.clicked = { e = e, at = GetTime() }
+            P.Say("")
+            return true
+          end } or nil
       end,
       keys = function(tab)
         local out = { oldWindow() }

@@ -17,6 +17,7 @@ Libs\BiSTheme\DeckLayout.lua
 Libs\BiSTheme\Deck.lua
 Libs\BiSTheme\DeckPins.lua
 Libs\BiSTheme\DeckWindows.lua
+Libs\BiSTheme\DeckOverlay.lua
 Libs\BiSTheme\DeckStatus.lua
 Libs\BiSTheme\DeckApps.lua
 Libs\BiSTheme\DeckAPI.lua

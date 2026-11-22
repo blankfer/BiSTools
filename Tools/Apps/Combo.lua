@@ -146,7 +146,7 @@ DP.App.combo = function(tool, db)
       if c.imbue then names[1] = c.imbue end
       for _, n in ipairs(c.totems) do names[#names + 1] = n end
       for _, n in ipairs(names) do
-        add({ pic = C.IconFor(n), mark = " ", text = n, act = { word = "CAST", spell = n }, tip = "Its cast button comes with the next step of the deck" })
+        add({ pic = C.IconFor(n), mark = " ", text = n, act = { word = "CAST", spell = n }, tip = "Click: cast it" })
       end
     elseif total then
       add({ mark = ">", text = "Every combo is tried", right = C.TRY_ENOUGH .. "+ each", ink = "good", tip = "Each has enough fights: the ranking holds" })
