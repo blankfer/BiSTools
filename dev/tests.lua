@@ -2324,7 +2324,8 @@ do
   -- (+1 in combo, 17 Nov: the clean proc text)
   -- (+ windfury (1), 18 Nov: the lamp's test button - and its section header)
   -- (+ deck (0), 21 Nov: its section header, the on/off)
-  ok(#opt.rows == 11 + 3 + 5 + 7 + 1 + 8 + 2 + 4 + 7 + 4 + 4 + 5 + 1 + 1 + 1 + 1 + 3 + 2 + 4 + 2 + 6 + 3 + 2 + 1, "one row per section header and per option", #opt.rows)
+  -- (+1 in combo, 22 Nov: the fights that count)
+  ok(#opt.rows == 11 + 3 + 5 + 7 + 1 + 8 + 2 + 4 + 7 + 4 + 4 + 5 + 1 + 1 + 1 + 1 + 3 + 2 + 4 + 2 + 6 + 3 + 2 + 1 + 1, "one row per section header and per option", #opt.rows)
   -- THE BiSTheme STANDARD, 1.43:1 (Arn, 14 Oct): its sections poured into columns, the window that shape
   ok(math.abs(opt.w / opt.h - 1.43) < 0.01 and (opt.columns or 1) >= 2, "options: 1.43:1, in columns", opt.w .. "x" .. opt.h)
   local function find(label) for _, r in ipairs(opt.rows) do if r.name and r.name.text == label then return r end end end
@@ -6039,6 +6040,64 @@ do
       ok(math.floor(r.dmg / Co.Time(r) + 0.5) == 198, "dps over that time", math.floor(r.dmg / Co.Time(r) + 0.5))
       _G.UnitAttackSpeed = keepAS
     end
+  end
+  -- IN A PARTY (Arn, 22 Nov: "combo in a party for it messed up my best combo completly")
+  do
+    local keepG, keepR, keepI, keepIs, keepT = _G.IsInGroup, _G.IsInRaid, _G.IsInInstance, _G.issecretvalue, _G.time
+    local grouped, inside, hidden = false, false, {}
+    _G.IsInGroup = function() return grouped end
+    _G.IsInRaid = function() return false end
+    _G.IsInInstance = function() return inside, inside and "party" or "none" end
+    ok(Co.Grouped() == false, "alone")
+    inside = true ok(Co.Grouped(), "alone in a dungeon: with others") inside = false
+    grouped = true ok(Co.Grouped(), "a party")
+    _G.issecretvalue = function(v) return v == hidden end
+    grouped = hidden ok(Co.Grouped(), "hidden: with others") grouped = false
+    _G.issecretvalue = keepIs
+    local function f(combo, dmg, secs, more)
+      local x = { at = 1000, sid = 1, mob = "Boar", dur = secs, dmg = dmg, active = secs * 0.9, swings = 8, imbue = combo, totems = {}, combo = combo, wf = 0, ft = 0, how = "swing cadence" }
+      for k, v in pairs(more or {}) do x[k] = v end
+      return x
+    end
+    cdb.fights, cdb.min, cdb.scope = { f("WF", 900, 10), f("WF", 900, 10), f("WF", 900, 10), f("RB", 500, 10), f("RB", 500, 10), f("RB", 500, 10) }, 0, nil
+    ok(Co.Rank()[1].combo == "WF", "solo: Windfury is best")
+    for i = 1, 40 do cdb.fights[#cdb.fights + 1] = f("WF", 60, 56, { grp = true, active = 9, swings = 4 }) end
+    ok(Co.Rank()[1].combo == "WF" and Co.Rank()[1].n == 3 and math.floor(Co.Rank()[1].dps) == 100, "a night of healing in a party changes nothing", Co.Rank()[1].dps)
+    local n, g = Co.CountKept() ok(n == 6 and g == 40, "six count, forty kept apart", n .. " " .. g)
+    cdb.scope = "group" ok(#Co.Rank() == 0, "group: they were not even swung in for half of it")
+    cdb.fights[#cdb.fights + 1] = f("FB", 4000, 40, { grp = true }) ok(#Co.Rank() == 1 and Co.Rank()[1].combo == "FB", "one that was: it counts there")
+    cdb.scope = "all" ok(#Co.Rank() == 3, "all: both") cdb.scope = nil
+    -- one swing beside a fire totem is no 1117 dps
+    cdb.fights[#cdb.fights + 1] = f("Magma", 1449, 226, { active = 3, swings = 1 })
+    for _, x in ipairs(Co.Rank()) do ok(x.combo ~= "Magma", "hardly a swing: not ranked") end
+    -- one lucky fight is not the best combo
+    cdb.fights[#cdb.fights + 1] = f("Luck", 3000, 10)
+    ok(Co.Rank()[1].combo == "WF" and Co.Rank()[#Co.Rank()].combo == "Luck", "one fight stands after the proven ones")
+    -- each kind has its own room in the save
+    local keepK, keepGr = Co.KEEP, Co.KEEP_GROUP
+    Co.KEEP, Co.KEEP_GROUP = 5, 10
+    Co.Trim(cdb)
+    local solo, grp = 0, 0
+    for _, x in ipairs(cdb.fights) do if x.grp then grp = grp + 1 else solo = solo + 1 end end
+    ok(solo == 5 and grp == 10 and cdb.fights[#cdb.fights].combo == "Luck", "the newest of each kind: neither pushes the other out", solo .. " " .. grp)
+    Co.KEEP, Co.KEEP_GROUP = keepK, keepGr
+    -- what was kept before: sorted once, by what it says
+    cdb.fights = { f("WF", 900, 10, { at = 1000 }), f("WF", 900, 10, { at = 1200 }) }
+    for i = 1, 8 do cdb.fights[#cdb.fights + 1] = f("WF", 60, 56, { at = 50000 + i * 60, active = i == 4 and 50 or 9, swings = 4, mob = i == 8 and "(!) Princess Theradras" or "Deep Borer" }) end
+    cdb.sorted = nil
+    ok(Co.SortOld(cdb) == 8 and not cdb.fights[1].grp and cdb.fights[6].grp == "guess" and Co.SortOld(cdb) == 0, "old fights: the dungeon run is with others, all of it; the two alone are not")
+    ok(#Co.Rank() == 1 and Co.Rank()[1].n == 2, "and the ranking is the solo ones again")
+    -- a fight in a party: marked, no card over it
+    grouped = true
+    sid, dur, total = 60, 30, 100
+    Co.card:Hide()
+    Co.Pull()
+    grouped = false                                          -- (the group broke up in it: still with others)
+    local rg = Co.Close({ totems = {}, grp = Co.cur.grp })
+    ok(rg and rg.grp and not Co.card:IsShown(), "in a party: marked, and no card")
+    Co.cur = nil
+    _G.IsInGroup, _G.IsInRaid, _G.IsInInstance = keepG, keepR, keepI
+    cdb.min, cdb.scope = nil, nil
   end
   R:SetEnabled("combo", false)
   cdb.fights = {}

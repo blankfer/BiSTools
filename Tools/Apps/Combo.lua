@@ -16,13 +16,13 @@ DP.App.combo = function(tool, db)
   local function int(n) return tostring(math.floor((tonumber(n) or 0) + 0.5)) end
   local function list() return db().fights or {} end
   local function last() local l = list() return l[#l] end
-  local function counts(f) return (f.dur or 0) >= C.Min() end
+  local function counts(f) return C.Counts(f) end              -- (solo, and you swung: Tools/Combo.lua)
   local function dps(f) local t = C.Time(f) or 0 return t > 0 and (f.dmg or 0) / t or 0 end
   local function wall() return (time and time()) or 0 end
   local function plural(n, word) return n .. " " .. word .. (n == 1 and "" or "s") end
   -- one paint asks the same thing several times: worked out once a moment, again after a press or a new fight
   local function once(key, fn)
-    local at = ("%s:%d:%s:%s"):format(tostring(GetTime and GetTime() or 0), #list(), tostring(db().lastSid), tostring(C.Min()))
+    local at = ("%s:%d:%s:%s"):format(tostring(GetTime and GetTime() or 0), #list(), tostring(db().lastSid), tostring(C.Min()) .. C.Scope())
     if kept.at ~= at or kept.from ~= db().fights then kept = { at = at, from = db().fights } end
     if kept[key] == nil then kept[key] = { fn() } end
     return unpack(kept[key], 1, 3)
@@ -180,12 +180,12 @@ DP.App.combo = function(tool, db)
     local all = rank()
     if #all == 0 then return {} end
     local crit = tiles(nil).CRIT
-    return { { "COMBOS", #all }, { "FIGHTS", #list() }, { "BEST", int(all[1].adj), "gold" }, { "CRIT", crit and crit[2] or "-", "good" } }
+    return { { "COMBOS", #all }, { "FIGHTS", (C.CountKept()) }, { "BEST", int(all[1].adj), "gold" }, { "CRIT", crit and crit[2] or "-", "good" } }
   end
   local function bestRows()
     local out = {}
     for i, g in ipairs(rank()) do
-      out[i] = { pic = C.IconFor(g.imbue), mark = tostring(i), text = beside(g.imbue, g.totems), right = int(g.adj), ink = i == 1 and "gold" or "good",
+      out[i] = { pic = C.IconFor(g.imbue), mark = tostring(i), text = beside(g.imbue, g.totems), right = int(g.adj) .. " (" .. g.n .. ")", ink = i == 1 and "gold" or g.n >= C.SURE and "good" or "dim",
         act = open(g.combo, true), tip = "#" .. i .. ". " .. long(g.imbue, g.totems) .. ". " .. plural(g.n, "fight") .. ", " .. int(g.dps) .. " dps, "
           .. int(g.adj) .. " as if the mobs were your level." }
     end
@@ -237,16 +237,16 @@ DP.App.combo = function(tool, db)
     local l = list()
     if #l == 0 then return {} end
     local best, all = 0, 0
-    for _, f in ipairs(l) do best, all = math.max(best, dps(f)), all + (f.dur or 0) end
+    for _, f in ipairs(l) do all = all + (f.dur or 0) if counts(f) then best = math.max(best, dps(f)) end end
     local avg = others(nil)
-    return { { "KEPT", #l }, { "AVERAGE", avg and int(avg) or "-", "good" }, { "BEST", int(best), "gold" },
+    return { { "COUNT", (C.CountKept()) }, { "AVERAGE", avg and int(avg) or "-", "good" }, { "BEST", int(best), "gold" },
       { "TIME", all >= 3600 and ("%.1f h"):format(all / 3600) or (math.floor(all / 60) .. " m"), "ink2" } }
   end
   local function fightRows()
     local out, l = {}, list()
     for i = #l, math.max(1, #l - MANY + 1), -1 do
       local f = l[i]
-      out[#out + 1] = { pic = C.IconFor(f.imbue), mark = "-", text = (f.mob or "?") .. (f.mixed and " (mixed)" or ""), right = int(dps(f)),
+      out[#out + 1] = { pic = C.IconFor(f.imbue), mark = "-", text = (f.mob or "?") .. (f.mixed and " (mixed)" or "") .. (f.grp and " - group" or ""), right = int(dps(f)),
         ink = counts(f) and "good" or "dim", done = not counts(f), tip = fightTip(f), act = open(f.combo) }
     end
     return out
@@ -264,7 +264,7 @@ DP.App.combo = function(tool, db)
     card = {
       prio = function(out)
         local f = R:Enabled("combo") and last() or nil
-        if not f then return nil end
+        if not f or not counts(f) then return nil end
         if wall() - (f.at or 0) <= FRESH then return 6 end
         return out and 2 or nil
       end,
@@ -311,9 +311,10 @@ DP.App.combo = function(tool, db)
       say = function(tab)
         local f = last()
         if not f then return C.lastWhy end
-        if tab == 1 then return secs(f) .. (f.mob and ", " .. f.mob or "") end
-        if tab == 2 and not inCombo(tab) then return "dps as if the mobs were your level" end
+        if tab == 1 then return (f.grp and C.Scope() == "solo" and "In a group: not counted. " or "") .. secs(f) .. (f.mob and ", " .. f.mob or "") end
+        if tab == 2 and not inCombo(tab) then return "dps as if the mobs were your level (fights)" end
         if tab == 3 and C.Min() > 0 then return "fights under " .. C.Min() .. " s are not ranked" end
+        if tab == 3 then local _, g = C.CountKept() if g > 0 then return g .. " with others: kept, not counted" end end
         return "dps over the time you swing"
       end,
       big = function(tab)

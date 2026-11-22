@@ -112,7 +112,7 @@ return function(H)
 
   -- BEST
   local rows = p.rows(2)
-  ok(#rows == 2 and rows[1].right == "188" and rows[1].ink == "gold" and rows[1].text == "SoE, GoA" and rows[2].right == "100" and rows[2].text == "SoE", "BEST: the ranking")
+  ok(#rows == 2 and rows[1].right == "188 (1)" and rows[1].ink == "gold" and rows[1].text == "SoE, GoA" and rows[2].right == "100 (2)" and rows[2].text == "SoE", "BEST: the ranking, with how many fights")
   ok(p.boxes(2)[1][2] == 2 and p.boxes(2)[2][2] == 3 and p.boxes(2)[3][2] == "188", "its boxes")
   H.Paint("combo", 2)
   press(rows[2].act)
@@ -121,14 +121,14 @@ return function(H)
   ok(row(2, "Wolf").right == "110" and row(2, "Boar").right == "90" and not row(2, "Bloodsnout") and p.big(2).word == "SET DECK: SoE", "its own fights, newest first, and its deck")
   H.Paint("combo", 2)
   press(rows[1].act)
-  ok(p.rows(2)[1].right == "188", "back to all of them")
+  ok(p.rows(2)[1].right == "188 (1)", "back to all of them")
   -- forget one combo: it asks first
   press(p.rows(2)[2].act)
   local gone = key(2, "FORGET")
   press(gone)
   ok(key(2, "SURE?") and #db.fights == 3, "FORGET asks first")
   press(key(2, "SURE?"))
-  ok(#db.fights == 1 and p.rows(2)[1].right == "188", "the second press forgets it, and only it; the page goes back")
+  ok(#db.fights == 1 and p.rows(2)[1].right == "188 (1)", "the second press forgets it, and only it; the page goes back")
 
   -- FIGHTS
   moment()
