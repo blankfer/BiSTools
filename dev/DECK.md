@@ -74,6 +74,18 @@ BiSTheme/DeckApps.lua, data only; Deck.lua grew `state`, `about`, `turnOn`, `ope
 - The welcome: the step card, once, at the first Show; it goes on when it sees the drag, the size, the flip; a card keeps its
   place until done or NO THANKS. `/bist deck welcome` = again. A page's `tour` = its own words, once.
 
+## The look in one sentence, and pulling cards out (Arn, 22 Nov)
+His rule for every screen: a Ryan Gosling phone, half iPhone, half Tesla. In our words (no brand or person names in anything
+public): night dusk in purple and pink on black, one dark glass, ONE big thin number per card and the rest small, a pill at the
+top that says the one thing now, things glide home, calm, nothing flashes. Still BiSTheme colours only.
+"BiS rides if someone wants to drag that out of the phone and pin [it to] their screen even when they close tools ... when they
+close it it goes back to the tools": any card. Sketch https://claude.ai/artifact/9bL2M1PZCBUepmLmjQZRZ6 (three picks owed: shape,
+look, what a fight does). Build rules: its own small plain frame on UIParent (nothing secure, never a child of the deck, so the
+deck may close); place and size per character and per card in the store; alive with the deck closed (a beat only while a pin is
+shown); a slot in the deck with BRING IT BACK, never shown twice; a button does what the drag does (pad, keyboard); a drag ends
+at the pull; a card with nothing to say hides and comes back to its place. Rides first: it takes over from the old rides card
+(one or the other, never both).
+
 ## Data
 BiS>Guides = a separate, NOT public library (Arn, 21 Nov) behind a BiSGuidesAPI (to build): dungeon quests, chains, givers,
 levels, what each needs (kill / loot / use / click) and the item. The deck works without it: own quest log, BQ.OWN (our own
