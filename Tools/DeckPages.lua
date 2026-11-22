@@ -38,14 +38,34 @@ function DP.Boss()
   end
   return c
 end
-function DP.Rows(tab)
+--- A secure button that looks for a boss (or a quest's mob): the boss phone's own macro, and what the phone does after it.
+function DP.Seek(e, word, macro, after)
+  local BF = NS.Bosses
+  if not macro or macro == "" then return nil end
+  return { word = word, macro = macro, peek = true, tip = "Target it and mark it. Hold shift: ping it too.", ok = function() BF.heard = nil BF.Hit() return true end,
+    after = after or function() BF.Took(e) end }
+end
+--- Which list the finder walks (the boss phone's own tab follows the app's).
+function DP.SyncTab(tab)
   local BF = DP.Place()
+  if not BF then return nil end
+  local want = tab == 2 and "quest" or "boss"
+  if BF.tab ~= want and BF.SetTab then BF.SetTab(want) end
+  return BF
+end
+--- The one on the app's picture: the one you clicked to look at, else the next to find.
+function DP.Focus(BF)
+  local e = BF.FindNext() or (BF.list and BF.list[1])
+  return e
+end
+function DP.Rows(tab)
+  local BF = DP.SyncTab(tab)
   local out = {}
   for i, e in ipairs(BF and (tab == 2 and BF.quests or BF.bosses) or {}) do
     local st = BF.State(e)
     local word, ink = BF.Word(e, st)
     out[i] = { mark = st == "down" and "v" or tostring(i), text = e.name, right = word, ink = ink, done = st == "down", tip = e.title,
-      act = st ~= "down" and not e.group and { word = "MARK", macro = BF.RowMacro(e) } or nil }
+      act = st ~= "down" and not e.group and DP.Seek(e, "MARK", BF.RowMacro(e)) or nil }
   end
   return out
 end
@@ -55,11 +75,11 @@ function DP.Steps()
   local out = {}
   for _, e in ipairs(BF and BF.quests or {}) do
     out[#out + 1] = { phase = e.out and "OUTSIDE" or "INSIDE", text = (e.note and (e.note:sub(1, 1) .. e.note:sub(2):lower() .. ", then ") or "") .. e.name, note = e.title,
-      done = function() return e.done end, button = { word = "FIND", macro = BF.One(e, "always") } }
+      done = function() return e.done end, button = DP.Seek(e, "FIND", BF.One(e, "always")) }
   end
   for _, e in ipairs(BF and BF.map and BF.bosses or {}) do
     out[#out + 1] = { phase = "BOSS", text = e.name, done = function() return BF.State(e) == "down" end,
-      button = not e.group and { word = "FIND", macro = BF.One(e, "always") } or nil }
+      button = not e.group and DP.Seek(e, "FIND", BF.One(e, "always")) or nil }
   end
   return out
 end
@@ -153,10 +173,10 @@ function DP.OptionRow(tool, opt)
   if opt.get then v = opt.get(db) end
   if opt.kind == "toggle" then
     row.right, row.ink = v and "ON" or "OFF", v and "good" or "dim"
-    row.act = { word = "switch", fn = function() opt.set(db, not opt.get(db)) end }
+    row.act = { word = "switch", chip = true, fn = function() opt.set(db, not opt.get(db)) end }
   elseif opt.kind == "seg" then
     row.right = tostring(v)
-    row.act = { word = "next", fn = function()
+    row.act = { word = "next", chip = true, fn = function()
       local at = 0
       for i, x in ipairs(opt.values) do if x == opt.get(db) then at = i end end
       opt.set(db, opt.values[at % #opt.values + 1])
@@ -171,7 +191,7 @@ function DP.OptionRow(tool, opt)
     row.more = { word = "+", fn = function() by(1) end }
   elseif opt.kind == "button" then
     row.right, row.ink = tostring(opt.button or "press"):upper(), "accent"
-    row.act = { word = "press", fn = function() opt.action(db) end }
+    row.act = { word = "press", chip = true, fn = function() opt.action(db) end }
   end
   return row
 end
@@ -213,6 +233,7 @@ function DP.OwnTabs(p) return p.tabs and #p.tabs() or 1 end
 function DP.Tools()
   if not (D and D.Register) or DP.toolsIn then return false end
   DP.toolsIn = true
+  if NS.Totems then NS.Totems.Register() end               -- (a shaman's: the three Calls)
   local n = 0
   for key, tool in R:Each() do
     n = n + 1
@@ -256,11 +277,19 @@ function DP.Register()
         for _, e in ipairs(BF and BF.bosses or {}) do if e ~= c.next and BF.State(e) ~= "down" and #list < 3 then list[#list + 1] = { e.name, BF.State(e) == "marked" and "MARKED" or nil } end end
         return { "BOSSES", c.down .. " of " .. c.all .. " down", "Next: " .. (c.next and c.next.name or "-"), c.down .. " / " .. c.all, "ink2", hot = c.found > 0, list = list }
       end,
-      buttons = function() return { { word = "OPEN", fn = function() D.Open("BiSTools:bosses") end }, { word = "BOSS PHONE", fn = function() if NS.Bosses then NS.Bosses.Toggle(true) end end } } end,
+      buttons = function()
+        local BF, out = DP.Place(), {}
+        if BF and BF.tab ~= "quest" then
+          local m, e = BF.FindMacro()
+          if e then out[1] = DP.Seek(e, "FIND", m, function() BF.findFor = e BF.AfterFind() end) end
+        end
+        out[#out + 1] = { word = "OPEN", peek = true, fn = function() D.Open("BiSTools:bosses") end }
+        return out
+      end,
     },
     page = {
-      tour = { { text = "The bosses of where you stand, in order. A green word: down.", note = "QUESTS has what your log wants here." },
-        { text = "Finding and marking is still on the boss phone: the big button opens it." } },
+      tour = { { text = "The bosses of where you stand, in order. MARK targets and marks one; FIND looks for the next.", note = "QUESTS has what your log wants here." },
+        { text = "In a fight the buttons go away: the old boss phone stays for that." } },
       title = function() local BF = DP.Place() return BF and (BF.data and BF.data.name or BF.outName) or "Bosses" end,
       kicker = function() return "bosses" end,
       boxes = function()
@@ -270,8 +299,38 @@ function DP.Register()
       end,
       tabs = function() local BF = DP.Place() return { "BOSSES", "QUESTS " .. (BF and BF.quests and #BF.quests or 0) } end,
       rows = DP.Rows,
+      tick = true,
+      hero = function(tab)
+        local BF = DP.SyncTab(tab)
+        local e = BF and DP.Focus(BF)
+        if not e then return nil end
+        local npc, display
+        if not e.group then npc, display = BF.NpcOf(e) end
+        local word = BF.Word(e, BF.State(e))
+        return { art = "model", creature = npc, display = display, big = e.name, small = e.note or (word ~= "" and word) or "next to find" }
+      end,
+      say = function() local BF = DP.Place() return BF and BF.said ~= "" and BF.said or nil end,
       text = function() return not DP.Place() and "Walk into a dungeon, or the zone of one's entrance." or nil end,
-      big = function() return { word = "OPEN THE BOSS PHONE", fn = function() if NS.Bosses then NS.Bosses.Toggle(true) end end } end,
+      big = function(tab)
+        local BF = DP.SyncTab(tab)
+        if not BF then return nil end
+        local m, e = BF.FindMacro()
+        return e and DP.Seek(e, "FIND: " .. e.name, m, function() BF.findFor = e BF.AfterFind() end) or nil
+      end,
+      keys = function(tab)
+        local BF, out = DP.SyncTab(tab), {}
+        if not BF then return out end
+        local m, n = BF.AllMacro()
+        if n > 0 then out[1] = DP.Seek(nil, "MARK ALL " .. n, m, function() BF.AfterAll({ count = n }) end) end
+        if tab ~= 2 then
+          local sure = DP.resetAt and GetTime() - DP.resetAt <= 5
+          out[#out + 1] = { word = sure and "SURE?" or "RESET", peek = true, tip = "A new run: every boss stands again", fn = function()
+            if sure then DP.resetAt = nil BF.Reset() else DP.resetAt = GetTime() end
+          end }
+        end
+        out[#out + 1] = { word = "OLD PHONE", peek = true, tip = "The boss phone: its buttons stay in a fight", fn = function() BF.Toggle(true) end }
+        return out
+      end,
     },
   }
   D.Register{
@@ -383,6 +442,12 @@ end
 function BiSTools_ToggleDeck() if not DP.Toggle() and D then R:SetEnabled("deck", true) end end    -- the key (Key Bindings > BiS Tools)
 _G.BINDING_NAME_BISTOOLS_DECK = "The deck"
 
+--- Into a dungeon with the deck on: its Bosses app instead of the old boss phone (Arn, 22 Nov: "move the boss phone into the Bosses app").
+function DP.BossesHere()
+  if not (D and D.Open and R:Enabled("deck")) then return false end
+  D.defs["BiSTools:bosses"].tab = 1
+  return D.Open("BiSTools:bosses") and true or false
+end
 --- Does the phone show this app's live card now (home open, or the card or its app out on the screen)? Then the old card stays away.
 function DP.CardSeen(id)
   if not (D and D.IsPinned and R:Enabled("deck")) then return false end

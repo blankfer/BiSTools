@@ -10872,6 +10872,7 @@ do
       R:SetEnabled(name, was)
     end
   end
+  assert(loadfile("dev/apps/totems.lua"))()(H)
 end
 
 local allowed = { BiSTools = true, BiSToolsDB = true, BiSToolsAlts = true, SLASH_BISTOOLS1 = true, SLASH_BISTOOLS2 = true,

@@ -545,7 +545,8 @@ function BF.Enter()
       -- up by itself once a run; and back again if it was open when you left (a wipe's run back, a hearth) -
       -- leaving shuts it below without touching db.open; only your own close does
       local fresh = db.auto ~= false and BF.run ~= was
-      if (fresh or db.open) and not fighting() then BF.Toggle(true) end
+      if fresh and not db.open and not fighting() and NS.DeckPages and NS.DeckPages.BossesHere and NS.DeckPages.BossesHere() then   -- (the phone's app)
+      elseif (fresh or db.open) and not fighting() then BF.Toggle(true) end
     elseif place and #BF.quests > 0 and db.open then     -- outside the entrance: only if it was yours and open
       if not fighting() then BF.Toggle(true) end
     elseif BF.frame and BF.frame:IsShown() and not fighting() then BF.frame:Hide() end

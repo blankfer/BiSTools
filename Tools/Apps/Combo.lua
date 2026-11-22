@@ -124,29 +124,34 @@ DP.App.combo = function(tool, db)
     if not f then return {} end
     local k, n = place(f.combo)
     local vs, ink = versus(f)
-    return { { "DPS", int(dps(f)), ink == "warn" and "gold" or "good" },
+    local out = { { "DPS", int(dps(f)), ink == "warn" and "gold" or "good" },
       { "PLACE", counts(f) and k and (k .. "/" .. n) or "-", k == 1 and "gold" or "ink" },
       { "VERSUS", vs, ink }, { "WF", int((f.wf or 0) * 100) .. "%", "gold" } }
+    -- (the fight's numbers stand beside each other: Arn, 22 Nov - "should be boxes next to each other")
+    local pw = procWords(f)
+    if pw then out[#out + 1] = { "PROCS", (pw:gsub(", ", " ")), "gold" } end
+    for _, s in ipairs(spells(f, pw and 3 or 4)) do
+      out[#out + 1] = { (s[1] == "Attack" and "Attack" or s[1]:gsub(" Attack$", ""):gsub(" Weapon$", ""):gsub(" Totem$", "")):upper(), s[2], "ink" }
+    end
+    return out
   end
   local function nowRows()
     local out, f = {}, last()
     local function add(row) out[#out + 1] = row end
     if f then
       add({ pic = C.IconFor(f.imbue), mark = "-", text = "Last: " .. beside(f.imbue, f.totems), right = f.mixed and "MIXED" or "", ink = "gold",
-        tip = fightTip(f), act = open(f.combo) })
-      local pw = procWords(f)
-      if pw then add({ mark = "-", text = "Procs", right = pw, ink = "gold", tip = f.swings and ("Over " .. f.swings .. " swings of yours") or nil }) end
-      for _, s in ipairs(spells(f, 3)) do add({ mark = "-", text = s[1], right = s[2], tip = "Its share of your damage" }) end
+        tip = fightTip(f), verb = "OPEN", act = open(f.combo) })
     end
     local c, total, untried = try()
     if c then
-      add({ pic = C.IconFor(c.imbue), mark = ">", text = "Try: " .. beside(c.imbue, c.totems), right = c.n == 0 and "NEW" or plural(c.n, "fight"), ink = "accent",
+      add({ head = true, text = "TRY NEXT: " .. whole(c.imbue, c.totems):upper(), right = c.n == 0 and "NEW" or plural(c.n, "fight"), ink = "accent",
         tip = "Try next. " .. long(c.imbue, c.totems) .. ". " .. (untried or 0) .. " of " .. (total or 0) .. " combos never tried." })
       local names = {}
       if c.imbue then names[1] = c.imbue end
       for _, n in ipairs(c.totems) do names[#names + 1] = n end
       for _, n in ipairs(names) do
-        add({ pic = C.IconFor(n), mark = " ", text = n, act = { word = "CAST", spell = n }, tip = "Click: cast it" })
+        local imbue = n == c.imbue
+        add({ pic = C.IconFor(n), mark = " ", text = n, verb = imbue and "IMBUE" or "DROP", act = { word = imbue and "IMBUE" or "DROP", spell = n, peek = true }, tip = imbue and "Puts it on your weapon" or "Drops this one" })
       end
     elseif total then
       add({ mark = ">", text = "Every combo is tried", right = C.TRY_ENOUGH .. "+ each", ink = "good", tip = "Each has enough fights: the ranking holds" })
@@ -320,17 +325,21 @@ DP.App.combo = function(tool, db)
       big = function(tab)
         if tab == 1 then
           local c = try()
-          return c and deckKey(c.totems) or nil
+          local To = NS.Totems
+          return c and (To and To.DropAll(c.totems, "DROP ALL: " .. totems(nil, c.totems)) or deckKey(c.totems)) or nil
         elseif inCombo(tab) then
           local _, _, g = place(pick)
-          return g and deckKey(g.totems) or nil
+          local To = NS.Totems
+          return g and (To and To.DropAll(g.totems, "DROP ALL: " .. totems(nil, g.totems)) or deckKey(g.totems)) or nil
         end
       end,
       keys = function(tab)
         local out = {}
         if tab == 1 then
           local c = try()
-          if c and c.imbue then out[1] = { word = "CAST " .. short(c.imbue), spell = c.imbue } end
+          if c and c.imbue then out[1] = { word = "IMBUE " .. short(c.imbue), spell = c.imbue, peek = true } end
+          local dk = c and NS.Totems and NS.Totems.DropAll(c.totems, "x") and deckKey(c.totems)
+          if dk then dk.word = "SET DECK" out[#out + 1] = dk end
         elseif inCombo(tab) then
           local combo = pick
           out[1] = { word = C.Armed(combo) and "SURE?" or "FORGET", peek = true, tip = "Forget every fight with this combo", fn = function()

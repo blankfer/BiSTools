@@ -69,6 +69,7 @@ Tools\Apps\Recap.lua
 Tools\Apps\BG.lua
 Tools\Apps\Map.lua
 Tools\Apps\Alts.lua
+Tools\Apps\Totems.lua
 Tools\Apps\Combo.lua
 Tools\Apps\Windfury.lua
 Tools\Apps\XP.lua

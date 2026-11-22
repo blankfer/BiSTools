@@ -34,7 +34,8 @@ page parts (every one is handed the tab number; only your own tabs reach you, SE
 - `find = fn(tab) -> { hint = "search", get = fn -> words, set = fn(words), enter = fn(words) }` or nil: a search line
 - `boxes = fn(tab) -> { { "LABEL", value, ink }, ... }` 1-4 number boxes. ink: "ink" "ink2" "dim" "good" "gold" "accent" (rose/danger exist too: look at what DeckPages.lua uses)
 - `rows = fn(tab) -> { row, ... }`, row = { text, right = words, ink = colour of right, mark = one letter or pic = icon texture/file id, done = true (dim),
-  act = button (a click on the row), side = button (a second key, 48 px, at the right - then no `right`), less = / more = buttons, tip = words on hover }.
+  act = button (a click on the row: it gets a chip at its right, `verb` = the word on it, else a secure button's word, else ">"; `act.chip = true` = the
+  right words are the chip, a switch's ON / OFF), head = true (a small heading, no ground), side = button (a second key, 48 px, at the right - then no `right`), less = / more = buttons, tip = words on hover }.
   The list scrolls by itself (wheel / pad). Give the whole list; no paging of your own. A very long one (thousands): build it once and keep it until it changes.
 - `text = fn(tab) -> words` (wraps), mostly for "nothing here yet: do this to fill it". nil when there is a list.
 - `say = fn -> one short line` under the list. `hero = fn -> { art = "model", creature = npcId | display = displayId, big, small }` (the picture on top).
@@ -42,7 +43,10 @@ page parts (every one is handed the tab number; only your own tabs reach you, SE
 - `tick = true` when its words change by the second.
 - `tour = { { text, note }, { text } }` shown once, the first time: what this app does, in plain words (two steps at most).
 button = { word = "PLAY", fn = function() ... end, peek = true (looking only: does not make a live card), tip }.
-  A SECURE button = { word, spell = | item = | macro = }: drawn dim until the overlay is built. Never do anything protected in a fn
+  A row without act / side / less / more is INFORMATION: no ground, no chip (Arn, 22 Nov: "this is clickable or this is just information"). Numbers
+  that belong together are BOXES (up to eight, two lines), not rows.
+  A SECURE button = { word, spell = [, bag, slot] | item = | macro = , ok = fn (the last word before the click: false = nothing happens), after = fn (once, after it) }: live
+  out of a fight (DeckOverlay). Never do anything protected in a fn
   (CastSpell, UseItem, TargetUnit, JoinX in a fight...). In a fight nothing on the deck can be clicked at all.
 card = { when = "use" (only after you did something in the app) | leave out (comes by itself when prio answers), alive = fn -> bool (for "use"),
   prio = fn -> number | nil (nil = no card now; 3 = quiet, 5-6 = useful now, 8-9 = act now), tick = true,
