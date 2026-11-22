@@ -941,6 +941,14 @@ function X.PaintIndex(f)
   f.next:Lit(false)
 end
 
+--- What it was seen to drop, the most often first: { { item, n }, ... }.
+function X.Drops(c)
+  local drops = {}
+  for item, cnt in pairs(c.seen) do drops[#drops + 1] = { item = item, n = cnt } end
+  table.sort(drops, function(a, b) if a.n ~= b.n then return a.n > b.n end return a.item < b.item end)
+  return drops
+end
+
 function X.PaintCreature(f, npc)
   local c = C.Creature(npc)
   if not c then f.page:Hide() return end
@@ -992,9 +1000,7 @@ function X.PaintCreature(f, npc)
   f.none:SetShown(n == 0)
   X.Set(f.none, "Learned when seen: none seen cast yet.", X.PAGE_W - 20)
   -- seen to drop: the most often first
-  local drops = {}
-  for item, cnt in pairs(c.seen) do drops[#drops + 1] = { item = item, n = cnt } end
-  table.sort(drops, function(a, b) if a.n ~= b.n then return a.n > b.n end return a.item < b.item end)
+  local drops = X.Drops(c)
   for i, l in ipairs(f.loot) do
     local e = drops[i]
     if e then

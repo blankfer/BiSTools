@@ -327,6 +327,8 @@ local function icon(item)
   return t or 134400                                            -- the question mark
 end
 
+X.Count, X.Icon = count, icon                                  -- (the deck's app asks too: Tools/Apps/XP.lua)
+
 -- THE GLOW (Arn, 6 Nov: the food button - "its pretty vital"). A gold ring just outside the button, breathing. The
 -- CLIENT runs the pulse (an animation group, as BiS Healing's cure glow) - no OnUpdate, nothing of ours per frame - and
 -- only while the button is up: OnShow plays it, OnHide stops it. No game art either: four coloured lines, so nothing

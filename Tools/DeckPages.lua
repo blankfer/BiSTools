@@ -79,7 +79,8 @@ function DP.OtherRides(mine)
   for _, r in ipairs(DP.Rides()) do if r ~= mine and r.timed and type(r.left) == "number" and not (mine and r.to == mine.to and r.left == mine.left) then out[#out + 1] = r end end
   table.sort(out, function(a, b) return a.left < b.left end)
   local lines = {}
-  for i = 1, math.min(3, #out) do lines[i] = { tostring(out[i].to or out[i].name), clock(out[i].left) } end
+  for i = 1, math.min(2, #out) do lines[i] = { tostring(out[i].to or out[i].name), clock(out[i].left) } end
+  if mine and mine.by then lines[#lines + 1] = { "timed by " .. tostring(mine.by), type(mine.sure) == "number" and mine.sure .. "% sure" or nil } end
   return lines
 end
 function DP.Ride(any)
@@ -187,7 +188,7 @@ DP.SET = "SETTINGS"
 function DP.Page(key, tool, name, app)
   local about = (tool.desc:sub(1, 1):upper() .. tool.desc:sub(2)) .. "."
   local p = app and app.page or {}
-  local function own(tab) return app and tab <= DP.OwnTabs(p) end
+  local function own(tab) return app and (tab or 1) <= DP.OwnTabs(p) end
   local function part(k) return p[k] and function(tab) if own(tab) then return p[k](tab) end end or nil end
   local out = {}
   for k, v in pairs(p) do out[k] = v end                     -- (tour, tick, steps as they are)
@@ -322,7 +323,7 @@ function DP.Register()
       tick = true,
       -- pulled out, it always shows the next ride (you put it there on purpose); in the deck only one that is close
       prio = function(out) local r = DP.Ride(out) return r and (r.docked and 9 or 5) or nil end,
-      lines = function(out) local r = DP.Ride(out) return { "RIDES", "", (r.kind == "boat" and "Boat to " or "Zeppelin to ") .. tostring(r.to or r.name), clock(r.left), "gold", hot = r.docked, list = DP.OtherRides(r) } end,
+      lines = function(out) local r = DP.Ride(out) return { r.docked and "RIDES - LEAVES IN" or "RIDES - ARRIVES IN", "", (r.kind == "boat" and "Boat to " or "Zeppelin to ") .. tostring(r.to or r.name), clock(r.left), "gold", hot = r.docked, list = DP.OtherRides(r) } end,
     },
     page = {
       title = function() return "Rides" end, kicker = function() return "timed by your guild" end,
@@ -382,8 +383,22 @@ end
 function BiSTools_ToggleDeck() if not DP.Toggle() and D then R:SetEnabled("deck", true) end end    -- the key (Key Bindings > BiS Tools)
 _G.BINDING_NAME_BISTOOLS_DECK = "The deck"
 
+--- Does the phone show this app's live card now (home open, or the card or its app out on the screen)? Then the old card stays away.
+function DP.CardSeen(id)
+  if not (D and D.IsPinned and R:Enabled("deck")) then return false end
+  if D.IsPinned(id) or (D.IsOut and D.IsOut(id)) then return true end
+  local f = D.mainSurf and D.surf ~= D.mainSurf and D.mainSurf.frame or D.frame
+  return f and f:IsShown() and (D.page or "home") == "home" or false
+end
 --- Is the Rides card out on the screen? Then the old rides card stays away: one or the other (Tools/Rides.lua asks).
-function DP.RidePinned() return D and D.IsPinned and R:Enabled("deck") and D.IsPinned("BiSTools:rides") or false end
+-- (... or on the open phone: Arn, 22 Nov, both of them side by side)
+function DP.RidePinned()
+  if not (D and D.IsPinned and R:Enabled("deck")) then return false end
+  if D.IsPinned("BiSTools:rides") or (D.IsOut and D.IsOut("BiSTools:rides")) then return true end
+  local f = D.mainSurf and D.surf ~= D.mainSurf and D.mainSurf.frame or D.frame
+  if not (f and f:IsShown()) then return false end
+  return D.page == "BiSTools:rides" or ((D.page or "home") == "home" and DP.Ride() ~= nil)
+end
 
 -- what moves a card, only while the deck is shown (D.Dirty is a flag; the deck paints once a second at most)
 if NS.Bosses then

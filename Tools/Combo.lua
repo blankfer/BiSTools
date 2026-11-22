@@ -589,7 +589,7 @@ function C.Close(cur)
     active and math.floor(active + 0.5) .. " s" or "-", rec.how, math.floor(dmg / C.Time(rec) + 0.5))
   rec.foreign = cur.foreign
   C.MeterCheck(rec)
-  if d.card ~= false then C.ShowCard(rec) end
+  if d.card ~= false and not (NS.DeckPages and NS.DeckPages.CardSeen and NS.DeckPages.CardSeen("BiSTools:tool-combo")) then C.ShowCard(rec) end
   if C.IsOpen() then C.Paint() end
   return rec
 end

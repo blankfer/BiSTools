@@ -10376,7 +10376,7 @@ do
       if not def then missing[#missing + 1] = key end
       if type(def) == "table" and Dk.defs["BiSTools:tool-" .. key] then
         ok(def.quietOff and def.about and #def.about > 10 and (def.state() == "on") == R:Enabled(key), key .. ": an icon, and it follows the tool's switch")
-        local okR, list = pcall(def.page.rows)
+        local okR, list = pcall(def.page.rows, def.page.tabs and #def.page.tabs() or 1)
         ok(okR and #list == #(tool.options or {}), key .. ": one row for each of its options", okR and #list or list)
         for i, row in ipairs(okR and list or {}) do
           rowsSeen = rowsSeen + 1
@@ -10385,22 +10385,23 @@ do
       end
     end
     ok(#missing == 0 and rowsSeen > 30, "every tool is an app", table.concat(missing, " ") .. " " .. rowsSeen)
+    local function Last(d) return d.page.rows(d.page.tabs and #d.page.tabs() or 1) end      -- (SETTINGS is the last tab)
     -- its rows change the same settings the options window does
     local tool = R:Get("xp")
     local db = R:DBFor(tool)
     local def = Dk.defs["BiSTools:tool-xp"]
     local was = db.bag
     db.bag = nil
-    ok(def.page.rows()[1].right == "ON", "a switch reads its setting")
-    def.page.rows()[1].act.fn()
-    ok(db.bag == false and def.page.rows()[1].right == "OFF", "and flips it")
+    ok(Last(def)[1].right == "ON", "a switch reads its setting")
+    Last(def)[1].act.fn()
+    ok(db.bag == false and Last(def)[1].right == "OFF", "and flips it")
     db.bag = was
     local ct = R:Get("combo")
     local cdb = R:DBFor(ct)
     local keepMin = cdb.min
     cdb.min = 10
     local step
-    for _, row in ipairs(Dk.defs["BiSTools:tool-combo"].page.rows()) do if row.less then step = row end end
+    for _, row in ipairs(Last(Dk.defs["BiSTools:tool-combo"])) do if row.less then step = row end end
     step.more.fn() ok(cdb.min == 15, "+ steps it", cdb.min)
     step.less.fn() step.less.fn() step.less.fn() step.less.fn() step.less.fn() ok(cdb.min == 0, "- never under its least", cdb.min)
     cdb.min = keepMin
@@ -10425,6 +10426,24 @@ do
   ok(DP.RidePinned() == true, "out: the old card gives way")
   S("off deck")
   ok(DP.RidePinned() == false, "the deck off: the old card is back")
+  do  -- the open phone shows the same ride: one of them is enough (Arn, 22 Nov)
+    S("on deck")
+    Dk.Pins()["BiSTools:rides"] = nil
+    local keepRide, keepPg = DP.Ride, Dk.page
+    local st0 = Dk.Store()
+    st0.welcomed = true
+    Dk.Show() Dk.page = "home"
+    DP.Ride = function() return nil end
+    ok(DP.RidePinned() == false, "the phone open, no ride on it: the old card stays")
+    DP.Ride = function() return { to = "Undercity", left = 30, by = "Dabeast Sidekick", sure = 88 } end
+    ok(DP.RidePinned() == true, "a ride on the open phone: the old card gives way")
+    ok(DP.OtherRides(DP.Ride())[1][2] == "88% sure", "who timed it and how sure, on the large card")
+    Dk.Hide()
+    ok(DP.RidePinned() == false, "the phone shut: the old card is back")
+    DP.Ride, Dk.page, st0.welcomed, st0.open = keepRide, "home", nil, false
+    Dk.Pins()["BiSTools:rides"] = { "CENTER", "CENTER", 0, 0 }
+    S("off deck")
+  end
   S("on deck")
   Dk.PinBack("BiSTools:rides")
   S("off deck")
