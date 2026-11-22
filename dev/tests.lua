@@ -5689,6 +5689,14 @@ do
     _G.C_Spell.IsSpellInRange = function() return nil end
     ok(Co.InReach() == true and Co.reachHow:find("10 yd", 1, true), "nothing else answers: the 10 yd check, and it says so")
     ok(Co.ReachProbe():find("interact3=true", 1, true), "/bist combo reach: every check's answer")
+    -- IN A FIGHT THE CLIENT BLOCKS IT (Arn's BugGrabber, 21 Nov: "BiSTools tried to call the protected function
+    -- 'UNKNOWN()'", 7 times) - blocked, not an error: pcall answers as if nothing happened, so the mock counts it
+    local blocked = 0
+    _G.CheckInteractDistance = function() if W.combat then blocked = blocked + 1 return nil end return true end
+    local keepCombat = W.combat
+    W.combat = true
+    ok(Co.InReach() == nil and Co.ReachProbe():find("interact3=refused", 1, true) and blocked == 0, "in a fight the duel-distance check is never asked", blocked)
+    W.combat = keepCombat
     _G.C_Spell.GetSpellInfo = keepGSI
     _G.C_Spell.IsSpellInRange, _G.CheckInteractDistance, _G.UnitExists = keepCS2, keepCID, keepUE
   end
