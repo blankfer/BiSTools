@@ -12,6 +12,8 @@
 Libs\BiSTheme\Console.lua
 Libs\BiSTheme\Options.lua
 Libs\BiSTheme\Settings.lua
+Libs\BiSTheme\DeckLayout.lua
+Libs\BiSTheme\Deck.lua
 Libs\LibBiSComm-1.0\LibBiSComm-1.0.lua
 Libs\RezComm-1.0\RezComm-1.0.lua
 Libs\LibStub\LibStub.lua
@@ -51,4 +53,5 @@ Tools\Alts.lua
 Tools\Combo.lua
 Tools\Windfury.lua
 API.lua
+Tools\DeckPages.lua
 Tools\Hub.lua
