@@ -218,7 +218,7 @@ function DP.Tools()
     n = n + 1
     if not DP.OWN[key] then
       local name = tool.title or tool.name
-      name = ({ bg = "BG", xp = "XP" })[name] or (name:sub(1, 1):upper() .. name:sub(2))
+      name = ({ bg = "BG", xp = "XP", ["rivals & pals"] = "Rivals" })[name] or (name:sub(1, 1):upper() .. name:sub(2))
       local app = DP.App[key]
       if app then
         local fine, a = pcall(app, tool, function() return R:DBFor(tool) end)
