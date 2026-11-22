@@ -9899,6 +9899,9 @@ do
   for _, p in ipairs({ f.screen, f.over, f.tape, f.boxes[1], f.boxes[2], f.boxes[3], f.model }) do if p and p.mouse == true then anyMouse = true end end
   ok(not anyMouse, "and nothing on it takes a click - not a row, not a key, not the window, not its picture: what is behind it can be clicked")
   ok(BS.FIGHT_ALPHA <= 0.15, "barely there (Arn: 'dim it way more')", BS.FIGHT_ALPHA)
+  ok(not f.model.shown, "and no 3D boss: a model ignores its window's alpha (Arn's shots, 21 Nov)")
+  BS.Paint()
+  ok(not f.model.shown, "a repaint mid-fight does not bring it back")
   ok(not onEsc, "and Escape still leaves it alone mid-fight")
   ok(f:GetScript("OnUpdate") == nil and f.help.text == BS.FIGHT_HELP,
      "QUIET (Arn: 'like a quiet cockpit screen would'): the grid stops rolling, and one line says the keys are locked")
@@ -9916,6 +9919,23 @@ do
   ok(f.alpha == 1 and not f.dimmed and allMouse and not backOnEsc,
     "full strength again, every key clickable, and still not on the Escape list")
   ok(f:GetScript("OnUpdate") == f.tick and f.help.text == BS.HELP, "and the grid rolls again, the usual help line back")
+  do
+    W.plates.nameplate9 = { name = D[36].bosses[2].name, guid = "Creature-0-1-36-1-643-0001" }
+    BS.events.scripts.OnEvent(BS.events, "NAME_PLATE_UNIT_ADDED", "nameplate9")
+    ok(f.model.shown, "the 3D boss is back after the fight")
+    local keepUI = rawget(_G, "UIParent")
+    _G.UIParent = keepUI or {}
+    local keepA = UIParent.GetAlpha
+    UIParent.GetAlpha = function() return 0 end
+    f.tick(f, 1)
+    ok(not f.model.shown, "the interface faded out (BiS Memories takes a picture): no boss left standing in it")
+    UIParent.GetAlpha = function() return 1 end
+    f.tick(f, 1)
+    ok(f.model.shown, "and back with it")
+    UIParent.GetAlpha = keepA
+    _G.UIParent = keepUI
+    W.plates.nameplate9 = nil
+  end
 
   -- the key
   S("bosses key F7")

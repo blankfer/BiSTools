@@ -927,6 +927,8 @@ function BF.Build()
     acc = acc + (elapsed or 0)
     if acc < 1 / BF.FPS then return end
     BF.t = (BF.t or 0) + acc * 0.5
+    local ua = UIParent and UIParent.GetAlpha and UIParent:GetAlpha()       -- the interface faded out (a picture being taken)
+    BF.ModelAway(type(ua) == "number" and ua < 0.5)
     BF.clockIn = (BF.clockIn or 0) - acc
     acc = 0
     BF.GridAt(BF.t)
@@ -1020,6 +1022,7 @@ function BF.Screen()
   end
   local m = f.model
   if not m then return end
+  if f.modelAway then m:Hide() BF.showing, BF.screenFor = nil, nil return end
   -- the same boss as last time: drawn, or missed a moment ago (the Codex's names come in by themselves) - leave it
   local t = GetTime and GetTime() or 0
   if e == BF.screenFor and (BF.showing or (t - (BF.missAt or 0)) < BF.MISS_GAP) then return end
@@ -1040,6 +1043,16 @@ function BF.Screen()
   BF.showing = want
   m:Show()
   BF.Dress(m, npc, display, 1)
+end
+
+--- A 3D MODEL IGNORES ITS WINDOW'S ALPHA (solved.md; Arn's shots, 21 Nov: the boss stood bright at the screen's edge
+--- through every fight, and in BiS Memories' pictures where the interface is faded out): away = hidden by hand.
+function BF.ModelAway(on)
+  local f = BF.frame
+  on = on and true or false
+  if not f or (f.modelAway or false) == on then return end
+  f.modelAway = on
+  BF.Screen()
 end
 
 --- Ask the model; a creature the client has not fetched draws nothing the first time, so look again.
@@ -1204,6 +1217,7 @@ function BF.Dim(on)
     for _, p in ipairs({ f.screen, f.over, f.tape, f.boxes[1], f.boxes[2], f.boxes[3], f.model }) do if p and p.EnableMouse then p:EnableMouse(false) end end
   end
   f:SetScript("OnUpdate", (not on) and f.tick or nil)
+  BF.ModelAway(on)
   if f.help then
     f.help:SetText(on and BF.FIGHT_HELP or BF.HELP)
     f.help:SetTextColor(rgb(on and "gold" or "dim"))
