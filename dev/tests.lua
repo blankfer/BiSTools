@@ -2806,6 +2806,7 @@ do
     { "Libs/BiSTheme/DeckLayout.lua",           "../BiSTheme/DeckLayout.lua" },
     { "Libs/BiSTheme/Deck.lua",                 "../BiSTheme/Deck.lua" },
     { "Libs/BiSTheme/DeckApps.lua",             "../BiSTheme/DeckApps.lua" },
+    { "Libs/BiSTheme/DeckPins.lua",             "../BiSTheme/DeckPins.lua" },
     { "Libs/BiSTheme/Pad.lua",                  "../BiSTheme/Pad.lua" },
     { "Libs/BiSTheme/Options.lua",              "../BiSTheme/Options.lua" },
     { "Libs/BiSTheme/Settings.lua",             "../BiSTheme/Settings.lua" },
@@ -10299,6 +10300,104 @@ do
   ok(Dk.State(Dk.defs["BiSTools:bosses"]) == "off" and Dk.Open("BiSTools:bosses") and Dk.Model().about == "off" and Dk.Model().big.word == "TURN ON", "bosses off: gray, what it is, TURN ON")
   Dk.Press(Dk.defs["BiSTools:bosses"], Dk.Model().big)()
   ok(R:Enabled("bosses") and Dk.Model().about == nil, "and one press turns it on")
+  -- FARM (Arn, 22 Nov: a peek leaves nothing; picking a mob makes the card)
+  do
+    S("on farm")
+    local F, db = NS.Farm, DP.FarmDB()
+    local keepA, keepL, keepS = db.active, db.last, db.spots
+    db.last, db.spots = { name = "Magra", count = 3 }, {}
+    F.SetActive(db, nil)
+    local def = Dk.defs["BiSTools:farm"]
+    ok(def.page.rows(1)[1].text == "Magra" and def.page.rows(1)[1].right == "x3" and #def.page.boxes() == 0, "farm: the mob you kill, nothing farmed yet")
+    ok(not Dk.IsLive(def), "opened and looked at: no card")
+    Dk.Press(def, def.page.rows(1)[1].act)()
+    ok(db.active == "Magra" and Dk.IsLive(def), "picked: farmed, and it has a live card")
+    ok(def.page.rows(1)[1].right == "FARMING" and def.card.lines()[3] == "Magra", "and they say so")
+    local now = time()
+    db.spots.Magra = { { mark = 1, last = now - 400, respawn = 300, subs = {} }, { mark = 2, last = now - 100, respawn = 160, subs = {} } }
+    local c = DP.Farm()
+    ok(c.up == 1 and c.next and math.abs(c.next - 60) <= 1 and def.card.lines()[4] == "1 up" and def.badge() == 1, "its spots: one up, the next in a minute", c.up .. " " .. tostring(c.next))
+    ok(def.page.rows(2)[1].right == "up" and def.page.rows(2)[2].right:find("^%d:%d%d"), "the SPOTS tab, the soonest first", def.page.rows(2)[2].right)
+    Dk.PinOut("BiSTools:farm")
+    ok(Dk.pinFrames["BiSTools:farm"]:IsShown(), "pulled out")
+    Dk.Hide()
+    local Cost = dofile("../_bisdev/dev/cost.lua")
+    local beat = Dk.pinRoot:GetScript("OnUpdate")
+    local nc, by = Cost.Count(function() for _ = 1, 60 do beat(Dk.pinRoot, 1.01) end end)
+    print(("   cost: a farm card on the screen, a minute, the deck closed = %d calls (%s)"):format(nc, Cost.Top(by, 3)))
+    ok(nc <= 60 * 30, "a card on the screen: a small look a second", nc)
+    local still = Cost.Count(function() for _ = 1, 60 do beat(Dk.pinRoot, 0.01) end end)
+    ok(still <= 60, "and next to nothing between the seconds", still)
+    Dk.Show()
+    S("off deck")
+    ok(not Dk.pinFrames["BiSTools:farm"]:IsShown(), "the deck tool off: nothing of it on the screen")
+    S("on deck")
+    ok(Dk.pinFrames["BiSTools:farm"]:IsShown(), "on: back")
+    Dk.Press(def, def.card.buttons()[1])()
+    ok(db.active == nil and not Dk.IsLive(def) and not Dk.IsPinned("BiSTools:farm"), "STOP: no card, no pin")
+    db.active, db.last, db.spots = keepA, keepL, keepS
+    if not keepA then F.Stop() end
+    S("off farm")
+  end
+  -- EVERY TOOL IS AN APP (Arn, 22 Nov): a page of its own, or one made of its options
+  do
+    local missing, rowsSeen = {}, 0
+    for key, tool in R:Each() do
+      local def = Dk.defs["BiSTools:tool-" .. key] or (DP.OWN[key] and (key == "deck" or Dk.defs["BiSTools:" .. key]))
+      if not def then missing[#missing + 1] = key end
+      if type(def) == "table" and Dk.defs["BiSTools:tool-" .. key] then
+        ok(def.quietOff and def.about and #def.about > 10 and (def.state() == "on") == R:Enabled(key), key .. ": an icon, and it follows the tool's switch")
+        local okR, list = pcall(def.page.rows)
+        ok(okR and #list == #(tool.options or {}), key .. ": one row for each of its options", okR and #list or list)
+        for i, row in ipairs(okR and list or {}) do
+          rowsSeen = rowsSeen + 1
+          ok(type(row.text) == "string" and (row.act or row.less) and (row.right == nil or type(row.right) == "string"), key .. " " .. i .. ": says something and does something", row.text)
+        end
+      end
+    end
+    ok(#missing == 0 and rowsSeen > 30, "every tool is an app", table.concat(missing, " ") .. " " .. rowsSeen)
+    -- its rows change the same settings the options window does
+    local tool = R:Get("xp")
+    local db = R:DBFor(tool)
+    local def = Dk.defs["BiSTools:tool-xp"]
+    local was = db.bag
+    db.bag = nil
+    ok(def.page.rows()[1].right == "ON", "a switch reads its setting")
+    def.page.rows()[1].act.fn()
+    ok(db.bag == false and def.page.rows()[1].right == "OFF", "and flips it")
+    db.bag = was
+    local ct = R:Get("combo")
+    local cdb = R:DBFor(ct)
+    local keepMin = cdb.min
+    cdb.min = 10
+    local step
+    for _, row in ipairs(Dk.defs["BiSTools:tool-combo"].page.rows()) do if row.less then step = row end end
+    step.more.fn() ok(cdb.min == 15, "+ steps it", cdb.min)
+    step.less.fn() step.less.fn() step.less.fn() step.less.fn() step.less.fn() ok(cdb.min == 0, "- never under its least", cdb.min)
+    cdb.min = keepMin
+    ok(not Dk.Shown(def, "off") and Dk.Shown(def, "on"), "a tool that is off is in the Apps page, not on home")
+    for _, shape in ipairs({ "portrait", "landscape" }) do
+      for key in R:Each() do
+        local id = "BiSTools:tool-" .. key
+        if Dk.defs[id] then
+          local wasOn = R:Enabled(key)
+          NS.DB().enabled[key] = true
+          local okP, whyP = pcall(function() Dk.page = id Dk.Flip(shape) end)
+          ok(okP and not Dk.defs[id].parked, "draws " .. key .. " " .. shape, tostring(whyP))
+          NS.DB().enabled[key] = wasOn
+        end
+      end
+    end
+    Dk.page = "home"
+  end
+  -- THE RIDES CARD: out on the screen = the old card stays away
+  ok(DP.RidePinned() == false, "rides: not out")
+  Dk.Pins()["BiSTools:rides"] = { "CENTER", "CENTER", 0, 0 }
+  ok(DP.RidePinned() == true, "out: the old card gives way")
+  S("off deck")
+  ok(DP.RidePinned() == false, "the deck off: the old card is back")
+  S("on deck")
+  Dk.PinBack("BiSTools:rides")
   S("off deck")
   ok(not Dk.frame:IsShown(), "off: gone")
   _G.IsInInstance = function() return false, "none" end

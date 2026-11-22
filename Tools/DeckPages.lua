@@ -73,10 +73,10 @@ function DP.Rides()
   return ok and type(list) == "table" and list or {}
 end
 --- The ride worth a card: one at the dock, else the next timed one within two minutes.
-function DP.Ride()
+function DP.Ride(any)
   local best
   for _, r in ipairs(DP.Rides()) do
-    if r.timed and type(r.left) == "number" and (r.docked or r.left <= 120) and (not best or (r.docked and not best.docked) or (r.docked == best.docked and r.left < best.left)) then best = r end
+    if r.timed and type(r.left) == "number" and (any or r.docked or r.left <= 120) and (not best or (r.docked and not best.docked) or (r.docked == best.docked and r.left < best.left)) then best = r end
   end
   return best
 end
@@ -87,6 +87,109 @@ end
 local function gate(tool)
   return function() return on(tool) and "on" or "off" end,
     { word = "TURN ON", fn = function() R:SetEnabled(tool, true) end }
+end
+
+-- FARM (Arn, 22 Nov: "they open farm app they click around in it it'll show up as a live card if it makes sense if they just looks
+-- at it and exit they just took a peek"): its card comes after you picked a mob here, and goes when you stop farming.
+function DP.FarmDB() local tool = R:Get("farm") return tool and R:DBFor(tool) end
+--- { mob, up, next (seconds), spots } of what is farmed now, or nil.
+function DP.Farm()
+  local F, db = NS.Farm, DP.FarmDB()
+  if not (F and db and on("farm") and db.active) then return nil end
+  local c = { mob = db.active, up = 0, spots = {} }
+  local S = F.Spots
+  local now = time()
+  for _, z in ipairs(S and S.List(db, db.active) or {}) do
+    local words, ink, key = S.ZoneTimer(z, now)
+    if words == "up" then c.up = c.up + 1
+    elseif type(key) == "number" and key > 0 and key < 1e5 and (not c.next or key < c.next) then c.next = key end
+    c.spots[#c.spots + 1] = { z = z, words = words, ink = ink, key = key }
+  end
+  table.sort(c.spots, function(a, b) return (a.key or 0) < (b.key or 0) end)
+  return c
+end
+function DP.FarmRows(tab)
+  local F, db = NS.Farm, DP.FarmDB()
+  local out = {}
+  if not (F and db) then return out end
+  if tab == 2 then
+    local c = DP.Farm()
+    for i, s in ipairs(c and c.spots or {}) do
+      out[i] = { mark = tostring(s.z.mark or i), text = "Spot " .. tostring(s.z.mark or i), right = s.words, ink = s.ink == "good" and "good" or s.ink == "gold" and "gold" or "ink2" }
+    end
+    return out
+  end
+  for i, e in ipairs(F.Entries(db)) do
+    local isOn = e.name == db.active
+    out[i] = { mark = isOn and "v" or tostring(i), text = e.name, right = isOn and "FARMING" or (e.guide and "RXP" or (e.count or 0) > 1 and ("x" .. e.count) or ""), ink = isOn and "good" or "ink2",
+      tip = isOn and "Click: stop farming it" or "Click: farm it", act = { word = "farm", fn = function() F.SetActive(db, e.name) end } }
+  end
+  return out
+end
+
+-- A PAGE FOR EVERY TOOL (Arn, 22 Nov: "we need to make all the tools into apps"): a tool without a page of its own gets one made of
+-- what it already told the options window - its switch, its options, its window. Off, it is in the Apps page with TURN ON.
+DP.OWN = { bosses = true, rides = true, farm = true, deck = true }
+--- One option as a row. `tool` = whose settings.
+function DP.OptionRow(tool, opt)
+  local db = R:DBFor(tool)
+  local row = { text = opt.label, tip = opt.help }
+  local v
+  if opt.get then v = opt.get(db) end
+  if opt.kind == "toggle" then
+    row.right, row.ink = v and "ON" or "OFF", v and "good" or "dim"
+    row.act = { word = "switch", fn = function() opt.set(db, not opt.get(db)) end }
+  elseif opt.kind == "seg" then
+    row.right = tostring(v)
+    row.act = { word = "next", fn = function()
+      local at = 0
+      for i, x in ipairs(opt.values) do if x == opt.get(db) then at = i end end
+      opt.set(db, opt.values[at % #opt.values + 1])
+    end }
+  elseif opt.kind == "step" then
+    row.right = tostring(opt.show and opt.show(db) or v)
+    local function by(sign)
+      local n = (tonumber(opt.get(db)) or 0) + sign * (opt.step or 1)
+      opt.set(db, math.max(opt.min or n, math.min(opt.max or n, n)))
+    end
+    row.less = { word = "-", fn = function() by(-1) end }
+    row.more = { word = "+", fn = function() by(1) end }
+  elseif opt.kind == "button" then
+    row.right, row.ink = tostring(opt.button or "press"):upper(), "accent"
+    row.act = { word = "press", fn = function() opt.action(db) end }
+  end
+  return row
+end
+function DP.ToolRows(tool)
+  local out = {}
+  for _, opt in ipairs(tool.options or {}) do out[#out + 1] = DP.OptionRow(tool, opt) end
+  return out
+end
+function DP.Tools()
+  if not (D and D.Register) or DP.toolsIn then return false end
+  DP.toolsIn = true
+  local n = 0
+  for key, tool in R:Each() do
+    n = n + 1
+    if not DP.OWN[key] then
+      local name = tool.title or (tool.name:sub(1, 1):upper() .. tool.name:sub(2))
+      D.Register{
+        owner = "BiSTools", key = "tool-" .. key, name = name, icon = name:sub(1, 2), order = 40 + n / 100, quietOff = true,
+        about = (tool.desc:sub(1, 1):upper() .. tool.desc:sub(2)) .. ".",
+        state = function() return on(key) and "on" or "off" end,
+        turnOn = { word = "TURN ON", fn = function() R:SetEnabled(key, true) end },
+        page = {
+          title = function() return name end,
+          kicker = function() return "BiS Tools" end,
+          text = function() return (tool.desc:sub(1, 1):upper() .. tool.desc:sub(2)) .. "." end,
+          rows = function() return DP.ToolRows(tool) end,
+          big = function() return tool.OnOpen and { word = "OPEN", peek = true, fn = function() tool:OnOpen(R:DBFor(tool)) end } or nil end,
+          keys = function() return { { word = "TURN OFF", peek = true, fn = function() R:SetEnabled(key, false) D.page = "home" end } } end,
+        },
+      }
+    end
+  end
+  return true
 end
 
 function DP.Register()
@@ -130,13 +233,48 @@ function DP.Register()
       title = function() local BF = DP.Place() return BF and ((BF.data and BF.data.name or BF.outName or "") .. " run") or "Run" end, steps = DP.Steps,
       text = function() return "Walk into a dungeon: its quests and bosses come up as steps." end },
   }
+  local fState, fTurnOn = gate("farm")
+  D.Register{
+    owner = "BiSTools", key = "farm", name = "Farm", icon = "Fa", order = 20,
+    state = fState, turnOn = fTurnOn, quietOff = true, about = "Pick a mob you kill: fresh copies are found and marked, its spots are timed.",
+    badge = function() local c = DP.Farm() return c and c.up or nil end,
+    card = {
+      when = "use", tick = true,
+      alive = function() return DP.Farm() ~= nil end,
+      prio = function() local c = DP.Farm() return c and (c.up > 0 and 6 or 3) or nil end,
+      lines = function()
+        local c = DP.Farm()
+        return { "FARM", "", c.mob, c.up > 0 and (c.up .. " up") or c.next and clock(c.next) or "", c.up > 0 and "good" or "ink2" }
+      end,
+      buttons = function()
+        return { { word = "STOP", fn = function() NS.Farm.SetActive(DP.FarmDB(), nil) end },
+          { word = "SPOTS", peek = true, fn = function() D.defs["BiSTools:farm"].tab = 2 D.Open("BiSTools:farm") end } }
+      end,
+    },
+    page = {
+      tour = { { text = "Pick a mob: it becomes a live card on home.", note = "Just looking changes nothing." }, { text = "Drag that card onto your screen if you want it there. Its x puts it back." } },
+      title = function() return "Farm" end,
+      kicker = function() local c = DP.Farm() return c and "farming" or "pick a mob" end,
+      boxes = function()
+        local c, db = DP.Farm(), DP.FarmDB()
+        if not c then return {} end
+        return { { "KILLS", db.last and db.last.name == c.mob and db.last.count or "-", "ink" }, { "UP NOW", c.up, "good" }, { "NEXT", c.next and clock(c.next) or "-", "gold" } }
+      end,
+      tabs = function() local c = DP.Farm() return { "MOBS", "SPOTS " .. (c and #c.spots or 0) } end,
+      rows = DP.FarmRows,
+      text = function() return #DP.FarmRows(1) == 0 and "Kill something: it shows up here. Your guide's targets do too." or nil end,
+      keys = function() return { { word = "WINDOW", peek = true, fn = function() NS.Farm.Toggle(DP.FarmDB(), true) end }, { word = "FORGET", peek = true, fn = function() NS.Farm.Clear(DP.FarmDB()) end } } end,
+    },
+  }
   local rState, rTurnOn = gate("rides")
   D.Register{
     owner = "BiSTools", key = "rides", name = "Rides", icon = "Ri", order = 30,
     state = rState, turnOn = rTurnOn, about = "When the next zeppelin or boat leaves, timed by your guild.",
     card = {
-      prio = function() local r = DP.Ride() return r and (r.docked and 9 or 5) or nil end,
-      lines = function() local r = DP.Ride() return { "RIDES", "", (r.kind == "boat" and "Boat to " or "Zeppelin to ") .. tostring(r.to or r.name), clock(r.left), "gold", hot = r.docked } end,
+      tick = true,
+      -- pulled out, it always shows the next ride (you put it there on purpose); in the deck only one that is close
+      prio = function(out) local r = DP.Ride(out) return r and (r.docked and 9 or 5) or nil end,
+      lines = function(out) local r = DP.Ride(out) return { "RIDES", "", (r.kind == "boat" and "Boat to " or "Zeppelin to ") .. tostring(r.to or r.name), clock(r.left), "gold", hot = r.docked } end,
     },
     page = {
       title = function() return "Rides" end, kicker = function() return "timed by your guild" end,
@@ -158,8 +296,9 @@ R:Register({
   usage = "/bist deck  |  /bist deck wide|tall|pad|welcome|theme <name>|pin <profile>|unpin",
   defaultOff = true,
   defaults = {},
-  OnEnable = function() if D then D.Show() end end,
-  OnDisable = function() if D then D.Hide() end end,
+  OnLogin = function() DP.Tools() end,
+  OnEnable = function() if D then DP.Tools() if D.Off then D.Off(false) end D.Show() end end,
+  OnDisable = function() if D then D.Hide() if D.Off then D.Off(true) end end end,
   OnOpen = function() if D then D.Toggle() end end,
   OnSlash = function(_, _, args)
     if not D then return NS.Print("deck: the kit did not load") end
@@ -184,6 +323,9 @@ R:Register({
     else D.Toggle() end
   end,
 })
+
+--- Is the Rides card out on the screen? Then the old rides card stays away: one or the other (Tools/Rides.lua asks).
+function DP.RidePinned() return D and D.IsPinned and R:Enabled("deck") and D.IsPinned("BiSTools:rides") or false end
 
 -- what moves a card, only while the deck is shown (D.Dirty is a flag; the deck paints once a second at most)
 if NS.Bosses then

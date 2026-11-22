@@ -92,6 +92,22 @@ home, never behind a list), Light, High contrast are picked in the switches (THE
 colour names in other colours (D.THEMES); it never touches T.hex, so no other BiS window changes. dev/deck.lua measures every theme: ink 7:1, the rest 4.5:1.
 PULL-OUT cards therefore start in the clean style; the big thin number, the pill and the glide stay part of the plan for all themes.
 
+## Peek, use, live card, pulled out (Arn, 22 Nov) - BUILT
+"they open farm app they click around in it it'll show up as a live card if it makes sense if they just looks at it and exit they just
+took a peek, but if they like the live card cause they can click stuff on it and drag it out and pin it to their screen , they don't end up
+likening it they close it and goes back to the phone, if they want to see more it opens the app on the phone". And before it: "does
+everything have an app or do some only have a live card ... we need to make all the tools into apps and smarty size them for live cards".
+- PEEK = opened, tabs, scrolling, a button marked `peek`: nothing left behind. USE = a button that does something: `D.Used`, and the card is
+  there if `card.alive` says there is something to show. x on the card = done with it; `alive` false or 12 h = it goes by itself. Per
+  character. `card.when`: "use" (Farm) or "news" (Rides, Bosses: by itself); the Apps page's LIVE CARDS tab: AFTER USE / BY ITSELF / NEVER.
+- OUT or a drag = BiSTheme/DeckPins.lua: its own plain frame, the card's plain buttons, OPEN (or a click on it) = the app on the deck, x or
+  dropped on the deck = back into it. The deck may be closed. A fight: clicks go through (switch: gone). Rides out = the old rides card
+  stays away.
+- EVERY TOOL IS AN APP: DP.Tools makes a page of each tool's own options (switch, choice, - / +, button, OPEN its window); a tool that is
+  off is in the Apps page with TURN ON. Full pages so far: Bosses, Run, Rides, Farm.
+- NEXT: cards size themselves S / M / L (proposal https://claude.ai/artifact/NJCTxoummvEmEmjgHExQE7), then Combo and Windfury as full
+  apps with live cards.
+
 ## Data
 BiS>Guides = a separate, NOT public library (Arn, 21 Nov) behind a BiSGuidesAPI (to build): dungeon quests, chains, givers,
 levels, what each needs (kill / loot / use / click) and the item. The deck works without it: own quest log, BQ.OWN (our own
