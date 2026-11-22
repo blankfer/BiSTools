@@ -2808,6 +2808,7 @@ do
     { "Libs/BiSTheme/DeckApps.lua",             "../BiSTheme/DeckApps.lua" },
     { "Libs/BiSTheme/DeckPins.lua",             "../BiSTheme/DeckPins.lua" },
     { "Libs/BiSTheme/DeckStatus.lua",           "../BiSTheme/DeckStatus.lua" },
+    { "Libs/BiSTheme/DeckAPI.lua",              "../BiSTheme/DeckAPI.lua" },
     { "Libs/BiSTheme/Pad.lua",                  "../BiSTheme/Pad.lua" },
     { "Libs/BiSTheme/Options.lua",              "../BiSTheme/Options.lua" },
     { "Libs/BiSTheme/Settings.lua",             "../BiSTheme/Settings.lua" },
@@ -10750,7 +10751,7 @@ local allowed = { BiSTools = true, BiSToolsDB = true, BiSToolsAlts = true, SLASH
   BiSToolsAPI = true, -- API.lua, for other addons (16 Oct: BiS Guild's invites)
   -- the overlay map's key binding: Bindings.xml calls a global, and the client reads these two names
   BiSTools_ToggleOverlayMap = true, BINDING_HEADER_BISTOOLS = true, BINDING_NAME_BISTOOLS_OVERLAYMAP = true,
-  BiSTools_ToggleDeck = true, BINDING_NAME_BISTOOLS_DECK = true }
+  BiSDeckAPI = true, BiSTools_ToggleDeck = true, BINDING_NAME_BISTOOLS_DECK = true }
 for k in pairs(_G) do
   if not before[k] and not allowed[k] and not frames[k] then error("leaked global: " .. k) end
 end

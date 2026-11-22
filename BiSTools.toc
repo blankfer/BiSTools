@@ -18,6 +18,7 @@ Libs\BiSTheme\Deck.lua
 Libs\BiSTheme\DeckPins.lua
 Libs\BiSTheme\DeckStatus.lua
 Libs\BiSTheme\DeckApps.lua
+Libs\BiSTheme\DeckAPI.lua
 Libs\LibBiSComm-1.0\LibBiSComm-1.0.lua
 Libs\RezComm-1.0\RezComm-1.0.lua
 Libs\LibStub\LibStub.lua
