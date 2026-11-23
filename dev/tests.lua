@@ -789,6 +789,7 @@ fireAll("PLAYER_ENTERING_WORLD")
 local S = SlashCmdList.BISTOOLS
 local R = NS.Registry
 local F = NS.Farm
+NS.Box.DB().shown = true                 -- (the box is put away by default since 22 Nov; its own checks tick it here, the "PUT AWAY" ones untick it)
 local db = R:DBFor(R:Get("farm"))
 local function fire(ev, ...) F.events.scripts.OnEvent(F.events, ev, ...) end
 local function db_summon() return R:DBFor(R:Get("summon")) end
@@ -2326,7 +2327,8 @@ do
   -- (+ deck (0), 21 Nov: its section header, the on/off)
   -- (+1 in combo, 22 Nov: the fights that count)
   -- (+ innervate (2), 22 Nov: the bar, how people look - and its header)
-  ok(#opt.rows == 11 + 3 + 5 + 7 + 1 + 8 + 2 + 4 + 7 + 4 + 4 + 5 + 1 + 1 + 1 + 1 + 3 + 2 + 4 + 2 + 6 + 3 + 2 + 1 + 1 + 3, "one row per section header and per option", #opt.rows)
+  -- (+1 in tools, 22 Nov: the tools box, put away)
+  ok(#opt.rows == 12 + 3 + 5 + 7 + 1 + 8 + 2 + 4 + 7 + 4 + 4 + 5 + 1 + 1 + 1 + 1 + 3 + 2 + 4 + 2 + 6 + 3 + 2 + 1 + 1 + 3, "one row per section header and per option", #opt.rows)
   -- THE BiSTheme STANDARD, 1.43:1 (Arn, 14 Oct): its sections poured into columns, the window that shape
   ok(math.abs(opt.w / opt.h - 1.43) < 0.01 and (opt.columns or 1) >= 2, "options: 1.43:1, in columns", opt.w .. "x" .. opt.h)
   local function find(label) for _, r in ipairs(opt.rows) do if r.name and r.name.text == label then return r end end end
@@ -2410,7 +2412,7 @@ do
   -- every option label fits its lane (controls take the right 110 px)
   for _, r in ipairs(opt.rows) do if r.name then ok(r.name:GetStringWidth() <= H.OPT_W - 12 - 110, "option label fits: " .. tostring(r.name.text)) end end
   -- a section header's box toggles the tool
-  local farmHdr = opt.rows[5]
+  local farmHdr = opt.rows[6]                          -- (the tools section: its header and five rows)
   ok(farmHdr.ctl and farmHdr.ctl.on == true, "farm section box shows on")
   farmHdr.ctl.scripts.OnClick(farmHdr.ctl)
   ok(not R:Enabled("farm") and farmHdr.ctl.on == false and hub.con.slots.count.text == "11 of 20 on", "box off: farm off, hub count follows", hub.con.slots.count.text)
@@ -2616,8 +2618,8 @@ do
     _G.SettingsPanel, _G.HideUIPanel = nil, keepHUI
     ok(panelUp == false and openedKey == "codex", "it closes the game's options, then opens that tool's window")
     d.rows[1].scripts.OnClick(d.rows[1], "LeftButton")
-    ok(d.selected == "_general" and not d.detail.switch:IsShown() and #d.pages._general == 3,
-       "BiS Tools itself: no on/off, its own three settings")
+    ok(d.selected == "_general" and not d.detail.switch:IsShown() and #d.pages._general == 4,
+       "BiS Tools itself: no on/off, its own four settings")
     -- every row and button pops under the mouse (the family rule)
     -- THE LAMP IS A LAMP (Arn, 8 Nov live, the first look: every row solid cyan, the picked one solid pink - the
     -- 8 px lamp and the 3 px bar were stretched over the whole row by the kit's SetAllPoints)
@@ -4359,8 +4361,18 @@ do
   -- THE BiS> TOOLS BOX (Arn: "lets keep all button neat maybe in a bis farm box, like the bis now, maybe if
   -- we have bis now it just puts the button there cross addon")
   local Bx = NS.Box
+  -- PUT AWAY (Arn, 22 Nov: "no more bis tool box lil box"): hidden unless ticked
+  Bx.DB().shown = nil
+  Bx.Refresh()
+  ok(Bx.Hidden() and Bx.count == 0 and not Bx.frame.shown and not tb.shown, "the box is put away: no box, no button")
+  do
+    local ownBox
+    for _, o in ipairs(NS.Hub.OwnOptions()) do if o.label == "tools box" then ownBox = o end end
+    ok(ownBox and ownBox.get() == false, "its switch in BiS Tools' own options, off")
+    ownBox.set(nil, true)
+  end
   local box = Bx.frame
-  ok(box and tb.parent == box and box.shown and Bx.count >= 1, "the rival button lives in the BiS> tools box")
+  ok(box and tb.parent == box and box.shown and Bx.count >= 1, "ticked: the rival button lives in the BiS> tools box")
   -- ONE LOOK FOR EVERY BiS> BAR (Arn: "the bis headers are all different fonts some different color some
   -- blinking _ some static lets get them all the same"): the box's bar wears the prompt, BiS Healing's height
   local hc = box.head.con
