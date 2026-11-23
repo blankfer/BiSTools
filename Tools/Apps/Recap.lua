@@ -66,7 +66,11 @@ local function hitRows(d)
     local what, amt = RC.HitWords(h)
     local name = h.name or "someone"
     local ago = newest and h.t and i > 1 and (" (%.1f s before)"):format(newest - h.t) or ""
+    -- (the colour pass, 22 Nov: when and how much health you had, under it; the killing blow's words in red)
+    local when2 = i == 1 and "the killing blow" or (newest and h.t and ("%.1f s before"):format(newest - h.t)) or nil
+    local subw = (when2 or "") .. ((when2 and h.hp) and ", " or "") .. (h.hp and ("you had " .. h.hp) or "")
     out[#out + 1] = { mark = i == 1 and "x" or tostring(i), text = what .. " - " .. name, right = amt, ink = i == 1 and "warn" or h.crit and "gold" or "ink2",
+      tint = i == 1 and "warn" or nil, sub = subw ~= "" and subw or nil,
       tip = name .. ": " .. what .. ", " .. amt .. ago .. (h.hp and (". You had " .. h.hp .. " health.") or ".") }
   end
   return out
@@ -96,7 +100,9 @@ local function whoRows(db)
     local tip = who(a) .. ": " .. a.hits .. (a.hits == 1 and " hit" or " hits") .. (a.crits > 0 and (", " .. a.crits .. " crit") or "")
       .. (a.top and a.topAmt and (", mostly " .. a.top .. " " .. a.topAmt) or "")
       .. (a.nicks and #a.nicks > 0 and (". Called " .. table.concat(a.nicks, ", ")) or "")
-    local row = { mark = a == s.killer and "x" or "", text = who(a), right = amt, ink = a == s.killer and "warn" or "ink2", tip = tip }
+    local subw = a.hits .. (a.hits == 1 and " hit" or " hits") .. (a.crits > 0 and (", " .. a.crits .. " crit") or "") .. (a.top and (", mostly " .. a.top) or "")
+    local row = { mark = a == s.killer and "x" or "", text = who(a), right = amt, ink = a == s.killer and "warn" or "ink2", tip = tip, sub = subw,
+      tint = a == s.killer and "warn" or (a.player and type(a.class) == "string" and a.class:upper()) or nil }
     if a.player and a.names and a.names[1] then
       row.text, row.right = who(a) .. "  " .. amt, nil
       row.side = rivalKey(db, a)
@@ -167,7 +173,9 @@ DP.App.recap = function(tool, db)
         local out = {}
         for i, d in ipairs(deaths) do
           local s = d.s
-          out[i] = { mark = tostring(i), text = who(s.killer), right = when(d), ink = "ink2",
+          local blow = s.blow and table.concat({ RC.HitWords(s.blow) }, " ") or nil
+          local subw = (blow or "") .. ((blow and d.where and d.where ~= "") and ", " or "") .. ((d.where and d.where ~= "") and d.where or "")
+          out[i] = { mark = tostring(i), text = who(s.killer), right = when(d), ink = "ink2", tint = "warn", sub = subw ~= "" and subw or nil,
             tip = RC.Foot(s) .. (d.where and d.where ~= "" and (" - " .. d.where) or ""), act = { word = "open", peek = true, fn = function() go(d) end } }
         end
         return out

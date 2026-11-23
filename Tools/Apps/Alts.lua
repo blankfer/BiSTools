@@ -35,7 +35,7 @@ local function charRows(name, d)
     local is = role == now
     -- (a new main takes it from the old one; leaving MAIN leaves nobody to copy from; GETS COPIES writes over what it had)
     local hurts = not is and (role == "main" or role == "gets" or now == "main")
-    out[#out + 1] = { mark = is and "v" or "", text = A.ROLE_WORD[role], right = is and "NOW" or armed(id) and "SURE?" or "PICK",
+    out[#out + 1] = { mark = is and "v" or "", text = A.ROLE_WORD[role], sub = SAYS[role], tint = is and INK[role] or nil, right = is and "NOW" or armed(id) and "SURE?" or "PICK",
       ink = is and INK[role] or armed(id) and "warn" or "accent",
       tip = SAYS[role], act = not is and { word = "pick", fn = twice(id, hurts, function() A.SetRole(name, role) end) } or nil }
   end
@@ -70,7 +70,7 @@ DP.App.alts = function(tool, db)
           for i, s in ipairs(A.SENDS) do
             local is = d.sends[s.key] == true
             local id = "send:" .. s.key
-            out[i] = { mark = is and "v" or "", text = s.label, right = armed(id) and "SURE?" or is and "ON" or "OFF",
+            out[i] = { mark = is and "v" or "", text = s.label, sub = s.sub, right = armed(id) and "SURE?" or is and "ON" or "OFF",
               ink = armed(id) and "warn" or is and "good" or "dim",
               tip = s.sub .. (is and "" or ". Switched on, it is written over on every character that gets copies."),
               act = { word = "switch", fn = twice(id, not is, function() A.SetSend(s.key, not is) end) } }
@@ -80,7 +80,12 @@ DP.App.alts = function(tool, db)
         if open and d.roster[open] then return charRows(open, d) end
         open = nil
         for i, e in ipairs(A.List(d)) do
-          out[i] = { mark = e.level > 0 and tostring(e.level) or "", text = e.name, right = A.ROLE_WORD[e.role], ink = INK[e.role],
+          -- (the colour pass, 22 Nov: the class's circle and colour, level and class under the name)
+          local D = BiSTheme and BiSTheme.Deck
+          local pic, co
+          if D and D.ClassPic then pic, co = D.ClassPic(e.class) end
+          out[i] = { mark = not pic and (e.level > 0 and tostring(e.level) or "") or nil, pic = pic, coords = co, text = e.name, right = A.ROLE_WORD[e.role], ink = INK[e.role],
+            tint = type(e.class) == "string" and e.class:upper() or nil, sub = (e.level > 0 and ("level " .. e.level .. " ") or "") .. class(e),
             tip = e.name .. (class(e) ~= "" and (", " .. class(e)) or "") .. ". Click: what it is",
             act = { word = "open", peek = true, fn = function() go(e.name) end } }
         end

@@ -27,14 +27,15 @@ function B.DeckMarked()
     if i > B.TOP_HEALERS then break end
     if s.name then
       had[s.name] = true
-      out[#out + 1] = { mark = tostring(i), text = s.name, right = s.heal and (s.heal .. " healed") or "healer " .. i, ink = "ink",
+      out[#out + 1] = { mark = tostring(i), text = s.name, right = s.heal and (s.heal .. " healed") or "healer " .. i, ink = "good", tint = s.class or "good",
+        sub = "their healer number " .. i .. (s.class and (", " .. s.class:lower()) or ""),
         tip = s.name .. ": number " .. i .. " on their side by healing done" }
     end
   end
   local k = B.killer
   if k and k.name then
     had[k.name] = true
-    out[#out + 1] = { mark = "x", text = k.name, right = k.kb and (k.kb .. " kills") or "top killer", ink = "warn",
+    out[#out + 1] = { mark = "x", text = k.name, right = k.kb and (k.kb .. " kills") or "top killer", ink = "warn", tint = "warn", sub = "their top killer",
       tip = k.name .. ": the most killing blows on their side" }
   end
   local names = {}
@@ -42,7 +43,7 @@ function B.DeckMarked()
   table.sort(names)
   for _, name in ipairs(names) do
     had[name] = true
-    out[#out + 1] = { mark = "v", text = name, right = "our " .. B.mvps[name], ink = "gold", tip = name .. ": our side's best " .. B.mvps[name] }
+    out[#out + 1] = { mark = "v", text = name, right = "our " .. B.mvps[name], ink = "gold", tint = "gold", sub = "our side's best " .. B.mvps[name], tip = name .. ": our side's best " .. B.mvps[name] }
   end
   -- on a plate in sight, from an earlier battleground
   local plates, units = 0, {}
@@ -123,7 +124,8 @@ DP.App.bg = function(tool, db)
           local rec = e.rec
           local h, k = rec.healer or 0, rec.killer or 0
           local why = (h > 0 and times(h, "heal") or "") .. (h > 0 and k > 0 and ", " or "") .. (k > 0 and times(k, "kill") or "")
-          out[i] = { mark = k > 0 and "x" or "+", text = e.name .. (why ~= "" and "  " .. why or ""),
+          out[i] = { mark = k > 0 and "x" or "+", text = e.name .. (why ~= "" and "  " .. why or ""), tint = k > 0 and "warn" or "good",
+            sub = rec.last and date and ("last seen " .. date("%d %b", rec.last)) or nil, right = k > 0 and "KILLER" or "HEALER", ink = k > 0 and "warn" or "good",
             tip = e.name .. ": a top healer in " .. times(h, "battleground") .. ", the top killer in " .. times(k, "battleground")
               .. (rec.last and date and (", last seen " .. date("%d %b", rec.last)) or ""),
             side = twice("forget:" .. e.name, "FORGET", "Press twice: not remembered any more", function() press("forget " .. e.name) end) }

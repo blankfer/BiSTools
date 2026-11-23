@@ -137,6 +137,10 @@ DP.App.sounds = function(_, db)
         { text = "MINE plays your own .ogg files. STOP ends a sound that goes on." } },
       kicker = function() return X.last == nil and "click one to hear it" or sounding() and "playing" or "heard" end,
       tabs = function() return { "ALL", "STARS", "MINE" } end,
+      boxes = function()                                     -- (the colour pass, 22 Nov: what there is, in numbers)
+        local d = db()
+        return { { "STARS", #X.Favs(d), "gold" }, { "MINE", #(d.files or {}), "accent" }, { "LAST", type(X.last) == "number" and X.last or X.last and "FILE" or "-", "ink2" } }
+      end,
       find = function(tab)
         if tab == 3 then
           return { hint = "BiSHealing\\Media\\click.ogg, enter", get = function() return typed end, set = function(w) typed = w end,

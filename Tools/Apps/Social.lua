@@ -65,15 +65,16 @@ DP.App.social = function(_, db)
       { text = "Buffed by your group", right = d.groupToo and "YES" or "NO", ink = d.groupToo and "good" or "dim", tip = "Click: switch it",
         act = { word = "switch", peek = true, fn = function() d.groupToo = not d.groupToo end } },
       { text = "In a fight", right = "NEVER", ink = "dim", tip = "The game hides who buffed you then" },
-      { text = "Wait between two", right = ("%d-%d min"):format(S.MIN_GAP / 60, S.MAX_GAP / 60), tip = "A different wait every time" },
-      { text = "Same player again", right = ("%d min"):format(S.SAME_GAP / 60), tip = "Nobody is thanked twice before that" },
+      { text = "Wait between two", right = ("%d-%d min"):format(S.MIN_GAP / 60, S.MAX_GAP / 60), ink = "accent", tip = "A different wait every time" },
+      { text = "Same player again", right = ("%d min"):format(S.SAME_GAP / 60), ink = "accent", tip = "Nobody is thanked twice before that" },
     }
   end
   local function recentRows()
     local out = {}
     for i, h in ipairs(S.history or {}) do
       local word, ink = short(h.why)
-      out[i] = { mark = ink == "good" and "v" or "", text = h.who or "Someone", right = word, ink = ink, done = ink ~= "good",
+      local subw = (h.spell and (h.spell .. ", ") or "") .. ago(h.at) .. " ago"
+      out[i] = { mark = ink == "good" and "v" or "", text = h.who or "Someone", right = word, ink = ink, done = ink ~= "good", sub = subw, tint = ink == "good" and "good" or nil,
         tip = (h.spell and (h.spell .. "\n") or "") .. tostring(h.why) .. "\n" .. ago(h.at) .. " ago" }
     end
     return out

@@ -123,12 +123,12 @@ DP.App.innervate = function(tool, db)
             local n, left, givers = A.Ready(k)
             if #givers > 0 then
               out[#out + 1] = { head = true, text = A.WORD[k], right = n > 0 and n .. " ready" or left and A.Clock(left) or "", ink = n > 0 and "good" or "ink2" }
-              for _, name in ipairs(givers) do out[#out + 1] = { mark = "-", text = name } end
+              for _, name in ipairs(givers) do out[#out + 1] = { pic = A.ICON[k], text = name } end
             end
           end
           if #plan.askers > 0 then
             out[#out + 1] = { head = true, text = "WHO MAY ASK YOU" }
-            for _, x in ipairs(plan.askers) do out[#out + 1] = { mark = "-", text = x.name, right = CLASS_WORD[x.class] or "" } end
+            for _, x in ipairs(plan.askers) do out[#out + 1] = { mark = "-", text = x.name, tint = type(x.class) == "string" and x.class:upper() or nil, sub = CLASS_WORD[x.class] } end
           end
           return out
         end
@@ -142,7 +142,7 @@ DP.App.innervate = function(tool, db)
           local rest = {}
           for _, x in ipairs(plan.askers) do if not seen[x.name] then rest[#rest + 1] = x end end
           if #rest > 0 then out[#out + 1] = { head = true, text = "THE OTHERS" } end
-          for _, x in ipairs(rest) do out[#out + 1] = { mark = "-", text = x.name, right = mana(x.unit), verb = "GIVE", act = give(x, plan.give, nil) } end
+          for _, x in ipairs(rest) do out[#out + 1] = { pic = A.ICON[plan.give], text = x.name, right = mana(x.unit), ink = "ink2", tint = type(x.class) == "string" and x.class:upper() or nil, verb = "GIVE", act = give(x, plan.give, nil) } end
         end
         if plan.tide then
           local x = asking("tide")[1]

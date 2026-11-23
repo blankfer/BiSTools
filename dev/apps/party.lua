@@ -115,7 +115,13 @@ return function(H)
   -- not the leader
   leader = false
   later(9)
-  ok(p.big(1) == nil and row(1, "Bert Sun").act == nil and p.say(1):find("Only the leader"), "not the leader: nobody can be asked, and it says why", p.say(1))
+  -- (Arn, 22 Nov: "in forever now we can suggest people to the leader to invite")
+  for k in pairs(P.out) do P.out[k] = nil end
+  local bert = row(1, "Bert Sun")
+  ok(p.big(1) == nil and bert.verb == "SUGGEST" and p.say(1):find("SUGGEST asks the leader", 1, true), "not the leader: SUGGEST on each one, no big button, and it says so", p.say(1))
+  local before = #invited
+  press(bert.act)
+  ok(#invited == before + 1 and invited[#invited] == "Bert Sun" and row(1, "Bert Sun").right == "SUGGESTED" and row(1, "Bert Sun").act == nil, "SUGGEST hands the name to the game's invite call: the leader is asked; said, and not twice")
   ok(key(1, "LEAVE") and not key(1, "DISBAND"), "LEAVE, not DISBAND")
   press(key(1, "LEAVE"))
   ok(left == 0 and key(1, "SURE?"), "LEAVE asks first")
@@ -140,7 +146,7 @@ return function(H)
   ok(#db.names == 2, "saved")
   -- more than a party holds
   for _, n in ipairs({ "Bert Sun", "Dora Sky", "Fred Wind" }) do P.Add(db, n) end
-  P.out, invited = {}, {}
+  P.out, invited, P.suggested = {}, {}, {}
   later()
   press(p.big(1)) press(p.big(1))
   ok(#invited == 2 and P.held and #P.held.names == 1 and row(1, "Fred Wind").right == "NEXT" and p.say(1), "past five: the rest wait for the raid", #invited)

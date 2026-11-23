@@ -12,7 +12,7 @@ if not X then return end
 local D = BiSTheme and BiSTheme.Deck
 local FRESH, KEEP = 1, 15
 local TEXT_H = 440                                        -- under this height the place's words give their room to the list
-local QUALITY = { [2] = "good", [3] = "slate", [4] = "accent", [5] = "gold" }
+local QUALITY = { [2] = "uncommon", [3] = "rare", [4] = "epic", [5] = "gold" }
 
 local at = { {}, {}, {} }                                 -- where you are, per tab: { d = dungeon, npc, skip }
 local find = ""
@@ -56,7 +56,9 @@ local function row(tab, npc, how)
   elseif s and s.boss then right, ink = "BOSS", "gold"
   elseif m and m.level then right = "lvl " .. m.level end
   local dd = s and C.DATA.dungeons[s.d]
-  return { mark = n > 0 and "v" or "", text = name(npc), right = right, ink = ink,
+  local lv = m and m.level and ("level " .. m.level) or nil
+  local subw = (dd and dd.name or "") .. ((dd and lv) and ", " or "") .. (lv or "")
+  return { mark = n > 0 and "v" or "", text = name(npc), right = right, ink = ink, tint = s and s.boss and "gold" or n > 0 and "good" or nil, sub = subw ~= "" and subw or nil,
     tip = (dd and dd.name or "The wild") .. (n > 0 and (", met " .. n .. (n == 1 and " time" or " times")) or ", not met yet"),
     act = { word = "open", peek = true, fn = function() into(tab, "npc", npc) end } }
 end
@@ -75,7 +77,7 @@ local function places()
       local isHere = mine ~= nil and dd.name:lower():gsub("^the ", "") == mine
       local met = 0
       for _, npc in ipairs(dd.list) do if db.met[npc] then met = met + 1 end end
-      local r = { mark = isHere and ">" or tostring(dd.level), text = dd.name,
+      local r = { mark = isHere and ">" or tostring(dd.level), text = dd.name, tint = isHere and "gold" or nil, sub = dd.where .. ", level " .. dd.level,
         right = isHere and "HERE" or met > 0 and (met .. " / " .. #dd.list) or tostring(#dd.list),
         ink = isHere and "gold" or met > 0 and "good" or "dim",
         tip = dd.where .. ", level " .. dd.level .. ": " .. #dd.list .. " creatures, " .. met .. " met",
@@ -139,7 +141,7 @@ local function creature(npc)
     local rank = X.Rank(c)
     local v = { c = c, name = called, rows = {}, drops = X.Drops(c) }
     local function add(r) v.rows[#v.rows + 1] = r end
-    local function head(words, n) add({ mark = "-", text = words, right = n and tostring(n) or "", ink = "dim", done = true }) end
+    local function head(words, n) add({ head = true, text = words, right = n and tostring(n) or "" }) end
     head("ABILITIES", #c.spells)
     for _, id in ipairs(c.spells) do
       local s = C.Spell(id)
@@ -156,7 +158,7 @@ local function creature(npc)
         local ok, t = pcall(C_Item.GetItemIconByID, e.item)
         icon = ok and C.Plain(t) or nil
       end
-      add({ pic = icon or X.QUESTION, text = iname or ("item " .. e.item), right = e.n == 1 and "once" or ("x" .. e.n), ink = QUALITY[q or 1] or "ink2",
+      add({ pic = icon or X.QUESTION, text = iname or ("item " .. e.item), right = e.n == 1 and "once" or ("x" .. e.n), ink = "ink2", tint = QUALITY[q or 1],
         tip = (iname or "item") .. ": seen " .. (e.n == 1 and "once" or (e.n .. " times")) })
     end
     if #v.drops == 0 then add({ text = "Loot one and it is written here.", done = true }) end

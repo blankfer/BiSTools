@@ -59,12 +59,14 @@ DP.App.windfury = function(_, db)
       tip = "A shaman's Windfury Totem, read out of a fight" })
     if W.IsShaman() then
       local knows = W.KnowsWF()
-      add({ mark = "S", text = "You, a shaman", right = knows and "READY" or "NOT YET", ink = knows and "good" or "dim",
+      add({ pic = C and C.IconFor("Windfury Totem"), mark = "S", text = "You, a shaman", right = knows and "READY" or "NOT YET", ink = knows and "good" or "dim", tint = "SHAMAN",
+        sub = knows and "your totem button lights up when asked" or "you do not know Windfury Totem yet",
         tip = knows and "Your Windfury Totem button lights up when somebody asks" or "You do not know Windfury Totem yet" })
     end
     local sh = shamans()
     for _, x in ipairs(sh) do
-      add({ mark = "S", text = x.name, right = x.hears and "HEARS" or "NO BIS", ink = x.hears and "good" or "dim",
+      add({ mark = "S", text = x.name, right = x.hears and "HEARS" or "NO BIS", ink = x.hears and "good" or "dim", tint = "SHAMAN",
+        sub = x.hears and "their button lights up when you ask" or "no BiS Tools heard from them",
         tip = x.hears and "Hears your ASK: their totem button lights up (with windfury switched on there)"
           or "No BiS Tools heard from them: nothing lights up when you ask" })
     end
@@ -86,10 +88,10 @@ DP.App.windfury = function(_, db)
       local tip = ("%s target changes in %.1f s%s"):format(tostring(e.n or 0), tonumber(e.span) or 0, e.fight and ", in a fight" or "")
       if e.k == "sent" then
         out[#out + 1] = { mark = ">", text = at .. " you asked " .. tostring(e.to or "?"), right = (e.n or 0) .. " x",
-          ink = (e.n or 0) >= W.NEED and "good" or "ink2", tip = tip }
+          ink = (e.n or 0) >= W.NEED and "good" or "ink2", tip = tip, sub = tip }
       else
         out[#out + 1] = { mark = "<", text = at .. " " .. tostring(e.who or "?"), right = e.lit and "LIT" or e.notBis and "NO BIS" or ((e.n or 0) .. " x"),
-          ink = e.lit and "gold" or "dim", done = not e.lit, tip = tip }
+          ink = e.lit and "gold" or "dim", done = not e.lit, tip = tip, sub = tip, tint = e.lit and "gold" or nil }
       end
     end
     return out
@@ -136,7 +138,7 @@ DP.App.windfury = function(_, db)
           if e.lit then lit = lit + 1 end
         end
         if sent + heard == 0 then return {} end
-        return { { "SENT", sent }, { "HEARD", heard }, { "LIT", lit, "gold" } }
+        return { { "SENT", sent, "accent" }, { "HEARD", heard, "good" }, { "LIT", lit, "gold" } }
       end,
       rows = function(tab) return tab == 1 and lampRows() or logRows() end,
       text = function(tab) return tab == 2 and #log() == 0 and "No ask yet. Press ASK in a fight, or get asked: it is written here." or nil end,

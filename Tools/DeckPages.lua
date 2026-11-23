@@ -174,13 +174,19 @@ function DP.FarmRows(tab)
   if tab == 2 then
     local c = DP.Farm()
     for i, s in ipairs(c and c.spots or {}) do
-      out[i] = { mark = tostring(s.z.mark or i), text = "Spot " .. tostring(s.z.mark or i), right = s.words, ink = s.ink == "good" and "good" or s.ink == "gold" and "gold" or "ink2" }
+      local m = tonumber(s.z.mark)
+      local pic = m and m >= 1 and m <= 8 and NS.Bosses and NS.Bosses.MARK_ICON and (NS.Bosses.MARK_ICON .. m) or nil
+      out[i] = { mark = not pic and tostring(s.z.mark or i) or nil, pic = pic, text = "Spot " .. tostring(s.z.mark or i), right = s.words,
+        ink = s.ink == "good" and "good" or s.ink == "gold" and "gold" or "ink2", tint = s.words == "up" and "good" or nil }
     end
     return out
   end
   for i, e in ipairs(F.Entries(db)) do
     local isOn = e.name == db.active
-    out[i] = { mark = isOn and "v" or tostring(i), text = e.name, right = isOn and "FARMING" or (e.guide and "RXP" or (e.count or 0) > 1 and ("x" .. e.count) or ""), ink = isOn and "good" or "ink2",
+    -- (the colour pass, 22 Nov: the one you farm in green, why it is on the list under its name)
+    local subw = e.guide and "your guide's target" or (e.count or 0) > 0 and (e.count .. " killed in a row") or nil
+    out[i] = { mark = isOn and "v" or tostring(i), text = e.name, right = isOn and "FARMING" or (e.guide and "RXP" or (e.count or 0) > 1 and ("x" .. e.count) or ""), ink = isOn and "good" or e.guide and "accent" or "ink2",
+      tint = isOn and "good" or nil, sub = subw,
       tip = isOn and "Click: stop farming it" or "Click: farm it", act = { word = "farm", fn = function() F.SetActive(db, e.name) end } }
   end
   return out
@@ -434,7 +440,11 @@ function DP.Register()
       kicker = function() local c = DP.Farm() return c and "farming" or "pick a mob" end,
       boxes = function()
         local c, db = DP.Farm(), DP.FarmDB()
-        if not c then return {} end
+        if not c then
+          local n = NS.Farm and db and #NS.Farm.Entries(db) or 0
+          if n == 0 then return {} end
+          return { { "MOBS", n, "accent" }, { "IN A ROW", db.last and db.last.count or 0, "gold" }, { "TO SUGGEST", DP.FARM_SUGGEST, "ink2" } }
+        end
         return { { "KILLS", db.last and db.last.name == c.mob and db.last.count or "-", "ink" }, { "UP NOW", c.up, "good" }, { "NEXT", c.next and clock(c.next) or "-", "gold" } }
       end,
       tabs = function() local c = DP.Farm() return { "MOBS", "SPOTS " .. (c and #c.spots or 0) } end,
@@ -457,8 +467,23 @@ function DP.Register()
       title = function() return "Rides" end, kicker = function() return "timed by your guild" end,
       rows = function()
         local out = {}
-        for i, r in ipairs(DP.Rides()) do out[i] = { mark = tostring(i), text = tostring(r.to or r.name), right = r.timed and clock(r.left) or "?", ink = r.docked and "gold" or "ink2", tip = r.line } end
+        for i, r in ipairs(DP.Rides()) do
+          -- (the colour pass, 22 Nov: one at the dock in gold; what it is and who timed it under the name)
+          local bits = { r.kind == "boat" and "boat" or "zeppelin" }
+          if r.docked then bits[#bits + 1] = "at the dock" end
+          if r.by then bits[#bits + 1] = "timed by " .. tostring(r.by) .. (type(r.sure) == "number" and (", " .. r.sure .. "% sure") or "") end
+          out[i] = { mark = tostring(i), text = tostring(r.to or r.name), right = r.timed and clock(r.left) or "?", ink = r.docked and "gold" or r.timed and "accent" or "dim",
+            tint = r.docked and "gold" or nil, sub = table.concat(bits, ", "), tip = r.line }
+        end
         return out
+      end,
+      boxes = function()
+        local list = DP.Rides()
+        if #list == 0 then return {} end
+        local timed, docked = 0, 0
+        for _, r in ipairs(list) do if r.timed then timed = timed + 1 end if r.docked then docked = docked + 1 end end
+        local nxt = DP.Ride(true)
+        return { { "NEXT", nxt and clock(nxt.left) or "-", "gold" }, { "AT THE DOCK", docked, docked > 0 and "good" or "dim" }, { "TIMED", timed .. " / " .. #list, "accent" } }
       end,
       text = function() return #DP.Rides() == 0 and "No zeppelin or boat from here." or nil end,
     },

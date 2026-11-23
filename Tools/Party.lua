@@ -151,6 +151,26 @@ local function send(name)
   if key then P.out[key] = (GetTime and GetTime()) or 0 end
 end
 
+--- SUGGEST TO THE LEADER (22 Nov 2026, Arn: "in forever now we can suggest people to the leader to invite"): in a group you do
+--- not lead, the game's own invite call becomes a suggestion the leader is asked to confirm. One name at a time, never a burst,
+--- never a raid conversion. true = handed to the game (UNVERIFIED live which words the leader sees).
+P.suggested = {}
+P.SUGGEST_FOR = 60
+function P.Suggests() return P.Grouped() and not P.Leads() end
+function P.Suggest(name)
+  local invite = (C_PartyInfo and C_PartyInfo.InviteUnit) or InviteUnit
+  if not invite then P.Refused(name, "this client has no invite call") return false end
+  local ok, err = pcall(invite, P.InviteName(name))
+  if not ok then P.Refused(name, err) return false end
+  local key = P.Key(name)
+  if key then P.suggested[key] = (GetTime and GetTime()) or 0 end
+  return true
+end
+function P.Suggested(name)
+  local at = P.suggested[P.Key(name) or "?"]
+  return at ~= nil and ((GetTime and GetTime()) or 0) - at < P.SUGGEST_FOR
+end
+
 function P.Refused(name, why)
   why = tostring(why or "?")
   repeat local n why, n = why:gsub("^[^%s]-:%d+: ", "") until n == 0      -- no "file.lua:12: " in front

@@ -74,6 +74,7 @@ DP.App.party = function(_, db)
     local k = P.Key(name) or "?"
     if s.here[k] then return "WITH YOU", "good" end
     if P.out[k] then return "ASKED", "gold" end
+    if P.Suggested and P.Suggested(name) then return "SUGGESTED", "gold" end
     if s.waits[k] then return "NEXT", "gold" end
   end
   local function pending()
@@ -104,6 +105,12 @@ DP.App.party = function(_, db)
       end
     end)
     return out
+  end
+  local function suggests() return P.Suggests and P.Suggests() or false end
+  local function suggest(name)
+    P.saidError, P.failed, P.lastError = nil, 0, nil
+    if P.Suggest(name) then say("Suggested %s to the leader.", name) end
+    drop()
   end
   local function invite(names, one)
     if #names == 0 then return end
@@ -167,6 +174,11 @@ DP.App.party = function(_, db)
       elseif e.st == "todo" and lead then
         r.act = { word = "invite", fn = function() invite({ e.name }, e.name) end }
         tip = tip .. "\nClick: invite"
+      elseif e.st == "todo" and suggests() and P.Suggested(e.name) then
+        r.right, r.ink = "SUGGESTED", "gold"
+      elseif e.st == "todo" and suggests() and not P.Suggested(e.name) then
+        r.act, r.verb = { word = "suggest", fn = function() suggest(e.name) end }, "SUGGEST"
+        tip = tip .. "\nClick: the leader is asked to invite them"
       end
       r.tip = tip
       out[i] = r
@@ -198,8 +210,9 @@ DP.App.party = function(_, db)
       local free = not r.right
       if free then r.right, r.ink = "ONLINE", "good" end
       if free then
-        if lead then r.act = { word = "invite", fn = function() invite({ f.name }, f.name) end } end
-        r.tip = lead and "Click: invite" or "Only the leader or an assistant can invite"
+        if lead then r.act = { word = "invite", fn = function() invite({ f.name }, f.name) end }
+        elseif suggests() then r.act, r.verb = { word = "suggest", fn = function() suggest(f.name) end }, "SUGGEST" end
+        r.tip = lead and "Click: invite" or suggests() and "Click: the leader is asked to invite them" or "Only the leader or an assistant can invite"
         r.side = { word = has and "- LIST" or "+ LIST", peek = true, tip = has and "Off your list" or "On your list", fn = function()
           if has then P.Remove(db(), f.name) else
             local ok, why = P.Add(db(), f.name)
@@ -302,7 +315,7 @@ DP.App.party = function(_, db)
         if note and now() - noteAt < 8 then return note end
         if P.held then return #P.held.names .. " wait for the raid: they are asked once somebody joins." end
         if P.lastError and pending() > 0 then return "The game said: " .. tostring(P.lastError) end
-        if not leads() then return "Only the leader or an assistant can invite." end
+        if not leads() then return suggests() and "Not the leader: SUGGEST asks the leader to invite them." or "Only the leader or an assistant can invite." end
         if tab == 2 then return picks() > 0 and (picks() .. " picked") or "Click the ranks you want." end
         if db().keyword then return "Whisper \"" .. P.Keyword(db()) .. "\": they are invited by themselves." end
       end,

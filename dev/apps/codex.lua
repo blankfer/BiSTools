@@ -54,7 +54,7 @@ return function(H)
   W.runAfters(1.1)
   r = p.rows(1)
   ok(r[3].tip == "Burns.", "and come", r[3].tip)
-  ok(r[5].text == "SEEN TO DROP" and r[6].text == "Subterranean Cape" and r[6].right == "x3" and r[6].ink == "slate" and r[6].pic == 132260 and r[7].text == "item 99" and r[7].right == "once",
+  ok(r[5].text == "SEEN TO DROP" and r[6].text == "Subterranean Cape" and r[6].right == "x3" and r[6].tint == "rare" and r[6].pic == 132260 and r[7].text == "item 99" and r[7].right == "once",
     "its drops, most often first", r[6].text)
   local hero, b = p.hero(1), p.boxes(1)
   ok(hero.display == 7970 and hero.big == "Taragaman the Hungerer" and hero.small == "Boss, Demon" and b[1][2] == 16 and b[2][2] == 2 and b[3][2] == 2 and b[4][2] == 2, "the model, the facts", hero.small)

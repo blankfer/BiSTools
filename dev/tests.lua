@@ -10478,7 +10478,7 @@ do
     db.last, db.spots = { name = "Magra", count = 3 }, {}
     F.SetActive(db, nil)
     local def = Dk.defs["BiSTools:farm"]
-    ok(def.page.rows(1)[1].text == "Magra" and def.page.rows(1)[1].right == "x3" and #def.page.boxes() == 0, "farm: the mob you kill, nothing farmed yet")
+    ok(def.page.rows(1)[1].text == "Magra" and def.page.rows(1)[1].right == "x3" and def.page.boxes()[1][1] == "MOBS" and def.page.rows(1)[1].sub == "3 killed in a row", "farm: the mob you kill, nothing farmed yet (its boxes: the mobs, in a row)")
     ok(def.card.prio() == nil, "three kills, nothing farmed: no card")
     -- SIX IN A ROW (Arn, 22 Nov: "if it notices we killed 6 of the same mob itll suggest adding it to the farm target")
     db.last = { name = "Magra", count = 6, at = time() }
