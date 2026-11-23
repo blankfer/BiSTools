@@ -480,6 +480,8 @@ function BiSTools_ToggleDeck() if not DP.Toggle() and D then R:SetEnabled("deck"
 _G.BINDING_NAME_BISTOOLS_DECK = "The deck"
 
 --- Into a dungeon with the deck on: its Bosses app instead of the old boss phone (Arn, 22 Nov: "move the boss phone into the Bosses app").
+--- Is the phone on (the kit loaded and the deck tool switched on)?
+function DP.DeckOn() return (D and D.Open and R:Enabled("deck")) and true or false end
 function DP.BossesHere()
   if not (D and D.Open and R:Enabled("deck")) then return false end
   D.defs["BiSTools:bosses"].tab = 1

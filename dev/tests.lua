@@ -10413,6 +10413,22 @@ do
   local okShow, why = pcall(function() S("on deck") end)
   ok(okShow and Dk.frame and Dk.frame:IsShown(), "/bist on deck: it comes up", tostring(why))
   ok(Dk.page == "BiSDeck:welcome", "the first time: the welcome", Dk.page)
+  -- THE PHONE TAKES IT (Arn, 22 Nov: the old boss phone popped out beside the deck - "that should not happen anymore";
+  -- "it has the button old phone on the bottom that turns it on")
+  do
+    if BS.frame then BS.frame:Hide() end
+    bdb.open = true                                         -- (it was open when you left)
+    BS.key = false
+    fireAll("PLAYER_ENTERING_WORLD")
+    ok(not (BS.frame and BS.frame:IsShown()), "with the deck on, the old boss phone does not come up by itself, even if it was open")
+    local old
+    for _, k in ipairs(Dk.defs["BiSTools:bosses"].page.keys(1) or {}) do if k.word == "OLD PHONE" then old = k end end
+    ok(old, "OLD PHONE is on the page")
+    old.fn()
+    ok(BS.frame and BS.frame:IsShown(), "and opens it by hand")
+    BS.Toggle(false)
+    Dk.page = "BiSDeck:welcome"
+  end
   ok(Dk.defs["BiSTools:bosses"].page.tour and Dk.Tour(Dk.defs["BiSTools:bosses"]) ~= nil, "the bosses page has its first-time words")
   Dk.Store().toured["BiSTools:bosses"] = true
   for _, pg in ipairs({ "home", "BiSTools:bosses", "BiSTools:run", "BiSTools:rides", "switches", "BiSDeck:apps", "BiSDeck:welcome" }) do

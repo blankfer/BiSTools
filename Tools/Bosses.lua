@@ -495,7 +495,7 @@ function BF.QuestsNow()
   local had = #BF.quests
   BF.ReadQuests()
   BF.Write()
-  if not BF.map and had == 0 and #BF.quests > 0 and BF.db and BF.db.open and not BF.IsOpen() then BF.Toggle(true) end
+  if not BF.map and had == 0 and #BF.quests > 0 and BF.db and BF.db.open and not BF.IsOpen() and not BF.DeckTakes() then BF.Toggle(true) end
   if NS.Box and NS.Box.Refresh then NS.Box.Refresh() end
   BF.Paint()
 end
@@ -510,6 +510,14 @@ function BF.SetTab(tab)
   BF.Write()
   BF.Paint()
   return true
+end
+
+--- THE PHONE TAKES IT (22 Nov 2026, Arn, the old boss phone open beside the deck's Bosses page: "it did pop it out with the new
+--- deck that should not happen anymore"): with the deck on, the old phone never comes up by itself - not once a run, not
+--- because it was open when you left. The deck's app does (DP.BossesHere); OLD PHONE there still opens this one by hand.
+function BF.DeckTakes()
+  local DP = NS.DeckPages
+  return DP and DP.DeckOn and DP.DeckOn() or false
 end
 
 --- Into a place (or out of one): the list, the run, the eyes on or off. A place = a dungeon of the list, or the zone of
@@ -545,9 +553,10 @@ function BF.Enter()
       -- up by itself once a run; and back again if it was open when you left (a wipe's run back, a hearth) -
       -- leaving shuts it below without touching db.open; only your own close does
       local fresh = db.auto ~= false and BF.run ~= was
-      if fresh and not db.open and not fighting() and NS.DeckPages and NS.DeckPages.BossesHere and NS.DeckPages.BossesHere() then   -- (the phone's app)
+      if BF.DeckTakes() then
+        if fresh and not fighting() then NS.DeckPages.BossesHere() end    -- (the phone's app, never the old phone)
       elseif (fresh or db.open) and not fighting() then BF.Toggle(true) end
-    elseif place and #BF.quests > 0 and db.open then     -- outside the entrance: only if it was yours and open
+    elseif place and #BF.quests > 0 and db.open and not BF.DeckTakes() then     -- outside the entrance: only if it was yours and open
       if not fighting() then BF.Toggle(true) end
     elseif BF.frame and BF.frame:IsShown() and not fighting() then BF.frame:Hide() end
     BF.Write()
