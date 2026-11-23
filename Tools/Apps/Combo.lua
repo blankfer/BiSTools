@@ -215,13 +215,12 @@ DP.App.combo = function(tool, db)
     if not s.page then return nil end
     local by = C.CellNames(imbue, names)
     local function one(n, slot)
-      if not n then return { word = To.SLOTS[slot], done = true, tip = To.SLOTS[slot] .. ": nothing" } end
+      if not n then return slot and { word = To.SLOTS[slot], done = true, tip = To.SLOTS[slot] .. ": nothing" } or { word = "No imbue", done = true, tip = "No imbue" } end
       return { pic = C.IconFor(n), word = C.COL_WORD[n] or C.IMBUE_SHORT[n] or To.Short(n), tip = n .. (slot and ". Click: drops it" or ". Click: puts it on your weapon"),
         act = C.Knows(n) and { word = slot and "DROP" or "IMBUE", spell = n, peek = true } or nil }
     end
     local water = To.Get(s.page, 3)
     local row = { one(imbue), one(by.fire[1], 1), one(by.earth[1], 2), one(s.at[3], 3), one(by.air[1], 4) }
-    if not imbue then row[1] = { word = "No imbue", done = true, tip = "No imbue" } end
     local calls = {}
     for i, page in ipairs(To.Known()) do
       local c = To.CALLS[page]

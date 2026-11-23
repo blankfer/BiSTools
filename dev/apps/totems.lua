@@ -1,6 +1,6 @@
 -- The three Calls (22 Nov 2026, Arn: "if we can just have a manager that edits these so i can drop them all at once")
 return function(H)
-  local ok, T, C, Dk, R = H.ok, H.NS.Totems, H.NS.Combo, H.Dk, H.R
+  local ok, T, C, Dk, R, W = H.ok, H.NS.Totems, H.NS.Combo, H.Dk, H.R, H.W
   local keep = { cls = _G.UnitClass, set = _G.SetMultiCastSpell, list = _G.GetMultiCastTotemSpells, info = _G.GetActionInfo, bar = _G.GetMultiCastBarIndex, sp = _G.C_Spell,
     knows = C.Knows, fight = _G.InCombatLockdown, is = _G.issecretvalue, try = C.TryNext, rank = C.Rank }
   _G.UnitClass = function() return "Mage", "MAGE" end
@@ -109,6 +109,18 @@ return function(H)
     ok(tc[2].act.ok() == false, "the game refuses: nothing is cast") refuse = false
     ok(tc[2].act.ok() == true and at[144] == 7 and cp.icons(1)[1][1].word == "Windfury", "else it is set and dropped, and is the row on top")
     H.Paint("combo", 1)
+    -- a best combo without an imbue, and one without any totem (Arn's own list, 22 Nov: an error on his first look)
+    do
+      local rk = C.Rank
+      C.Rank = function() return { { combo = "n", imbue = nil, totems = {}, n = 5, adj = 1, dps = 1 } } end
+      W.now = W.now + 1
+      local fine, why = pcall(cp.rows, 1)
+      ok(fine and rowsOf("TOP ")[1].word == "No imbue" and rowsOf("TOP ")[2].word == "Fire" and pcall(cp.hero, 1) and pcall(cp.icons, 1), "no imbue, no totems: said, no error", why)
+      local call = select(2, rowsOf("TOP "))[2].act
+      ok(pcall(call.ok), "and a press on a Call there")
+      C.Rank = rk
+      W.now = W.now + 1
+    end
     -- all of it at the normal size (Arn, 22 Nov: "lets always make stuff fit the 100% size")
     do
       BiSTheme.DECK_LOGIN = true
