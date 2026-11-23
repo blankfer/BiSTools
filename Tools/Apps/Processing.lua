@@ -33,6 +33,11 @@ DP.App.processing = function(tool, db)
         to[#to + 1] = e
       end
     end
+    -- SOULBOUND AT THE BOTTOM (Arn, 23 Nov: "if they are bound send them to the bottom of the list"), each half in its old order
+    local free, bound = {}, {}
+    for _, e in ipairs(kept.ready) do if e.kind == "bound" then bound[#bound + 1] = e else free[#free + 1] = e end end
+    for _, e in ipairs(bound) do free[#free + 1] = e end
+    kept.ready = free
     return kept
   end
   --- The next plain one: never soulbound, never enchanted, never one of a mixed name - those are your own decision.
@@ -122,9 +127,7 @@ DP.App.processing = function(tool, db)
         done = true, tip = tip(e), bagItem = { e.bag, e.slot } }
       end
     end
-    for _, e in ipairs(skipped()) do
-      out[#out + 1] = { mark = "-", text = e.name, done = true, tip = "You skipped it", side = ignore(e, "BACK", "Back into the list") }
-    end
+    -- (skipped ones are hidden - Arn: "i click skip hide them"; ALL BACK brings them all back)
     return out
   end
   local function session() local n = 0 for _, c in pairs(P.haul or {}) do n = n + c end return n end

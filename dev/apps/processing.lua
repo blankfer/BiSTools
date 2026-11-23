@@ -49,6 +49,8 @@ return function(H)
   ok(b[1][2] == 4 and b[2][2] == 0 and b[3][2] == 1 and b[4][2] == 60, "counted: ready, in a set, later, skill")
   ok(p.rows(1)[5].head and p.rows(1)[5].text == "LATER" and p.rows(1)[6].text == "Sword", "LATER under READY: above your skill")
   local big = p.big(1)
+  local last = ready()[#ready()]
+  ok(last.text == "Shield" and last.right == "BOUND", "soulbound at the bottom of READY (Arn: \"if they are bound send them to the bottom\")", last.text)
   ok(big.word == "NEXT: Cloak" and Dk.IsSecure(big) and not big.fn and big.slot == 3 and big.guid == "G-C", "the next plain one, never bound, enchanted or of a mixed name; secure, so dim", big.word)
   -- A CLICK ON AN ITEM DISENCHANTS IT (Arn, 23 Nov: "when i click an item it should disenchant ... shift click if its a soulbound
   -- item"), and its tooltip is the game's own, your worn one beside it ("so i can compare it to my currently equiped item")
@@ -89,10 +91,12 @@ return function(H)
   H.Paint("processing", 1)
 
   -- LATER
-  ok(row(1, "Sword").right == "SKILL 125" and row(1, "Sword").done and row(1, "Cloak").side.word == "BACK", "LATER: above your skill, and what you skipped")
+  ok(row(1, "Sword").right == "SKILL 125" and row(1, "Sword").done and not row(1, "Cloak"), "LATER: above your skill; what you skipped is hidden (Arn: \"i click skip hide them\")")
+  ok(p.boxes(1)[3][2] >= 1, "still counted under LATER")
   H.Paint("processing", 2)
-  press(row(1, "Cloak").side)
-  ok(next(db.ignore) == nil and row(1, "Cloak"), "BACK puts it back")
+  press(key(1, "ALL BACK"))
+  press(key(1, "SURE?"))
+  ok(next(db.ignore) == nil and row(1, "Cloak"), "ALL BACK puts it back")
   db.blocked[12] = "Requires Runed Copper Rod"
   moment()
   ok(row(1, "Cloak").right == "ROD" and row(1, "Cloak").tip:find("Runed Copper Rod", 1, true) and not ready()[3], "a rod the game asked for")
