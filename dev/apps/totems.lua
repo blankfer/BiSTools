@@ -167,6 +167,101 @@ return function(H)
       Dk.page = "home" Dk.Hide()
       Dk.Store().open, Dk.Store().welcomed = false, nil
     end
+    -- THE TOTEM CARD (Arn, 23 Nov: "two rows and draggable" - "a small dps number ... a little tab ... where they can drag the bar"
+    -- - "it can just get the info from the phone"): the phone's two rows on screen, casting
+    do
+      local TC = H.NS.TotemCard
+      local was, kn3 = R:Enabled("combo"), C.Knows
+      C.Knows = function(n) return n == "Flametongue Totem" or kn3(n) end
+      R:SetEnabled("combo", true)
+      press(row()[2].fly[2].act)                             -- (Magma on the fire place)
+      cdb.bar = nil
+      TC.Paint()
+      ok(not (TC.frame and TC.frame:IsShown()), "off until switched on")
+      cdb.bar = true
+      moment()
+      ok(TC.Paint() and TC.frame:IsShown(), "switched on: shown")
+      local f = TC.frame
+      local top, low = f.top, f.low
+      ok(top[1]:IsShown() and top[5]:IsShown() and top[2].attrs.type1 == "spell" and top[2].attrs.spell1 == row()[2].cast and row()[2].cast ~= nil,
+        "the top row: the imbue and four totems, a click drops the one there", top[2].attrs.spell1)
+      ok(low[1].attrs.spell1 == "Call of the Elements" and low[2].attrs.spell1 == "Call of the Spirits", "under it the Calls, each casts", low[2].attrs.spell1)
+      ok(f.tab and f.tab.num.text and f.tab.num.text ~= "" and f.tab.dps.text:find("dps", 1, true), "the dps number on its tab", f.tab.num.text)
+      ok(f.w > TC.TAB + 5 * TC.SIZE and f.h >= 2 * TC.SIZE and f.h < 3 * TC.SIZE, "two rows, the size of a bar", f.w .. "x" .. f.h)
+      -- a Call clicked: the row goes into it first (the phone's own ok)
+      local saved
+      local okFn = top[1].item and low[1].item.act.ok
+      low[1].item.act.ok = function() saved = true return true end
+      low[1]:GetScript("PreClick")(low[1], "LeftButton")
+      ok(saved and low[1].attrs.type1 == "spell", "a Call's click: the phone's own word first, then it casts")
+      low[1].item.act.ok = function() return false end
+      low[1]:GetScript("PreClick")(low[1], "LeftButton")
+      ok(low[1].attrs.type1 == nil, "the phone says no: nothing is cast that click")
+      low[1].item.act.ok = okFn
+      TC.Paint()
+      -- Shift over a totem: the others pop out; a click there drops it and puts it on the row
+      W.shift = true
+      top[2]:GetScript("OnEnter")(top[2])
+      local fb = f.flyB
+      ok(f.fly:IsShown() and fb[1]:IsShown() and fb[1].inFly and #row()[2].fly == 3 and fb[3]:IsShown(), "Shift over a totem: its kind pops out", #fb)
+      local ft
+      for _, b in ipairs(fb) do if b:IsShown() and b.attrs.spell1 == "Flametongue Totem" then ft = b end end
+      ok(ft, "each one there drops itself")
+      ft:GetScript("PostClick")(ft, "LeftButton", false)
+      ok(row()[2].word == "Flametongue" and not f.fly:IsShown(), "a click there: onto the row, the pop-out away", row()[2].word)
+      W.runAfters(1)
+      ok(top[2].attrs.spell1 == "Flametongue Totem", "and the card drops it now")
+      top[2]:GetScript("OnLeave")(top[2])
+      W.shift = false
+      top[2]:GetScript("OnEnter")(top[2])
+      ok(not f.fly:IsShown(), "no Shift: no pop-out")
+      top[2]:GetScript("OnLeave")(top[2])
+      -- Shift pressed with the mouse already on it
+      top[1]:GetScript("OnEnter")(top[1])
+      TC.events.scripts.OnEvent(TC.events, "MODIFIER_STATE_CHANGED", "LSHIFT", 1)
+      ok(f.fly:IsShown() and fb[1].attrs.spell1 == row()[1].fly[1].act.spell, "Shift pressed over the imbue: the imbues pop out")
+      -- a fight: put away before the lockdown, nothing touched in it, painted after
+      TC.events.scripts.OnEvent(TC.events, "PLAYER_REGEN_DISABLED")
+      ok(not f.fly:IsShown(), "a pull: the pop-out away first")
+      fighting, W.combat = true, true
+      top[1]:GetScript("OnEnter")(top[1])
+      TC.events.scripts.OnEvent(TC.events, "MODIFIER_STATE_CHANGED", "LSHIFT", 1)
+      ok(pcall(TC.Paint) and not f.fly:IsShown() and TC.late, "in a fight: nothing aimed, nothing popped out")
+      fighting, W.combat = false, false
+      TC.events.scripts.OnEvent(TC.events, "PLAYER_REGEN_ENABLED")
+      W.runAfters(1)
+      ok(TC.late == nil and f:IsShown(), "after it: painted again")
+      top[1]:GetScript("OnLeave")(top[1])
+      -- the deck tab on the right (Arn: "send to bis heling deck ... on the right side"): only with BiS Healing there
+      local api0 = rawget(_G, "BiSHealingAPI")
+      _G.BiSHealingAPI = nil
+      TC.Paint()
+      ok(not f.deck:IsShown(), "no BiS Healing: no deck tab")
+      local got2, call2
+      _G.BiSHealingAPI = { version = 4, SetTotems = function(x) got2 = x return true end, Totems = function() return got2 or {} end, SetCall = function(x) call2 = x return true end, Call = function() return call2 end }
+      TC.Paint()
+      ok(f.deck:IsShown() and f.deck.state.text:find("SEND", 1, true), "BiS Healing there: the deck tab, SEND", f.deck.state.text)
+      f.deck.scripts.OnClick(f.deck)
+      ok(got2 and got2.fire == "Flametongue Totem", "a click: the row's totems onto the healing deck", got2 and got2.fire)
+      W.runAfters(1)
+      ok(f.deck.state.text:find("ON", 1, true), "and then it says ON", f.deck.state.text)
+      _G.BiSHealingAPI = api0
+      TC.Paint()
+      -- the drag: by the tab, saved; ended by a pull
+      f.tab.scripts.OnDragStart(f.tab)
+      ok(f.moving, "the tab drags it")
+      TC.events.scripts.OnEvent(TC.events, "PLAYER_REGEN_DISABLED")
+      ok(not f.moving and type(cdb.barPos) == "table", "a pull ends the drag, where it is kept")
+      local Cost = dofile("../_bisdev/dev/cost.lua")
+      local cost, by = Cost.Count(function() TC.Paint() end)
+      print(("   cost: totem card, one paint (after a fight or a press, never on a timer) = %d calls (%s)"):format(cost, Cost.Top(by, 3)))
+      ok(cost < 400, "the totem card's paint stays light", cost)
+      cdb.bar, cdb.barPos = nil, nil
+      TC.Paint()
+      ok(not f:IsShown(), "switched off: gone")
+      R:SetEnabled("combo", was)
+      C.Knows = kn3
+    end
     -- hidden answers: no error
     local S2 = {}
     local is = _G.issecretvalue

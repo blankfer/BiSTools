@@ -59,6 +59,7 @@ Tools\BossQuests.lua
 Tools\Alts.lua
 Tools\Combo.lua
 Tools\Windfury.lua
+Tools\TotemCard.lua
 Tools\Innervate.lua
 API.lua
 Tools\DeckPages.lua

@@ -202,6 +202,7 @@ DP.App.combo = function(tool, db)
     db().draft = d
     kept = {}
     settle()
+    if C.CardSoon then C.CardSoon() end
   end
   local function setup()
     local To = NS.Totems
@@ -278,6 +279,7 @@ DP.App.combo = function(tool, db)
     end
     To.Choose(page)
     kept = {}
+    if C.CardSoon then C.CardSoon() end
     return true
   end
   --[[ THE BEST, AND THE ONE TO TRY (Arn, 22 Nov: "the next row first one shows the best dps set up, imbue with the totems in that data, and
@@ -345,6 +347,7 @@ DP.App.combo = function(tool, db)
     for _, id in ipairs(To.List(at)) do
       local name = C.Base(To.Name(id)) or "?"
       out[#out + 1] = { pic = To.Icon(id), word = To.Short(name), lit = id == now or nil, tip = name .. (id == now and ": on the row" or ". Click: onto the row"),
+        cast = C.Knows(name) and name or nil,                -- (the totem card drops it too; the phone only puts it on the row)
         act = { word = "put", peek = true, fn = function() touch(function(d) d.t[at] = id end) end } }
     end
     out[#out + 1] = { word = "None", done = true, lit = not now or nil, tip = "No " .. To.SLOTS[at]:lower() .. " totem on the row",
@@ -361,12 +364,12 @@ DP.App.combo = function(tool, db)
     row[1] = { pic = C.IconFor(s.imbue), word = s.imbue and To.Short(s.imbue) or "No imbue", done = s.imbue == nil, ink = not there and "warn" or nil,
       glow = s.imbue and s.imbue == ref.imbue and glow or nil,
       tip = (s.imbue and (s.imbue .. (there and ": on your weapon" or ": not on your weapon yet")) or "No imbue") .. ". Click: choose one",
-      flyKey = "imbue", fly = flyImbue(s) }
+      flyKey = "imbue", fly = flyImbue(s), cast = s.imbue and C.Knows(s.imbue) and s.imbue or nil }
     for slot = 1, 4 do
       local n, id = s.at[slot], s.row.t[slot]
       row[slot + 1] = { pic = n and (To.Icon(id) or C.IconFor(n)) or nil, word = n and To.Short(n) or To.SLOTS[slot], done = n == nil,
         glow = (id or false) == ref.t[slot] and n and glow or nil, tip = To.SLOTS[slot] .. ": " .. (n or "nothing") .. ". Click: choose another",
-        flyKey = "slot" .. slot, fly = flyTotems(s, slot) }
+        flyKey = "slot" .. slot, fly = flyTotems(s, slot), cast = n and C.Knows(n) and n or nil }
     end
     for i, page in ipairs(To.Known()) do
       local c = To.CALLS[page]
@@ -522,9 +525,13 @@ DP.App.combo = function(tool, db)
   C.Close = function(...)
     local rec = close(...)
     if rec and D then D.Dirty() end                          -- (a flag: nothing is drawn while nothing is shown)
+    if rec and C.CardSoon then C.CardSoon() end              -- (the totem card's small dps line, after each fight)
     return rec
   end
 
+  -- THE ROW, FOR THE TOTEM CARD (Arn, 23 Nov: "it can just get the info from the phone"): Tools/TotemCard.lua draws these.
+  C.Phone = { icons = icons, number = number, deck = deckRow }
+  if C.CardSoon then C.CardSoon() end
   return {
     name = "Totems", art = "Interface\\Icons\\Spell_Nature_EarthBindTotem",
     card = {

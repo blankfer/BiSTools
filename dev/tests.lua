@@ -139,7 +139,7 @@ _G.C_Map = {
 -- the explored pieces of the zone: W.explored, a list as GetExploredMapTextures answers it
 W.explored = {}
 _G.C_MapExplorationInfo = { GetExploredMapTextures = function() return W.explored end }
-_G.GameTooltip = { SetOwner = function() end, AddLine = function() end, AddDoubleLine = function() end, Show = function() end, Hide = function() end,
+_G.GameTooltip = { SetOwner = function() end, AddLine = function() end, SetText = function() end, AddDoubleLine = function() end, Show = function() end, Hide = function() end,
   SetBagItem = function() end,                         -- the client's; a bag addon's slot calls it on hover
   IsShown = function() return W.tooltipShown end, GetOwner = function() return nil end }
 _G.wipe = function(t) for k in pairs(t) do t[k] = nil end return t end
@@ -2328,7 +2328,8 @@ do
   -- (+1 in combo, 22 Nov: the fights that count)
   -- (+ innervate (2), 22 Nov: the bar, how people look - and its header)
   -- (+1 in tools, 22 Nov: the tools box, put away)
-  ok(#opt.rows == 12 + 3 + 5 + 7 + 1 + 8 + 2 + 4 + 7 + 4 + 4 + 5 + 1 + 1 + 1 + 1 + 3 + 2 + 4 + 2 + 6 + 3 + 2 + 1 + 1 + 3, "one row per section header and per option", #opt.rows)
+  -- (+1 in combo, 23 Nov: the totem card on screen)
+  ok(#opt.rows == 12 + 3 + 5 + 7 + 1 + 8 + 2 + 4 + 7 + 4 + 4 + 5 + 1 + 1 + 1 + 1 + 3 + 2 + 4 + 2 + 6 + 3 + 2 + 1 + 1 + 3 + 1, "one row per section header and per option", #opt.rows)
   -- THE BiSTheme STANDARD, 1.43:1 (Arn, 14 Oct): its sections poured into columns, the window that shape
   ok(math.abs(opt.w / opt.h - 1.43) < 0.01 and (opt.columns or 1) >= 2, "options: 1.43:1, in columns", opt.w .. "x" .. opt.h)
   local function find(label) for _, r in ipairs(opt.rows) do if r.name and r.name.text == label then return r end end end

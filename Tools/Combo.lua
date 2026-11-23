@@ -2763,7 +2763,7 @@ R:Register({
   name = "combo",
   short = "cmb",
   desc = "after each fight: your weapon imbue + totems and the damage they did; which combo is best",
-  usage = "/bist combo  (short: cmb)  |  /bist combo probe",
+  usage = "/bist combo  (short: cmb)  |  /bist combo bar [on|off|size N|reset]  |  /bist combo probe",
   slashWhenOff = true,
   defaultOff = true,
   defaults = { fights = {}, card = true, min = C.MIN },
@@ -2785,6 +2785,9 @@ R:Register({
       help = "Solo and group fights are never in one ranking. auto = your group fights while you are in a group, your solo ones otherwise. solo / group = always those, all = both.",
       get = function(d) return (d.scope == "group" or d.scope == "all" or d.scope == "solo") and d.scope or "auto" end,
       set = function(d, v) d.scope = v ~= "auto" and v or nil C.scopeAt = nil if C.IsOpen() then C.Paint() end end },
+    { kind = "toggle", label = "totem card on screen",
+      help = "BiS>totems' top two rows, small, on your screen: the imbue and four totems, the Calls, Bring and Recall. A click drops it; Shift over a totem = the others pop out, a click there drops that one. The small tab at its left is the set-up's dps, after each fight - and what you drag it by.",
+      get = function(d) return d.bar == true end, set = function(d, v) d.bar = v and true or false if NS.TotemCard then NS.TotemCard.Paint() end end },
     { kind = "button", label = "the combo list", button = "open",
       help = "Every imbue + totem combo you fought with, ranked by damage per second, with how many fights each is based on.",
       action = function(d) C.db = d C.Toggle(true) end },
@@ -2813,6 +2816,7 @@ R:Register({
     C.db = d
     local cmd = tostring(args or ""):match("^(%S*)") or ""
     if cmd == "probe" then C.Probe() return end
+    if cmd == "bar" and NS.TotemCard then NS.TotemCard.Slash(tostring(args or ""):match("^%S+%s*(.-)$")) return end
     if cmd == "wf" then C.WFProbe() return end
     if cmd == "live" then C.LiveArm() return end
     if cmd == "reach" then C.ReachProbe() return end
