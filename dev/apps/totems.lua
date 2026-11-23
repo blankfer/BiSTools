@@ -375,6 +375,42 @@ return function(H)
     moment()
   end
   fighting = true ok(T.Set(1, 1, 2) == false, "a fight: nothing is written") fighting = false
+  -- NEWEST RANKS (Arn, 23 Nov: "i just leveled and the totems did not update to the newest ranks")
+  do
+    local kn4 = C.Knows
+    C.Knows = function(n) return n == "Call of the Elements" or n == "Call of the Spirits" end
+    NAME[8] = "Flametongue Totem III"
+    at[133], at[141] = 1, 1                                  -- (Flametongue II in both Calls)
+    local said = {}
+    local keepP = H.NS.Print
+    H.NS.Print = function(f, ...) said[#said + 1] = f:format(...) end
+    ok(T.Upgrade() == 0 and at[133] == 1, "nothing newer offered: left alone")
+    FITS[1] = { 1, 2, 8 }                                    -- (a level: the bar offers rank III now)
+    fighting = true
+    ok(T.Upgrade() == 0 and at[133] == 1 and T.upLate, "in a fight: waits")
+    fighting = false
+    T.upEvents.scripts.OnEvent(T.upEvents, "PLAYER_REGEN_ENABLED")
+    W.runAfters(T.UP_WAIT + 0.1)
+    ok(at[133] == 8 and at[141] == 8 and T.upN == 2 and said[1] and said[1]:find("2 moved up", 1, true), "after it: both Calls' Flametongue to rank III, and said", said[1])
+    ok(at[134] == 3 and at[144] == 6, "the others untouched")
+    -- the bar may list the newest first: the rank the game names decides
+    local sp0 = _G.C_Spell
+    _G.C_Spell = setmetatable({ GetSpellSubtext = function(id) return ({ [1] = "Rank 2", [8] = "Rank 3" })[id] end }, { __index = sp0 })
+    FITS[1] = { 8, 2, 1 }
+    ok(T.Find(1, "Flametongue Totem") == 8, "newest listed first: still rank 3")
+    _G.C_Spell = sp0
+    FITS[1] = { 1, 2, 8 }
+    T.upEvents.scripts.OnEvent(T.upEvents, "PLAYER_LEVEL_UP")
+    W.runAfters(3.1)
+    ok(T.upN == 0, "a level with nothing newer: nothing")
+    local Cost = dofile("../_bisdev/dev/cost.lua")
+    local cost, by = Cost.Count(function() T.Upgrade() end)
+    print(("   cost: totems to the newest rank, one look (after a level / a spell change) = %d calls (%s)"):format(cost, Cost.Top(by, 3)))
+    ok(cost < 300, "one look stays light", cost)
+    H.NS.Print, C.Knows = keepP, kn4
+    FITS[1] = { 1, 2 } NAME[8] = nil
+    at[133], at[141] = 1, 2
+  end
   -- secrets, and a client without it
   local S = {}
   _G.issecretvalue = function(v) return v == S end

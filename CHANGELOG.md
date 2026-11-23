@@ -9,6 +9,7 @@
 - **Processing: smelt your ore.** Ore in your bags shows under SMELT at the top of READY: click to smelt it all, Shift-click for one bar. Stand at a forge. The first click may open Mining for you; then click again.
 - **Disenchant glow: the key is yours.** With Gargul installed (it uses Alt) the bags light with Ctrl instead; or pick Alt, Ctrl or Shift in its settings.
 - **Processing: click an item to disenchant it** (Shift-click for soulbound gear or gear in one of your sets), and hover it for the game's own item tooltip with what you wear beside it. Soulbound gear sits at the bottom of the list. SKIP moves an item to the new KEEP tab: never disenchanted, out of the list; BACK or ALL BACK there brings it back.
+- **Totems move up to their newest rank.** After a level (or anything that changes your spells) every Call's totem and BiS>totems' row move up to the newest rank of the same totem, and say so in chat. In a fight it waits for the end.
 - **BiS>totems: pick from a pop-out.** Click a totem on the row and the others of its kind pop out over it, the way the game's totem bar does; the imbue too. One click puts it on the row. **Recall** sits next to Bring.
 - **Social: world buffs are left out.** Warchief's Blessing, Rallying Cry, Songflower, the Dire Maul tributes, Spirit of Zandalar and the Darkmoon fortunes come from the game, not a person: no more "Someone - NO NAME" rows for them.
 
