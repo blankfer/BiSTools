@@ -102,7 +102,7 @@ DP.App.processing = function(tool, db)
       r.tip = tip(e) .. (e.kind == "bound" and " Shift-click: disenchants it." or " Click: disenchants it.")
       r.bagItem = { e.bag, e.slot }                            -- (the game's item tooltip, your worn one beside it)
       r.act = e.guid and deAct(e) or r.act
-      r.side = e.guid and ignore(e, "SKIP", "Leave this one item alone") or nil
+      r.side = e.guid and ignore(e, "SKIP", "Out of the list, into KEEP: never disenchanted") or nil
       out[#out + 1] = r
     end
     local later = laterRows()
@@ -128,6 +128,28 @@ DP.App.processing = function(tool, db)
       end
     end
     -- (skipped ones are hidden - Arn: "i click skip hide them"; ALL BACK brings them all back)
+    return out
+  end
+  --- KEEP (Arn, 23 Nov: "skip does not hide the item ... maybe put it in a hidden tab, not a set but not wanting to disenchant"):
+  --- what you skipped, out of READY, listed here with its picture and level; BACK puts one back, ALL BACK them all.
+  local function keepRows()
+    local out, seen = {}, {}
+    local probe = {}
+    for k, v in pairs(db()) do probe[k] = v end
+    probe.showIgnored = true
+    for _, e in ipairs((P.Items(probe))) do
+      if e.ignored and e.guid then
+        seen[e.guid] = true
+        out[#out + 1] = { pic = e.icon or 134400, text = e.name, sub = e.ilvl and ("level " .. e.ilvl) or nil, bagItem = { e.bag, e.slot },
+          tip = "You keep it: never disenchanted from here.", side = ignore(e, "BACK", "Back into READY") }
+      end
+    end
+    for _, s in ipairs(skipped()) do                          -- (kept, but not in your bags now: sold, banked, mailed)
+      if not seen[s.guid] then
+        out[#out + 1] = { mark = "-", text = s.name, sub = "not in your bags", done = true, tip = "You kept it; it is not in your bags now",
+          side = ignore({ guid = s.guid, name = s.name }, "FORGET", "Off the list") }
+      end
+    end
     return out
   end
   local function session() local n = 0 for _, c in pairs(P.haul or {}) do n = n + c end return n end
@@ -166,7 +188,8 @@ DP.App.processing = function(tool, db)
     return all, sets
   end
   local function boxes(tab)
-    if tab == 3 then return { { "SESSION", session(), "good" }, { "ALL TIME", P.Total(), "gold" } } end
+    if tab == 4 then return { { "SESSION", session(), "good" }, { "ALL TIME", P.Total(), "gold" } } end
+    if tab == 3 then return { { "KEPT", #skipped(), "accent" } } end
     local all, sets = counts()
     if not works() then
       if #all == 0 then return {} end
@@ -175,7 +198,7 @@ DP.App.processing = function(tool, db)
     local w = work()
     local later = 0
     for _, e in ipairs(w.later) do if not e.sets then later = later + 1 end end
-    return { { "READY", #w.ready, "good" }, { "IN A SET", sets, sets > 0 and "gold" or "dim" }, { "LATER", later + #skipped(), "accent" }, { "SKILL", P.Skill() or "-", "gold" } }
+    return { { "READY", #w.ready, "good" }, { "IN A SET", sets, sets > 0 and "gold" or "dim" }, { "LATER", later, "accent" }, { "SKILL", P.Skill() or "-", "gold" } }
   end
 
   return {
@@ -201,7 +224,7 @@ DP.App.processing = function(tool, db)
       tour = { { text = "What you can take apart now, with its level against what you wear. SKIP leaves one item alone.", note = "BOUND, ENCH, CHECK: look twice." },
         { text = "The big button takes the next one apart. One click, one item. Your equipment sets' gear is never taken: SETS." } },
       kicker = function() return X.picked() and "one item" or "enchanting" end,
-      tabs = function() return { "READY", "SETS", "HAUL" } end,
+      tabs = function() return { "READY", "SETS", "KEEP", "HAUL" } end,
       boxes = function(tab)
         local e = X.picked()
         if e then return X.itemBoxes(e) end
@@ -211,12 +234,14 @@ DP.App.processing = function(tool, db)
         local e = X.picked()
         if e then return X.itemRows(e) end
         if tab == 2 then return X.setRows() end
-        if tab == 3 then return haulRows() end
+        if tab == 3 then return keepRows() end
+        if tab == 4 then return haulRows() end
         return readyRows()
       end,
       text = function(tab)
         if X.picked() then return nil end
-        if tab == 3 then return not next(db().totals or {}) and "Nothing yet. What your disenchanting gives is counted here." or nil end
+        if tab == 4 then return not next(db().totals or {}) and "Nothing yet. What your disenchanting gives is counted here." or nil end
+        if tab == 3 then return not next(db().ignore or {}) and "Nothing kept. SKIP on an item in READY puts it here: never disenchanted, out of the list." or nil end
         if tab == 2 then
           local _, all = NS.DE.Sets()
           return #all == 0 and "No equipment sets yet. Make one in the game's Equipment Manager (character window): its gear is marked here and never taken." or nil
@@ -245,11 +270,11 @@ DP.App.processing = function(tool, db)
         if e then return X.itemKeys(e) end
         local out = {}
         if R:Enabled("processing") then out[1] = oldWindow() end
-        if tab == 3 then
+        if tab == 4 then
           out[#out + 1] = { word = "HOARD", peek = true, tip = "Everything ever processed, in a heap, with you on top", fn = function() P.ToggleHoard(true) end }
         end
-        if tab == 1 and next(db().ignore or {}) then
-          out[#out + 1] = confirm("skip", "ALL BACK", "Every skipped item back into the list", slash("ignored clear"))
+        if tab == 3 and next(db().ignore or {}) then
+          out[#out + 1] = confirm("skip", "ALL BACK", "Every kept item back into READY", slash("ignored clear"))
         end
         if tab == 1 and next(db().blocked or {}) then out[#out + 1] = confirm("rods", "NO RODS", "Forget what the game said about rods", slash("rods clear")) end
         return out

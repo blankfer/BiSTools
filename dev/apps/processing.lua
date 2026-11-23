@@ -41,7 +41,7 @@ return function(H)
   moment()
 
   -- READY
-  ok(#p.tabs() == 4 and p.tabs()[2] == "SETS", "READY, SETS, HAUL and the settings")
+  ok(#p.tabs() == 5 and p.tabs()[2] == "SETS" and p.tabs()[3] == "KEEP", "READY, SETS, KEEP, HAUL and the settings")
   local list = ready()
   ok(#list == 4 and list[1].text == "Belt" and list[1].pic == 132001 and list[1].right == "CHECK" and list[2].right == "ENCH" and row(1, "Shield").right == "BOUND" and row(1, "Cloak").right == "",
     "READY: each item, and what to look twice at", #list)
@@ -92,11 +92,16 @@ return function(H)
 
   -- LATER
   ok(row(1, "Sword").right == "SKILL 125" and row(1, "Sword").done and not row(1, "Cloak"), "LATER: above your skill; what you skipped is hidden (Arn: \"i click skip hide them\")")
-  ok(p.boxes(1)[3][2] >= 1, "still counted under LATER")
-  H.Paint("processing", 2)
-  press(key(1, "ALL BACK"))
-  press(key(1, "SURE?"))
-  ok(next(db.ignore) == nil and row(1, "Cloak"), "ALL BACK puts it back")
+  -- KEEP (Arn: "maybe put it in a hidden tab, not a set but not wanting to disenchant"): what you skipped, with its picture
+  local kr = p.rows(3)
+  ok(#kr == 1 and kr[1].text == "Cloak" and kr[1].pic == 132002 and kr[1].bagItem and kr[1].side.word == "BACK" and p.boxes(3)[1][2] == 1, "KEEP: the skipped Cloak, its picture, BACK", kr[1] and kr[1].text)
+  H.Paint("processing", 3)
+  press(kr[1].side)
+  ok(next(db.ignore) == nil and row(1, "Cloak") and #p.rows(3) == 0 and p.text(3):find("Nothing kept", 1, true), "BACK: into READY again")
+  press(row(1, "Cloak").side)
+  press(key(3, "ALL BACK"))
+  press(key(3, "SURE?"))
+  ok(next(db.ignore) == nil and row(1, "Cloak"), "ALL BACK puts them all back")
   db.blocked[12] = "Requires Runed Copper Rod"
   moment()
   ok(row(1, "Cloak").right == "ROD" and row(1, "Cloak").tip:find("Runed Copper Rod", 1, true) and not ready()[3], "a rod the game asked for")
@@ -105,21 +110,21 @@ return function(H)
   press(key(1, "SURE?"))
   ok(next(db.blocked) == nil and row(1, "Cloak") and not key(1, "NO RODS"), "then they are forgotten")
   press(row(1, "Cloak").side)
-  press(key(1, "ALL BACK"))
-  press(key(1, "SURE?"))
+  press(key(3, "ALL BACK"))
+  press(key(3, "SURE?"))
   ok(next(db.ignore) == nil and row(1, "Cloak"), "ALL BACK the same way")
   P.said = "REQUIRES A ROD"
   ok(p.say(1) == "REQUIRES A ROD", "the game's own words, as on the old window's scratchpad")
   P.said = nil
 
   -- HAUL
-  ok(p.text(3):find("Nothing yet", 1, true), "no haul yet: said")
-  H.Paint("processing", 3)
+  ok(p.text(4):find("Nothing yet", 1, true), "no haul yet: said")
+  H.Paint("processing", 4)
   db.totals, P.haul, P.haulName = { [10940] = 12, [10938] = 40 }, { [10940] = 3 }, {}
-  ok(#p.rows(3) == 2 and p.rows(3)[1].right == "x40" and p.rows(3)[1].text == "item 10938" and p.rows(3)[2].text == "Strange Dust" and p.rows(3)[2].right == "+3 / 12" and p.boxes(3)[2][2] == 52,
+  ok(#p.rows(4) == 2 and p.rows(4)[1].right == "x40" and p.rows(4)[1].text == "item 10938" and p.rows(4)[2].text == "Strange Dust" and p.rows(4)[2].right == "+3 / 12" and p.boxes(4)[2][2] == 52,
     "the haul: all time, and this session's")
-  H.Paint("processing", 3)
-  press(key(3, "HOARD"))
+  H.Paint("processing", 4)
+  press(key(4, "HOARD"))
   ok(P.hoard and P.hoard:IsShown(), "HOARD opens the heap")
   P.ToggleHoard(false)
   press(key(1, "POP OUT"))
