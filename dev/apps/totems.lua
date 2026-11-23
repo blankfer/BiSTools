@@ -192,9 +192,9 @@ return function(H)
           GetFrameRef = function(_, k) return handle(fr.refs and fr.refs[k]) end,
           SetAttribute = function(_, k, v) fr.attrs[k] = v end, GetAttribute = function(_, k) return fr.attrs[k] end }
       end
-      local function snip(code, fr, newstate)
+      local function snip(code, fr, newstate, down)
         local fn = assert(loadstring(code))
-        setfenv(fn, { self = handle(fr), newstate = newstate, PlayerInCombat = function() return W.combat and true or false end,
+        setfenv(fn, { self = handle(fr), newstate = newstate, down = down, PlayerInCombat = function() return W.combat and true or false end,
           IsShiftKeyDown = function() return W.shift and true or false end })
         return fn()
       end
@@ -302,8 +302,10 @@ return function(H)
       local pick
       for _, b in ipairs(fb) do if b:IsShown() and b.attrs["*spell1"] == "Magma Totem" then pick = b end end
       ok(pick, "Magma there, aimed before the pull")
-      local _, msg = snip(TC.SNIP_PICK, pick)
-      ok(top[2].attrs["*spell1"] == "Magma Totem" and top[2].attrs["*type1"] == "spell" and msg, "a pick in a fight: the row's icon now drops Magma", top[2].attrs["*spell1"])
+      local _, msgDown = snip(TC.SNIP_PICK, pick, nil, true)
+      ok(top[2].attrs["*spell1"] == "Magma Totem" and top[2].attrs["*type1"] == "spell" and msgDown == nil, "a pick in a fight: the row's icon now drops Magma; the column stays for the mouse coming up", top[2].attrs["*spell1"])
+      local _, msg = snip(TC.SNIP_PICK, pick, nil, false)
+      ok(msg, "the mouse up: now the column may close")
       snip(TC.SNIP_PICKED, pick)
       ok(not col:IsShown(), "and the column closes after the cast")
       pick:GetScript("PostClick")(pick, "LeftButton", false)

@@ -273,10 +273,13 @@ TC.SNIP_LEAVE = FIGHT .. [[
   local c, s = self:GetFrameRef("fly"), self:GetFrameRef("src")
   if c and c:IsShown() and not c:IsUnderMouse(true) and not (s and s:IsUnderMouse(true)) then c:Hide() end
 ]]
---- A pick (before its cast): the row's icon now drops this one. Its message has the column close after the cast.
+--- A pick (before its cast): the row's icon now drops this one. Its message has the column close after the cast - on the mouse
+--- coming UP only (Arn, 23 Nov: "it does not update the first row it still shows the old totem": the game casts on the DOWN, and a
+--- column closed then never heard the up - the up is where the plain code puts the pick on the row).
 TC.SNIP_PICK = [[
   local s, spell = self:GetFrameRef("src"), self:GetAttribute("*spell1")
   if s and spell then s:SetAttribute("*type1", "spell") s:SetAttribute("*spell1", spell) end
+  if down then return end
   return nil, "picked"
 ]]
 TC.SNIP_PICKED = [[
