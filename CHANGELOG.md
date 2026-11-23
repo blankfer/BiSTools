@@ -5,6 +5,7 @@
 - **BiS> Bosses: FOUND works inside.** Inside a dungeon the game hides creatures' names from addons, so a press always said "not in sight". It now knows when it hit without reading a name.
 - **BiS> Bosses: the 3D boss goes away in a fight** with the dimmed window, and stays out of screenshots taken with the interface hidden.
 - A few bosses go by another name than their fight's (Kirtonos the Herald, Ras Frostwhisper, Gelihast, War Handler Ashka, Overlord Mugg): both are tried. A /reload late in a long run no longer forgets who is dead.
+- **Social: world buffs are left out.** Warchief's Blessing, Rallying Cry, Songflower, the Dire Maul tributes, Spirit of Zandalar and the Darkmoon fortunes come from the game, not a person: no more "Someone - NO NAME" rows for them.
 
 ## 1.7.3
 

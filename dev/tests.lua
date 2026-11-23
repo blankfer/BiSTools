@@ -5196,6 +5196,15 @@ do
   fire(buff("party1")) ok(#emoted == 2 and Sc.lastWhy:find("groupmate", 1, true), "a groupmate: left alone")
   fire({ addedAuras = { { isHelpful = true, sourceUnit = nil } } })
   ok(#emoted == 2 and Sc.lastWhy:find("did not say who", 1, true), "a buff from someone the game will not name: no")
+  -- WORLD BUFFS ARE NOBODY'S (Arn, 23 Nov: "Someone - Warchief's Blessing - NO NAME", five rows)
+  W.now = W.now + 10
+  local rows = #Sc.history
+  fire({ addedAuras = { { isHelpful = true, sourceUnit = nil, spellId = 16609, name = "Warchief's Blessing" } } })
+  ok(#Sc.history == rows and Sc.lastWhy:find("world buff", 1, true), "a world buff (by id): no row, nobody to thank")
+  fire({ addedAuras = { { isHelpful = true, sourceUnit = nil, spellId = 999999, name = "Songflower Serenade" } } })
+  fire({ addedAuras = { { isHelpful = true, sourceUnit = nil, spellId = 999998, name = "Sayge's Dark Fortune of Damage" } } })
+  ok(#Sc.history == rows and #emoted == 2, "a world buff under another id (by name): no row either")
+  ok(not Sc.IsWorldBuff({ spellId = 1243, name = "Power Word: Fortitude" }), "a player's buff is not a world buff")
   fire({ addedAuras = { { isHelpful = false, sourceUnit = "target" } } })
   ok(#emoted == 2, "a debuff: no")
   W.combat = true fire(buff("target")) W.combat = false

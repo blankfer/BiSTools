@@ -52,6 +52,23 @@ local function remember(why, who, spell)
   S.history[S.HISTORY + 1] = nil
 end
 
+-- WORLD BUFFS ARE NOBODY'S (Arn, 23 Nov: five "Someone - Warchief's Blessing - NO NAME" rows, "these is a
+-- world buff from the game not a person"): a head turned in, a flower, a tribute, a fortune - the game casts
+-- them, there is no one to thank and nothing worth a row. Skipped quietly, before the list. By spell id (the
+-- classic ids, UNVERIFIED on Forever) and by name, so a Forever copy under another id is still caught.
+S.WORLD_IDS = { [16609] = true, [22888] = true, [24425] = true, [15366] = true, [22817] = true, [22818] = true,
+  [22820] = true, [23735] = true, [23736] = true, [23737] = true, [23738] = true, [23766] = true, [23767] = true,
+  [23768] = true, [23769] = true }
+S.WORLD_NAMES = { ["Warchief's Blessing"] = true, ["Rallying Cry of the Dragonslayer"] = true,
+  ["Spirit of Zandalar"] = true, ["Songflower Serenade"] = true, ["Fengus' Ferocity"] = true,
+  ["Mol'dar's Moxie"] = true, ["Slip'kik's Savvy"] = true }
+function S.IsWorldBuff(a)
+  local id, name = field(a, "spellId"), field(a, "name")
+  if type(id) == "number" and S.WORLD_IDS[id] then return true end
+  if type(name) == "string" and (S.WORLD_NAMES[name] or name:find("^Sayge's Dark Fortune")) then return true end
+  return false
+end
+
 --- Is this unit in your party or raid? A plain yes only.
 local function grouped(unit)
   for _, fn in ipairs({ UnitInParty, UnitInRaid }) do
@@ -118,7 +135,9 @@ function S.OnBuffs(db, info)
   if #list == 0 then return nil end
   for i = 1, #list do
     local a = list[i]
-    if type(a) == "table" and not hidden(a) then
+    if type(a) == "table" and not hidden(a) and S.IsWorldBuff(a) then
+      note("a world buff - nobody to thank", nil)
+    elseif type(a) == "table" and not hidden(a) then
       local helpful, src, spell = field(a, "isHelpful"), field(a, "sourceUnit"), field(a, "name")
       local function say(why, who) remember(why, who, spell) return note(why, who) end
       -- THE ONE UNKNOWN: does the game name a stranger who buffs you (a sourceUnit), or only someone
