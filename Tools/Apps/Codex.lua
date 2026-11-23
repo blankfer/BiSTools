@@ -254,8 +254,7 @@ DP.App.codex = function(tool, db)
       keys = function(tab)
         local npc = at[tab].npc
         return {
-          { word = "OLD WINDOW", peek = true, tip = "The book's own window: it turns, it attacks, it casts",
-            fn = function() if npc then X.Show(npc) else X.Toggle(true) end end },
+          DP.PopOut(function() if npc then X.Show(npc) else X.Toggle(true) end end, "The book's own window on your screen: it turns, it attacks, it casts"),
           { word = "FULL SCREEN", peek = true, tip = "The book, the whole screen", fn = function()
             if C.Drive and C.Drive.Open() and npc then C.Drive.Pick(npc, true) end
           end },

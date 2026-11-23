@@ -95,8 +95,8 @@ return function(H)
   press(key(3, "HOARD"))
   ok(P.hoard and P.hoard:IsShown(), "HOARD opens the heap")
   P.ToggleHoard(false)
-  press(key(1, "OLD WINDOW"))
-  ok(P.IsOpen(), "OLD WINDOW opens the one with the buttons")
+  press(key(1, "POP OUT"))
+  ok(P.IsOpen(), "POP OUT opens the one with the buttons")
   P.Toggle(false)
 
   -- the card and the badge: the tool's own rule, in town only

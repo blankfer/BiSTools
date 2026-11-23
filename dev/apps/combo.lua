@@ -28,7 +28,7 @@ return function(H)
   ok(#p.tabs() == 4 and p.tabs()[4] == "SETTINGS", "NOW, BEST, FIGHTS and the settings")
   for tab = 1, 3 do
     ok(#p.boxes(tab) == 0 and p.text(tab):find("No fight yet", 1, true), "no fight: tab " .. tab .. " says what to do")
-    ok(key(tab, "OLD WINDOW"), "and the old window is one key away")
+    ok(key(tab, "POP OUT"), "and the old window is one key away")
     H.Paint("combo", tab)
   end
   ok(def.card.prio() == nil and def.card.prio(true) == nil, "no fight, no card")
@@ -190,8 +190,8 @@ return function(H)
   ok(#db.fights == 0 and not key(3, "FORGET ALL"), "the second press: all gone")
 
   -- the old window
-  press(key(1, "OLD WINDOW"))
-  ok(C.IsOpen(), "OLD WINDOW opens the list")
+  press(key(1, "POP OUT"))
+  ok(C.IsOpen(), "POP OUT opens the list")
   C.Toggle(false)
 
   db.fights, db.lastSid, db.min, db.imbueNames, db.open = keep.fights, keep.sid, keep.min, keep.names, keep.open

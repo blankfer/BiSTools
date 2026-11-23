@@ -1,6 +1,6 @@
 -- BiSTools / Tools / Apps / Processing.lua - the tool in the phone (dev/APPS.md).
 -- READY = what can be disenchanted now, LATER = above your skill, needs a rod, in an equipment set of yours, skipped; HAUL = what it gave. All of it is P.Items /
--- P.haul / db.totals. The click that disenchants is secure: the next one is drawn dim, OLD WINDOW has the working buttons.
+-- P.haul / db.totals. The click that disenchants is secure: the next one is drawn dim, POP OUT has the working buttons.
 local _, NS = ...
 local DP, R = NS.DeckPages, NS.Registry
 if not (DP and DP.App) then return end
@@ -97,7 +97,7 @@ DP.App.processing = function(tool, db)
   end
   local function slash(words) return function() tool.OnSlash(tool, db(), words) end end
   local function oldWindow()
-    return { word = "OLD WINDOW", peek = true, tip = "The window with the buttons that disenchant", fn = function() P.Toggle(true) end }
+    return DP.PopOut(function() P.Toggle(true) end, "The window with the buttons that disenchant, on your screen")
   end
 
   return {

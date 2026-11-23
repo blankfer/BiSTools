@@ -1,7 +1,7 @@
 -- BiSTools / Tools / Apps / Combo.lua - BiS>totems, the combo tool in the phone (dev/APPS.md).
 -- NOW = the last fight, and what to try next; BEST = the ranking, a row opens that combo's own page; FIGHTS = every fight kept.
 -- All of it is Combo.lua's own: C.Rank, C.TryNext, C.StatTiles, C.SendDeck, C.ForgetAsk. The icons do not cast here yet (a cast is
--- a secure button): OLD WINDOW has them.
+-- a secure button): POP OUT has them.
 local _, NS = ...
 local DP, R = NS.DeckPages, NS.Registry
 if not (DP and DP.App) then return end
@@ -99,7 +99,7 @@ DP.App.combo = function(tool, db)
     end }
   end
   local function oldWindow()
-    return { word = "OLD WINDOW", peek = true, tip = "The list with the icons you can click to cast", fn = function() C.Toggle(true) end }
+    return DP.PopOut(function() C.Toggle(true) end, "The list with the icons you can click to cast, on your screen")
   end
   local function deckKey(names)
     if #(names or {}) == 0 then return nil end

@@ -328,7 +328,7 @@ function DP.Register()
             if sure then DP.resetAt = nil BF.Reset() else DP.resetAt = GetTime() end
           end }
         end
-        out[#out + 1] = { word = "OLD PHONE", peek = true, tip = "The boss phone: its buttons stay in a fight", fn = function() BF.Toggle(true) end }
+        out[#out + 1] = DP.PopOut(function() BF.Toggle(true) end, "The boss phone on your screen, beside the deck: its buttons stay in a fight")
         return out
       end,
     },
@@ -403,7 +403,7 @@ function DP.Register()
       tabs = function() local c = DP.Farm() return { "MOBS", "SPOTS " .. (c and #c.spots or 0) } end,
       rows = DP.FarmRows,
       text = function() return #DP.FarmRows(1) == 0 and "Kill something: it shows up here. Your guide's targets do too." or nil end,
-      keys = function() return { { word = "WINDOW", peek = true, fn = function() NS.Farm.Toggle(DP.FarmDB(), true) end }, { word = "FORGET", peek = true, fn = function() NS.Farm.Clear(DP.FarmDB()) end } } end,
+      keys = function() return { DP.PopOut(function() NS.Farm.Toggle(DP.FarmDB(), true) end, "The farm window on your screen"), { word = "FORGET", peek = true, fn = function() NS.Farm.Clear(DP.FarmDB()) end } } end,
     },
   }
   local rState, rTurnOn = gate("rides")
@@ -480,6 +480,18 @@ function BiSTools_ToggleDeck() if not DP.Toggle() and D then R:SetEnabled("deck"
 _G.BINDING_NAME_BISTOOLS_DECK = "The deck"
 
 --- Into a dungeon with the deck on: its Bosses app instead of the old boss phone (Arn, 22 Nov: "move the boss phone into the Bosses app").
+--- POP OUT (22 Nov 2026, Arn: "my go to is click old phone so i can use another tool. new people might now know old phone"): the tool's
+--- own window on the screen, and the phone steps back to where you came from, free for another app. One word for every app.
+DP.POP = "POP OUT"
+function DP.PopOut(open, tip)
+  return { word = DP.POP, peek = true, tip = tip, fn = function()
+    open()
+    if not D then return end
+    local t = D.trail and D.trail[#D.trail]
+    if t and D.defs[t.id] and t.id ~= D.page then table.remove(D.trail) D.page = t.id else D.page = "home" end
+    D.Dirty(true)
+  end }
+end
 --- Is the phone on (the kit loaded and the deck tool switched on)?
 function DP.DeckOn() return (D and D.Open and R:Enabled("deck")) and true or false end
 function DP.BossesHere()

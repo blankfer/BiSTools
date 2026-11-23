@@ -65,7 +65,7 @@ return function(H)
   H.Paint("codex", 1)
   -- the old windows, at this creature
   p.keys(1)[1].fn()
-  ok(X.IsOpen() and X.sel == 11520, "OLD WINDOW: the book, at his page")
+  ok(X.IsOpen() and X.sel == 11520, "POP OUT: the book, at his page")
   X.Toggle(false)
   p.keys(1)[2].fn()
   ok(C.Drive.IsOpen() and X.sel == 11520, "FULL SCREEN: there too")

@@ -10422,10 +10422,11 @@ do
     fireAll("PLAYER_ENTERING_WORLD")
     ok(not (BS.frame and BS.frame:IsShown()), "with the deck on, the old boss phone does not come up by itself, even if it was open")
     local old
-    for _, k in ipairs(Dk.defs["BiSTools:bosses"].page.keys(1) or {}) do if k.word == "OLD PHONE" then old = k end end
-    ok(old, "OLD PHONE is on the page")
+    for _, k in ipairs(Dk.defs["BiSTools:bosses"].page.keys(1) or {}) do if k.word == "POP OUT" then old = k end end
+    ok(old, "POP OUT is on the page")
+    Dk.trail, Dk.page = {}, "BiSTools:bosses"
     old.fn()
-    ok(BS.frame and BS.frame:IsShown(), "and opens it by hand")
+    ok(BS.frame and BS.frame:IsShown() and Dk.page == "home", "and opens it by hand; the phone steps back home, free for another app", Dk.page)
     BS.Toggle(false)
     Dk.page = "BiSDeck:welcome"
   end
