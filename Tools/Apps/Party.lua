@@ -157,7 +157,9 @@ DP.App.party = function(_, db)
       local l = type(last) == "table" and last[e.key] or nil
       local ago = l and P.Ago(l.t)
       local tip = ago and ("Last grouped " .. (ago == "now" and "now" or ago .. " ago") .. (l.zone and (", " .. l.zone) or "")) or "Not grouped yet"
-      local r = { mark = tostring(i), text = e.name, right = e.right, ink = e.ink, done = e.st == "off" }
+      -- (the colour pass, 22 Nov: when you last grouped, under the name)
+      local r = { mark = tostring(i), text = e.name, right = e.right, ink = e.ink, done = e.st == "off",
+        sub = ago and ((ago == "now" and "grouped now" or "grouped " .. ago .. " ago") .. (l.zone and (", " .. l.zone) or "")) or "not grouped yet" }
       if e.right == "?" then tip = tip .. "\nNot in your guild or friends: the game does not say if they are on" end
       if edit then
         r.right = nil
@@ -193,7 +195,9 @@ DP.App.party = function(_, db)
       local has = P.Has(db(), f.name)
       local r = { mark = has and "v" or "", text = f.name }
       r.right, r.ink = state(f.name, s)
-      if not r.right then
+      local free = not r.right
+      if free then r.right, r.ink = "ONLINE", "good" end
+      if free then
         if lead then r.act = { word = "invite", fn = function() invite({ f.name }, f.name) end } end
         r.tip = lead and "Click: invite" or "Only the leader or an assistant can invite"
         r.side = { word = has and "- LIST" or "+ LIST", peek = true, tip = has and "Off your list" or "On your list", fn = function()

@@ -98,6 +98,8 @@ DP.App.rivals = function()
 
   -- what is known ------------------------------------------------------------------------------------------------------
 
+  local KIND_WORD = { gold = "GOLD", silver = "SILVER", guild = "GUILD", surname = "CROWN", pal = "PAL", griefer = "GRIEFER" }
+  local KIND_INK = { gold = "gold", silver = "dim", guild = "accent", surname = "gold", pal = "good", griefer = "warn" }
   local function known(e)
     local out, r = {}, e.r
     if e.kind == "surname" then return "Everyone with this surname wears a gold crown. Enemies are called out." end
@@ -156,7 +158,8 @@ DP.App.rivals = function()
       end)
       for i, m in ipairs(list) do
         local pal = RC.IsMatePal(d, m.name)
-        out[i] = { mark = pal and "v" or "", text = m.name, tip = (m.class and (m.class .. "\n") or "") .. (m.rank or ""),
+        local subw = (m.class or "") .. ((m.class and m.rank) and ", " or "") .. (m.rank or "")
+        out[i] = { mark = pal and "v" or "", text = m.name, sub = subw ~= "" and subw or nil, right = pal and "PAL" or nil, ink = pal and "good" or nil, tip = (m.class and (m.class .. "\n") or "") .. (m.rank or ""),
           side = pal and sure("mate" .. m.name, "- PAL", function() RC.MatePal(d, m.name) end, "No longer a pal")
             or { word = "+ PAL", tip = "A pal: a green heart over them", peek = true, fn = function() RC.MatePal(d, m.name) end } }
       end
@@ -165,7 +168,16 @@ DP.App.rivals = function()
     local e0 = picked(tab)
     for i, e in ipairs(people(tab)) do
       local mine = e0 and e.name == e0.name and e.kind == e0.kind
+      -- (the colour pass, 22 Nov: what they are at the right in its colour, the name in their class's, a short line of what is known)
+      local r = e.r or {}
+      local seen = type(r.seen) == "number" and ("seen " .. ago(r.seen)) or nil
+      local where = type(r.where) == "string" and r.where ~= "" and r.where or nil
+      local cls = className(r.class)
+      local bits = {}
+      for _, b in ipairs({ cls or false, where or false, seen or false }) do if b then bits[#bits + 1] = b end end
       out[i] = { mark = mine and ">" or MARK[e.kind], text = e.kind == "surname" and ("All named " .. e.name) or e.name,
+        right = KIND_WORD[e.kind], ink = KIND_INK[e.kind], tint = e.kind == "gold" and "gold" or (type(r.class) == "string" and r.class:upper()) or nil,
+        sub = e.kind ~= "surname" and #bits > 0 and table.concat(bits, ", ") or nil,
         done = e.kind == "silver" and not mine or nil,
         tip = TIP[e.kind] .. (e.kind == "surname" and "" or "\n" .. known(e)),
         act = { word = "look", peek = true, fn = function() sel[tab], note = e.name, nil end },
