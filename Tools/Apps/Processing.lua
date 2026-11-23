@@ -103,6 +103,7 @@ DP.App.processing = function(tool, db)
   return {
     badge = function() return R:Enabled("processing") and (P.count or 0) > 0 and P.count or nil end,
     card = {
+      moments = { town = true },                               -- (where it belongs, for the deck's guessed cards - 22 Nov)
       prio = function(out)
         if P.ShowBox() then return 3 end                       -- (in town only: the tool's own rule)
         return out and R:Enabled("processing") and 2 or nil
