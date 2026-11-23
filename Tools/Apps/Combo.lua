@@ -12,6 +12,7 @@ DP.App.combo = function(tool, db)
   local FRESH, MANY = 120, C.KEEP                            -- seconds a fight's card stays; as many fights as the tool keeps
   local pick                                                 -- the combo whose page is open in BEST
   local opened                                               -- NOW: the breakdown's boxes are open
+  local choosing                                             -- NOW: what is being changed on the row: 0 = the imbue, 1-4 = a totem's place
   local kept = {}                                            -- what this very moment's paint already worked out
 
   local function int(n) return tostring(math.floor((tonumber(n) or 0) + 0.5)) end
@@ -236,13 +237,13 @@ DP.App.combo = function(tool, db)
     local To = NS.Totems
     local row, calls = {}, {}
     local isOn = s.imbue ~= nil and s.on == s.imbue
-    row[1] = { pic = C.IconFor(s.imbue), word = s.imbue and To.Short(s.imbue) or "No imbue", lit = isOn, done = s.imbue == nil,
-      tip = s.imbue and (s.imbue .. (isOn and ": on your weapon. Click: again" or ". Click: puts it on your weapon")) or "No imbue",
-      act = s.imbue and C.Knows(s.imbue) and { word = "IMBUE", spell = s.imbue, peek = true } or nil }
+    row[1] = { pic = C.IconFor(s.imbue), word = s.imbue and To.Short(s.imbue) or "No imbue", lit = choosing == 0 or (choosing == nil and isOn), done = s.imbue == nil,
+      tip = (s.imbue and (s.imbue .. (isOn and ": on your weapon" or ": not on your weapon")) or "No imbue") .. ". Click: choose one",
+      act = { word = "choose", peek = true, fn = function() choosing = choosing ~= 0 and 0 or nil D.skip = 0 end } }
     for slot = 1, 4 do
       local n = s.at[slot]
-      row[slot + 1] = { pic = n and (To.Icon(To.Get(s.page, slot)) or C.IconFor(n)) or nil, word = n and To.Short(n) or To.SLOTS[slot], done = n == nil, tip = To.SLOTS[slot] .. ": " .. (n or "nothing") .. ". Click: change it",
-        act = { word = "change", peek = true, fn = function() To.Open(s.page, slot) end } }
+      row[slot + 1] = { pic = n and (To.Icon(To.Get(s.page, slot)) or C.IconFor(n)) or nil, word = n and To.Short(n) or To.SLOTS[slot], done = n == nil, tip = To.SLOTS[slot] .. ": " .. (n or "nothing") .. ". Click: choose another", lit = choosing == slot or nil,
+        act = { word = "choose", peek = true, fn = function() choosing = choosing ~= slot and slot or nil D.skip = 0 end } }
     end
     for i, page in ipairs(To.Known()) do
       local c = To.CALLS[page]
@@ -252,7 +253,37 @@ DP.App.combo = function(tool, db)
     if C.Knows(To.BRING) then calls[#calls + 1] = { pic = C.IconFor(To.BRING), word = "Bring", tip = To.BRING .. ": the ones that stand come to you", act = { word = "BRING", spell = To.BRING, peek = true } } end
     return { row, calls }
   end
+  --- WHAT FITS THERE, IN PLACE (Arn, 22 Nov: "if i click imbue let me select a new imbue from there dont send me to another app. if i
+  --- click a totem let me select another fire totem dont send me to another app"): the list under the row, instead of the rest.
+  local function chooseRows()
+    local s, To = setup(), NS.Totems
+    if not (choosing and s.page) then choosing = nil return nil end
+    local done = function() choosing = nil D.skip = 0 end
+    local out = { { mark = "<", text = choosing == 0 and "Imbue" or To.SLOTS[choosing] .. " totem", right = choosing > 0 and To.CALLS[s.page].name or nil, ink = "dim", act = { word = "back", peek = true, fn = done }, verb = "BACK" } }
+    if choosing == 0 then
+      for _, n in ipairs(C.TRY.imbue) do
+        if C.Knows(n) then
+          out[#out + 1] = { pic = C.IconFor(n), text = n, right = n == s.on and "ON" or nil, ink = "good", tip = "Click: onto your weapon",
+            act = { word = "IMBUE", spell = n, peek = true, ok = function() db().imbueNow = n choosing = nil kept = {} return true end } }
+        end
+      end
+      return out
+    end
+    local now = To.Get(s.page, choosing)
+    for _, id in ipairs(To.List(choosing)) do
+      out[#out + 1] = { pic = To.Icon(id), text = (C.Base(To.Name(id)) or "?"):gsub(" Totem$", ""), verb = id == now and "HERE" or "PUT", verbInk = id == now and "good" or nil,
+        act = { word = "put", peek = true, fn = function()
+          To.said = not To.Set(s.page, choosing, id) and "The game did not take it" or nil
+          kept = {}
+          done()
+        end } }
+    end
+    out[#out + 1] = { mark = "-", text = "Nothing", verb = now and "PUT" or "HERE", act = { word = "put", peek = true, fn = function() To.Set(s.page, choosing, nil) kept = {} done() end } }
+    return out
+  end
   local function nowRows()
+    local pickList = chooseRows()
+    if pickList then return pickList end
     local out, f = {}, last()
     local lastRow
     local function add(row) out[#out + 1] = row end
