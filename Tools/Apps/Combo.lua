@@ -237,8 +237,10 @@ DP.App.combo = function(tool, db)
       if s.k then table.insert(out, 1, { "Place", s.k .. " of " .. s.of }) end
     end
     local f = last()
+    out[#out + 1] = { "Counted", ({ solo = "your solo fights", group = "your fights in a group", all = "all your fights" })[C.Scope()] }
     if f then
       out[#out + 1] = { " ", " " }
+      if f.group then out[#out + 1] = { "The whole group", int(f.group) .. " dps, " .. (f.groupN or 0) .. " of you" } end
       out[#out + 1] = { "Last fight", (f.mob or "?") .. ", " .. secs(f) }
       for i, b in ipairs(nowBoxes()) do if b[1] ~= "PLACE" then out[#out + 1] = { i == 1 and "Its dps" or b[1] == "WF" and "Windfury damage" or cap(b[1]), b[2] } end end
     end
@@ -249,7 +251,8 @@ DP.App.combo = function(tool, db)
     if not (f or s.page) then return nil end
     local vs, ink
     if f then vs, ink = versus(f) end
-    return { art = "number", big = s.g and int(s.g.dps) or "NEW", ink = s.g and (s.k == 1 and "gold" or "good") or "dim", small = "DPS  " .. whole(s.imbue, s.names),
+    return { art = "number", big = s.g and int(s.g.dps) or "NEW", ink = s.g and (s.k == 1 and "gold" or "good") or "dim", small = (C.Scope() == "group" and "GROUP DPS  " or "DPS  ") .. whole(s.imbue, s.names),
+      corner = f and f.grp and f.group and C.Scope() ~= "solo" and "group " .. int(f.group) or nil,
       right = f and ("last " .. int(dps(f)) .. (vs ~= "-" and "  " .. vs or "")) or "", rightInk = ink == "warn" and "warn" or ink == "good" and "good" or "ink2",
       under = s.g and (plural(s.g.n, "fight") .. (s.k and ", #" .. s.k .. " of " .. s.of or "")) or "never fought: go and fight",
       tip = long(s.imbue, s.names), lines = breakdown(s), peek = true, fn = function() opened = not opened end }

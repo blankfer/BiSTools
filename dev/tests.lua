@@ -5381,6 +5381,25 @@ do
   ok(Co.card and Co.card:IsShown() and Co.card.dps:GetText() == "100 dps" and Co.card.place:GetText():find("#1 of 1", 1, true),
      "the card: the combo, 100 dps, #1 of 1", Co.card and Co.card.place:GetText())
   ok(Co.Close({ totems = {} }) == nil and #cdb.fights == 1, "the same fight never read twice")
+  -- a group fight keeps the whole group's dps too (told, never ranked); one hidden answer = nothing said of it
+  do
+    local real, lastSid = C_DamageMeter.GetCombatSessionFromID, cdb.lastSid
+    ok(rec.group == nil, "alone: nothing of a group")
+    local amounts = { 6000, 3000, 1500 }
+    C_DamageMeter.GetCombatSessionFromID = function() return { durationSeconds = dur, combatSources = { { totalAmount = amounts[1] }, { isLocalPlayer = true, totalAmount = amounts[2] }, { totalAmount = amounts[3] } } } end
+    sid = 101
+    Co.Close({ totems = {}, grp = true })
+    ok(cdb.fights[2] and cdb.fights[2].group == 350 and cdb.fights[2].groupN == 3 and cdb.fights[2].dmg == 3000, "a group fight: 350 of three beside your 100", cdb.fights[2] and cdb.fights[2].group)
+    local S = setmetatable({}, { __add = function() error("secret") end, __lt = function() error("secret") end })
+    local is = _G.issecretvalue
+    _G.issecretvalue = function(v) return v == S end
+    amounts[1], sid = S, 102
+    ok(pcall(Co.Close, { totems = {}, grp = true }) and cdb.fights[3] and cdb.fights[3].group == nil and cdb.fights[3].dmg == 3000, "one of them hidden: yours is kept, the group's is not said")
+    _G.issecretvalue = is
+    cdb.fights[3], cdb.fights[2] = nil, nil
+    C_DamageMeter.GetCombatSessionFromID, cdb.lastSid, sid = real, lastSid, 10
+    if Co.card then Co.ShowCard(rec) end
+  end
   -- a second combo, better: it goes to the top
   sid, total, mySpells = 11, 4500, { { spellID = 1, totalAmount = 4500 } }
   _G.GetWeaponEnchantInfo = function() return true, 1500000, 0, 5 end

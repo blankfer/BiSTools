@@ -126,6 +126,34 @@ return function(H)
   _G.GetWeaponEnchantInfo = function() return false end
   _G.GetTotemInfo = function() return true, "" end
 
+  -- IN A GROUP (Arn, 22 Nov: "in a party should we switch the top number to group dps?" - "go with the small group")
+  do
+    local ig, sc = _G.IsInGroup, db.scope
+    db.scope = nil
+    local grp = fight(WF, 800, 10, "Boss", { grp = true, group = 412, groupN = 5, active = 10, swings = 6 })
+    local grouped = false
+    _G.IsInGroup = function() return grouped end
+    moment()
+    ok(C.Scope() == "solo" and p.hero(1).small:find("^DPS  ") and not p.hero(1).corner and #p.rows(2) == 2, "alone: your solo fights, nothing of the group", p.hero(1).small)
+    grouped = true
+    moment()
+    local gh = p.hero(1)
+    ok(C.Scope() == "group" and gh.small:find("^GROUP DPS  WF") and gh.big == "80" and gh.under:find("1 fight", 1, true) and gh.corner == "group 412" and #p.rows(2) == 1, "in a group: your own dps in group fights, the group's beside it, small", gh.big .. " " .. tostring(gh.corner))
+    local lines2 = {}
+    for _, x in ipairs(gh.lines) do lines2[x[1]] = x[2] end
+    ok(lines2["The whole group"] == "412 dps, 5 of you" and lines2.Counted == "your fights in a group", "and on hover", lines2["The whole group"])
+    grouped = false
+    moment()
+    ok(p.hero(1).small:find("^DPS  "), "out of it again: your solo numbers")
+    db.scope = "solo" grouped = true moment()
+    ok(C.Scope() == "solo", "what you said holds") db.scope = sc
+    _G.IsInGroup = ig
+    table.remove(db.fights)
+    ok(grp.group == 412, "(taken out again)")
+    C.scopeAt = nil
+    moment()
+  end
+
   -- BEST
   local rows = p.rows(2)
   ok(#rows == 2 and rows[1].right == "188 (1)" and rows[1].ink == "gold" and rows[1].text == "SoE, GoA" and rows[2].right == "100 (2)" and rows[2].text == "SoE", "BEST: the ranking, with how many fights")

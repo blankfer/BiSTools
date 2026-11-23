@@ -533,9 +533,12 @@ function C.Close(cur)
   local ok, s = pcall(D.GetCombatSessionFromID, sid, dmgType)
   if not (ok and type(s) == "table") then return why("fight " .. sid .. " would not open") end
   local mine
+  local all, people = 0, 0                                   -- (everybody's: told beside yours in a group, never ranked)
   pcall(function()
     for _, src in ipairs(s.combatSources or {}) do
-      if plain(src.isLocalPlayer) == true then mine = src break end
+      if plain(src.isLocalPlayer) == true then mine = mine or src end
+      local amt = plain(src.totalAmount)
+      if type(amt) ~= "number" then all = nil elseif all and amt > 0 then all, people = all + amt, people + 1 end
     end
   end)
   local dmg = mine and plain(mine.totalAmount)
@@ -584,6 +587,7 @@ function C.Close(cur)
                 wf = dmg > 0 and wf / dmg or 0, ft = dmg > 0 and ft / dmg or 0, spells = C.TopSpells(spells, dmg),
                 procs = cur.procs, mixed = mixed or nil, swings = cur.beats, gap = cur.gap, skull = cur.skull,
                 grp = cur.grp or C.Grouped() or nil }
+  if rec.grp and all and people > 1 and all >= dmg then rec.group, rec.groupN = all / dur, people end
   d.fights = d.fights or {}
   d.fights[#d.fights + 1] = rec
   C.Trim(d)
@@ -646,7 +650,15 @@ function C.Grouped()
   end
   return yes(IsInGroup) or yes(IsInRaid) or yes(function() return (IsInInstance()) end)
 end
-function C.Scope() local s = db().scope return (s == "group" or s == "all") and s or "solo" end
+--- Which fights count: what you said, else AUTO (Arn, 22 Nov: "in a party should we switch the top number to group dps?" - "go with the
+--- small group"): your group fights while you are with others, your solo ones otherwise. Never both in one ranking.
+function C.Scope()
+  local s = db().scope
+  if s == "group" or s == "all" or s == "solo" then return s end
+  local at = GetTime and GetTime() or 0
+  if C.scopeAt ~= at then C.scopeAt, C.scopeNow = at, C.Grouped() and "group" or "solo" end
+  return C.scopeNow
+end
 --- Did you swing for most of it? (a record from before this was kept says nothing: it counts)
 function C.Swung(f)
   if f.swings and f.swings < C.LEAST_SWINGS then return false end
@@ -2769,10 +2781,10 @@ R:Register({
       min = 0, max = 60, step = 5, get = function(d) return tonumber(d.min) or C.MIN end,
       set = function(d, v) d.min = v == 0 and 0 or v if C.IsOpen() then C.Paint() end end,
       show = function(d) local v = tonumber(d.min) or C.MIN return (v == 0 and 0 or v) .. " s" end },
-    { kind = "seg", label = "fights that count", values = { "solo", "group", "all" },
-      help = "In a group you may be healing, and others kill the mob: those fights are kept apart. solo = only the ones you fought alone (or in no instance), group = only the others, all = both.",
-      get = function(d) return (d.scope == "group" or d.scope == "all") and d.scope or "solo" end,
-      set = function(d, v) d.scope = v ~= "solo" and v or nil if C.IsOpen() then C.Paint() end end },
+    { kind = "seg", label = "fights that count", values = { "auto", "solo", "group", "all" },
+      help = "Solo and group fights are never in one ranking. auto = your group fights while you are in a group, your solo ones otherwise. solo / group = always those, all = both.",
+      get = function(d) return (d.scope == "group" or d.scope == "all" or d.scope == "solo") and d.scope or "auto" end,
+      set = function(d, v) d.scope = v ~= "auto" and v or nil C.scopeAt = nil if C.IsOpen() then C.Paint() end end },
     { kind = "button", label = "the combo list", button = "open",
       help = "Every imbue + totem combo you fought with, ranked by damage per second, with how many fights each is based on.",
       action = function(d) C.db = d C.Toggle(true) end },
