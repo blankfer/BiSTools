@@ -143,6 +143,71 @@ return function(H)
   ok(#p.rows(1) == 5 and p.say(1):find("Not an enchanter", 1, true) and p.big(1) == nil and not p.rows(1)[1].side, "not an enchanter: the gear, looking only, and said")
   H.Paint("processing", 1)
 
+  -- SMELTING (Arn, 23 Nov: "smelt if its a ore" - "build it"): ore in your bags = a SMELT row; a click hands the game the recipe,
+  -- all the bars (Shift: one); nothing begun with Mining closed = the next click opens it first
+  do
+    local SM = NS.Smelt
+    local keepT, keepSp, keepCast = rawget(_G, "C_TradeSkillUI"), _G.C_Spell, rawget(_G, "UnitCastingInfo")
+    local crafted, opened, isOpen, casting = {}, 0, false, nil
+    _G.C_TradeSkillUI = { CraftRecipe = function(id, n) crafted[#crafted + 1] = { id = id, n = n } end,
+      OpenTradeSkill = function(id) opened = opened + 1 isOpen = id == 186 return true end,
+      GetBaseProfessionInfo = function() return { professionID = isOpen and 186 or 0 } end }
+    _G.C_Spell = setmetatable({ GetSpellName = function(id) return ({ [2657] = "Smelt Copper", [14891] = "Smelt Dark Iron" })[id] end }, { __index = keepSp })
+    _G.UnitCastingInfo = function() return casting end
+    _G.IsPlayerSpell = function(id) return id == 2657 or id == P.SPELL end
+    SLOT[7] = { 2770, "G-O", 0 } SLOT[8] = { 11370, "G-D", 0 }
+    ITEMS[2770] = { 1, 7, "", 1, "Copper Ore" } ITEMS[11370] = { 1, 7, "", 1, "Dark Iron Ore" }
+    local function oreInfo(bag, slot)
+      local i = info(bag, slot)
+      if i and (i.itemID == 2770 or i.itemID == 11370) then i.stackCount = i.itemID == 2770 and 12 or 5 end
+      return i
+    end
+    _G.C_Container.GetContainerItemInfo = oreInfo
+    _G.C_Item.GetItemNameByID = function(id) return ITEMS[id] and ITEMS[id][5] end
+    KNOWN = true
+    moment()
+    local cu, di, head
+    for _, r in ipairs(p.rows(1)) do
+      if r.head and r.text == "SMELT" then head = r end
+      if r.text == "Copper Ore" then cu = r elseif r.text == "Dark Iron Ore" then di = r end
+    end
+    ok(head and p.rows(1)[1].head and p.rows(1)[1].text == "SMELT" and cu and cu.sub == "12 ore = 12 bars" and cu.right == "SMELT" and cu.act and type(cu.act.fn) == "function",
+      "ore in your bags: SMELT on top, a row for it, a click to smelt", cu and cu.sub)
+    ok(di and di.right == "NOT KNOWN" and not di.act and di.done, "an ore you cannot smelt yet: it only looks")
+    local shKeep = _G.IsShiftKeyDown
+    _G.IsShiftKeyDown = function() return false end
+    Dk.Press(def, cu.act)()
+    ok(crafted[1] and crafted[1].id == 2657 and crafted[1].n == 12 and opened == 0, "a click: the game is handed Smelt Copper, all 12", crafted[1] and crafted[1].n)
+    W.runAfters(SM.WAIT + 0.1)
+    ok(SM.needOpen and SM.last.why:find("Mining closed", 1, true) and P.said:find("CLICK AGAIN", 1, true), "nothing began with Mining closed: it says click again", P.said)
+    _G.IsShiftKeyDown = function() return true end
+    for _, r in ipairs(p.rows(1)) do if r.text == "Copper Ore" then cu = r end end
+    Dk.Press(def, cu.act)()
+    ok(opened == 1 and crafted[2].n == 1, "the next click opens Mining first; Shift-click: one bar")
+    SM.events.scripts.OnEvent(SM.events, "UNIT_SPELLCAST_START", "player", "guid", 2657)
+    W.runAfters(SM.WAIT + 0.1)
+    ok(SM.last.began and P.said:find("SMELTING 1 BAR", 1, true), "it began: said", P.said)
+    _G.IsShiftKeyDown = shKeep
+    Dk.Press(def, cu.act)()
+    SM.events.scripts.OnEvent(SM.events, "UI_ERROR_MESSAGE", 50, "Requires Forge")
+    W.runAfters(SM.WAIT + 0.1)
+    ok(SM.last.why == "Requires Forge" and P.said == "REQUIRES FORGE", "away from a forge: the game's own words", P.said)
+    W.combat = true
+    local n0 = #crafted
+    Dk.Press(def, cu.act)()
+    ok(#crafted == n0 and P.said == "NOT IN A FIGHT", "in a fight: nothing")
+    W.combat = false
+    local said = {}
+    NS.Print = function(f, ...) said[#said + 1] = select("#", ...) > 0 and f:format(...) or f end
+    R:Get("processing"):OnSlash(db, "smelt")
+    ok(said[1] and said[1]:find("Smelt Copper", 1, true) == nil and said[1]:find("recipe 2657", 1, true), "/bist processing smelt: what the last click did", said[1])
+    NS.Print = function() end
+    SLOT[7], SLOT[8] = nil, nil
+    _G.C_TradeSkillUI, _G.C_Spell, _G.UnitCastingInfo = keepT, keepSp, keepCast
+    _G.C_Container.GetContainerItemInfo = info
+    moment()
+  end
+
   _G.C_Container, _G.C_Item, _G.ItemLocation, _G.IsPlayerSpell = keep.cont, keep.item, keep.loc, keep.known
   _G.GetProfessions, _G.GetProfessionInfo, _G.IsResting = keep.profs, keep.info, keep.rest
   db.ignore, db.blocked, db.totals, db.showIgnored = keep.ignore, keep.blocked, keep.totals, keep.show

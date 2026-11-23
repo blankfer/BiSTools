@@ -67,8 +67,24 @@ DP.App.processing = function(tool, db)
   local laterRows
   local function ignore(e, word, words) return { word = word, tip = words, fn = function() P.Ignore(e) kept = nil end } end
   local function slotOf(bag, slot) for _, g in ipairs(X.gear()) do if g.bag == bag and g.slot == slot then return g end end end
+  --- ORE: a click smelts it all, Shift-click one bar (Arn: "smelt if its a ore"; Tools/Smelt.lua).
+  local function oreRows()
+    local SM, out = NS.Smelt, {}
+    if not SM then return out end
+    local ores = SM.Ores()
+    if #ores == 0 then return out end
+    out[1] = { head = true, text = "SMELT", right = "at a forge" }
+    for _, o in ipairs(ores) do
+      local can = o.known and o.bars > 0
+      out[#out + 1] = { pic = o.icon, text = o.name, sub = o.count .. " ore = " .. o.bars .. (o.bars == 1 and " bar" or " bars"),
+        right = not o.known and "NOT KNOWN" or o.bars == 0 and ("NEEDS " .. o.per) or "SMELT", ink = can and "gold" or "dim", done = not can or nil,
+        tip = (SM.Name(o.spell) or o.name) .. (can and (". Click: smelts all " .. o.bars .. ". Shift-click: one bar. Stand at a forge.") or o.known and (": " .. o.per .. " ore a bar.") or ": you do not know it."),
+        act = can and { word = "SMELT", peek = true, fn = function() SM.Smelt(o, (IsShiftKeyDown and IsShiftKeyDown()) and 1 or o.bars) kept = nil end } or nil }
+    end
+    return out
+  end
   local function readyRows()
-    local out = {}
+    local out = oreRows()
     if not works() then                                       -- (looking only: the gear in no set)
       for _, g in ipairs(X.gear()) do if not g.sets then out[#out + 1] = X.row(g) end end
       return out

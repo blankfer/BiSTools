@@ -1125,6 +1125,7 @@ R:Register({
     P.db = db
     args = tostring(args or "")
     if args == "ignored clear" then db.ignore = {} P.Recount() P.Paint() return NS.Print("processing: nothing ignored now") end
+    if args == "smelt" and NS.Smelt then return NS.Smelt.Why() end
     if args == "rods clear" then db.blocked = {} P.Recount() P.Paint() return NS.Print("processing: the rod notes are forgotten") end
     P.Toggle()
   end,
