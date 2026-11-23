@@ -280,7 +280,7 @@ DP.App.combo = function(tool, db)
       add({ mark = ">", text = "Every combo is tried", right = C.TRY_ENOUGH .. "+ each", ink = "good", tip = "Each has enough fights: the ranking holds" })
     end
     if lastRow then table.insert(out, a and #out + 1 or 1, lastRow) end
-    if not (InCombatLockdown and InCombatLockdown()) then
+    if not a and not (InCombatLockdown and InCombatLockdown()) then       -- (the row on top says it)
       local im, up = C.ImbueNow(), C.ScanTotems({})
       local names = {}
       for n in pairs(up) do names[#names + 1] = n end

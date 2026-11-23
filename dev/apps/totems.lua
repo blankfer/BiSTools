@@ -109,6 +109,23 @@ return function(H)
     ok(tc[2].act.ok() == false, "the game refuses: nothing is cast") refuse = false
     ok(tc[2].act.ok() == true and at[144] == 7 and cp.icons(1)[1][1].word == "Windfury", "else it is set and dropped, and is the row on top")
     H.Paint("combo", 1)
+    -- all of it at the normal size (Arn, 22 Nov: "lets always make stuff fit the 100% size")
+    do
+      BiSTheme.DECK_LOGIN = true
+      Dk.Store().welcomed = true
+      Dk.Show()
+      Dk.W, Dk.H, Dk.shape, Dk.page = 260, 462, "portrait", "BiSTools:tool-combo"
+      Dk.defs["BiSTools:tool-combo"].tab = 1
+      local was = R:Enabled("combo")
+      R:SetEnabled("combo", true)
+      Dk.Paint()
+      R:SetEnabled("combo", was)
+      local seen, n = {}, 0
+      for _, w in ipairs(Dk.frame.pieces) do if w:IsShown() and w.kind == "row" then n = n + 1 elseif w:IsShown() and w.kind == "icon" then seen[#seen + 1] = w end end
+      ok(n == #cp.rows(1) and n >= 5 and #seen == 5 + 2 + 2 * (5 + 2), "260 x 462: every row and every icon is there", n .. " of " .. #cp.rows(1) .. " rows, " .. #seen .. " icons")
+      Dk.page = "home" Dk.Hide()
+      Dk.Store().open, Dk.Store().welcomed = false, nil
+    end
     cdb.imbueNow, cdb.imbueSeen = "Frostbrand Weapon", nil
     local we, nm = _G.GetWeaponEnchantInfo, cdb.imbueNames
     _G.GetWeaponEnchantInfo = function() return true, 100000, 0, 283 end

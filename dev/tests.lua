@@ -10877,6 +10877,8 @@ do
     BiSTheme.DECK_LOGIN = true
     local st = Dk.Store()
     st.welcomed = true
+    st.toured = type(st.toured) == "table" and st.toured or {}
+    st.toured[id] = true                                   -- (the app itself, not its first-time words)
     Dk.Show()
     for _, z in ipairs({ { 220, 300 }, { 260, 462 }, { 600, 420 } }) do
       Dk.W, Dk.H, Dk.shape, Dk.page = z[1], z[2], BiSTheme.DeckShape(z[1], z[2]), id
