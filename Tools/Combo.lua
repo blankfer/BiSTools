@@ -750,7 +750,7 @@ C.TRY = {
   earth = { "Strength of Earth Totem" },
   air = { "Grace of Air Totem", "Windfury Totem" },
 }
-C.TRY_ENOUGH = 5
+C.TRY_ENOUGH = 3                            -- (as many as a combo needs to stand on top, C.SURE; Arn, 22 Nov: "1/3 fights or something")
 --- Do you know this spell? (by name: the client's spell info, then whether it is yours)
 function C.Knows(name)
   if not (C_Spell and C_Spell.GetSpellInfo) then return false end
@@ -1620,6 +1620,16 @@ function C.SendDeck(totems)
   end
   say("combo: the deck said no (%s)", tostring(ok and why or a))
   return false
+end
+--- The row onto the healing deck (Arn, 22 Nov: "update healing deck click and it sets my healing deck row out of combat so i can drop
+--- during combat"): set = { fire, earth, water, air = a totem's name or false }, and which Call its CALL button drops.
+function C.SendRow(set, call)
+  if not C.DeckCan() then return false, C.DeckMissing() end
+  if InCombatLockdown and InCombatLockdown() then return false, "Out of a fight only" end
+  local ok, a, why = pcall(BiSHealingAPI.SetTotems, set)
+  if not (ok and a) then return false, "The deck said no: " .. tostring(ok and why or a) end
+  if call and type(BiSHealingAPI.SetCall) == "function" then pcall(BiSHealingAPI.SetCall, call) end
+  return true, "Your healing deck drops these now"
 end
 function C.PaintTry()
   local tr = C.frame and C.frame.try

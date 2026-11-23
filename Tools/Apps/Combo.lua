@@ -1,4 +1,4 @@
--- BiSTools / Tools / Apps / Combo.lua - the tool in the phone (dev/APPS.md).
+-- BiSTools / Tools / Apps / Combo.lua - BiS>totems, the combo tool in the phone (dev/APPS.md).
 -- NOW = the last fight, and what to try next; BEST = the ranking, a row opens that combo's own page; FIGHTS = every fight kept.
 -- All of it is Combo.lua's own: C.Rank, C.TryNext, C.StatTiles, C.SendDeck, C.ForgetAsk. The icons do not cast here yet (a cast is
 -- a secure button): OLD WINDOW has them.
@@ -254,27 +254,6 @@ DP.App.combo = function(tool, db)
       under = s.g and (plural(s.g.n, "fight") .. (s.k and ", #" .. s.k .. " of " .. s.of or "")) or "never fought: go and fight",
       tip = long(s.imbue, s.names), lines = breakdown(s), peek = true, fn = function() opened = not opened end }
   end
-  --- Put a set-up on the row: its imbue, its totems; the water totem stays (no combo speaks of it).
-  local function put(imbue, names)
-    local To = NS.Totems
-    touch(function(d)
-      d.imbue = imbue or d.imbue
-      local by = C.CellNames(nil, names)
-      for slot, el in pairs({ [1] = "fire", [2] = "earth", [4] = "air" }) do d.t[slot] = by[el][1] and To.Find(slot, by[el][1]) or false end
-    end)
-  end
-  local function isPut(imbue, names)
-    local s = setup()
-    return s.page and C.Label(imbue, (function() local t = {} for _, n in ipairs(names or {}) do t[n] = true end return t end)()) == s.combo or false
-  end
-  local function setKey(imbue, names, tip)
-    if not calls() then return nil end
-    return { word = "SET", peek = true, tip = tip, fn = function() put(imbue, names) end }
-  end
-  local function line(word, right, ink, imbue, names, tip)
-    local on = isPut(imbue, names)
-    return { pic = C.IconFor(imbue) or 134400, text = word .. "  " .. whole(imbue, names), sub = right, tint = "ink", tip = tip, verb = on and "ON IT" or "SET", verbInk = on and "good" or ink, act = setKey(imbue, names) }
-  end
   --- A Call's press, the last word before its cast: CHANGED = the row goes into it; unchanged = it comes onto the row.
   local function press(page)
     local To = NS.Totems
@@ -297,6 +276,52 @@ DP.App.combo = function(tool, db)
     To.Choose(page)
     kept = {}
     return true
+  end
+  --[[ THE BEST, AND THE ONE TO TRY (Arn, 22 Nov: "the next row first one shows the best dps set up, imbue with the totems in that data, and
+    the call of the buttons in their tints. i click the call of the button and it saves the best to that call of the button" - "same
+    with the try you recommend one to try and ill say 1/3 fights ... lets me set it to what ever call of the button"): its imbue and
+    totems (a press casts that one), and the Calls in their colours - a press SAVES it there, and that Call is the row then. Nothing is
+    cast by saving. The water totem of that Call stays (no fight's record speaks of it). ]]
+  local function saveIn(page, imbue, names)
+    local To = NS.Totems
+    local by, bad = C.CellNames(nil, names), 0
+    local water = (theRow() or {}).t
+    for slot, el in pairs({ [1] = "fire", [2] = "earth", [4] = "air" }) do
+      local id = by[el][1] and To.Find(slot, by[el][1]) or nil
+      if (by[el][1] and not id) or not To.Set(page, slot, id) then bad = bad + 1 end
+    end
+    if water and water[3] and not To.Get(page, 3) then To.Set(page, 3, water[3]) end
+    if bad > 0 then To.said = bad .. " did not go into " .. To.CALLS[page].name .. ": press again" return false end
+    if imbue then
+      db().callImbue = type(db().callImbue) == "table" and db().callImbue or {}
+      db().callImbue[page] = imbue
+    end
+    db().draft = nil
+    To.Choose(page)
+    To.said = "Saved in " .. To.CALLS[page].name
+    kept = {}
+    return true
+  end
+  local function block(add, word, sub, ink, imbue, names, tip)
+    local To = NS.Totems
+    local by, row, saves = C.CellNames(imbue, names), {}, {}
+    local function one(n, slot)
+      if not n then row[#row + 1] = { word = slot and To.SLOTS[slot] or "None", done = true, tip = slot and To.SLOTS[slot] .. ": nothing" or "No imbue" } return end
+      row[#row + 1] = { pic = C.IconFor(n), word = C.COL_WORD[n] or C.IMBUE_SHORT[n] or To.Short(n), tip = n .. (slot and ". Click: drops this one" or ". Click: onto your weapon"),
+        act = C.Knows(n) and { word = slot and "DROP" or "IMBUE", spell = n, peek = true } or nil }
+    end
+    one(imbue) one(by.fire[1], 1) one(by.earth[1], 2) one(by.air[1], 4)
+    for i, page in ipairs(To.Known()) do
+      local has = imbueOf(page) == imbue
+      for slot, el in pairs({ [1] = "fire", [2] = "earth", [4] = "air" }) do
+        local id = by[el][1] and To.Find(slot, by[el][1]) or nil
+        has = has and To.Get(page, slot) == id
+      end
+      saves[i] = { flat = true, word = cap(To.CALLS[page].tab), glow = GLOW[page] or "accent", soft = not has or nil, tip = To.CALLS[page].name .. (has and ": it is in it" or ". Click: saves it there"),
+        act = { word = "SAVE", peek = true, fn = function() saveIn(page, imbue, names) end } }
+    end
+    add({ text = word, sub = sub, ink = ink, tip = tip, icons = row })
+    add({ text = "", sub = "save in", ink = "dim", icons = saves, low = true, tip = "Saves it in that Call; nothing is cast" })
   end
   local function icons()
     local s = setup()
@@ -349,6 +374,23 @@ DP.App.combo = function(tool, db)
     out[#out + 1] = { mark = "-", text = "Nothing", verb = now and "PUT" or "HERE", act = to(false) }
     return out
   end
+  --- THE LAST ROW (Arn, 22 Nov: "the last row should be like update healing deck click and it sets my healing deck row out of combat so i
+  --- can drop during combat"): the row's four totems onto BiS Healing's deck, and its CALL button on the row's Call.
+  local function deckRow()
+    local s, To = setup(), NS.Totems
+    local set, same = {}, C.DeckCan()
+    local has
+    if same then local fine, h = pcall(BiSHealingAPI.Totems) has = fine and type(h) == "table" and h or {} end
+    for slot, el in ipairs({ "fire", "earth", "water", "air" }) do
+      set[el] = s.at[slot] or false
+      if same and (C.Base(has[el]) or false) ~= set[el] then same = false end
+    end
+    local call = not s.changed and To.CALLS[s.page].name or nil
+    if same and call and type(BiSHealingAPI.Call) == "function" then local fine, c = pcall(BiSHealingAPI.Call) same = fine and c == call end
+    return { pic = "Interface\\Icons\\Spell_Nature_HealingWaveGreater", text = "Update healing deck", verb = same and "IS ON IT" or "UPDATE", verbInk = same and "good" or "gold",
+      tip = C.DeckCan() and "These four totems onto BiS Healing's deck, to drop in a fight" or C.DeckMissing(),
+      act = { word = "UPDATE", peek = true, fn = function() local _, why = C.SendRow(set, call) To.said = why end } }
+  end
   --- What the row is, in words (a colour is never the only sign).
   local function rowSays()
     local s = setup()
@@ -363,11 +405,11 @@ DP.App.combo = function(tool, db)
     local out, f = {}, last()
     local function add(row) out[#out + 1] = row end
     local c, total, untried = try()
-    if calls() then                                              -- (one line each: the icons stand on the page once)
-      if c then add(line("TRY", c.n == 0 and "never fought" or plural(c.n, "fight"), "gold", c.imbue, c.totems, "Try next. " .. long(c.imbue, c.totems) .. ". " .. (untried or 0) .. " of " .. (total or 0) .. " combos never tried.")) end
+    if calls() then
       local top = rank()[1]
-      if top then add(line("TOP", int(top.dps) .. " dps, " .. plural(top.n, "fight"), "good", top.imbue, top.totems, "Your best. " .. long(top.imbue, top.totems))) end
-      if f then add(line("LAST", int(dps(f)) .. " dps, " .. (f.mob or "?") .. (f.mixed and ", mixed" or ""), "accent", f.imbue, f.totems, fightTip(f))) end
+      if top then block(add, "BEST " .. int(top.dps), plural(top.n, "fight"), "good", top.imbue, top.totems, "Your best. " .. long(top.imbue, top.totems) .. ", " .. int(top.dps) .. " dps") end
+      if c then block(add, "TRY", c.n .. "/" .. C.TRY_ENOUGH .. " fights", "gold", c.imbue, c.totems, "Try next. " .. long(c.imbue, c.totems) .. ". " .. (untried or 0) .. " of " .. (total or 0) .. " combos never tried.") end
+      add(deckRow())
       return out
     end
     if f then
@@ -423,6 +465,7 @@ DP.App.combo = function(tool, db)
       out[2] = { pic = C.IconFor(g.imbue), mark = "#", text = beside(g.imbue, g.totems), right = "#" .. k .. " of " .. n, ink = k == 1 and "gold" or "ink2",
         tip = long(g.imbue, g.totems) }
     end
+    if g and calls() then block(function(r) out[#out + 1] = r end, "THIS ONE", "save it", "gold", g.imbue, g.totems, long(g.imbue, g.totems)) end
     local _, order = tiles(pick)
     for _, x in ipairs(order) do
       local t = x.t
@@ -479,6 +522,7 @@ DP.App.combo = function(tool, db)
   end
 
   return {
+    name = "Totems", art = "Interface\\Icons\\Spell_Nature_EarthBindTotem",
     card = {
       prio = function(out)
         local f = R:Enabled("combo") and last() or nil
@@ -492,7 +536,7 @@ DP.App.combo = function(tool, db)
         local k, n, g = place(f.combo)
         local vs, ink = versus(f)
         local ranked = counts(f) and k
-        return { "COMBO", "", (ranked and "#" .. k .. " " or "") .. short(f.imbue) .. ", " .. totems(f.imbue, f.totems),
+        return { "TOTEMS", "", (ranked and "#" .. k .. " " or "") .. short(f.imbue) .. ", " .. totems(f.imbue, f.totems),
           int(dps(f)) .. " dps", ink == "warn" and "gold" or "good", hot = ranked == 1 and n > 1,
           list = { { "Place", ranked and (k .. " of " .. n) or "too short" }, { "Against your average", vs }, { "This combo's average", g and int(g.dps) or "-" } } }
       end,
@@ -509,6 +553,7 @@ DP.App.combo = function(tool, db)
       tour = { { text = "Fight with an imbue and totems up: each fight lands here, and the best combo rises to the top.",
         note = "BEST: press a combo for its numbers." },
         { text = "Try: what you have fought with least.", note = "SET DECK sends its totems to BiS Healing." } },
+      title = function() return "BiS>totems" end,              -- (Arn, 22 Nov: "instead of combo we call this BiS>totems")
       kicker = function() return "imbue + totems" end,
       tabs = function() return { "NOW", "BEST", "FIGHTS" } end,
       boxes = function(tab)
@@ -546,23 +591,17 @@ DP.App.combo = function(tool, db)
           return c and deckKey(c.totems) or nil
         elseif inCombo(tab) then
           local _, _, g = place(pick)
-          local To = NS.Totems
-          return g and (To and To.DropAll(g.totems, "DROP ALL: " .. totems(nil, g.totems)) or deckKey(g.totems)) or nil
+          return g and not calls() and deckKey(g.totems) or nil
         end
       end,
       keys = function(tab)
         local out = {}
         if tab == 1 then
           local c = try()
-          if setKey() and setup().page then return {} end       -- (the icons are the buttons there)
+          if calls() then return {} end                          -- (the icons are the buttons there)
           if c and c.imbue then out[1] = { word = "IMBUE " .. short(c.imbue), spell = c.imbue, peek = true } end
-          local dk = c and NS.Totems and NS.Totems.DropAll(c.totems, "x") and deckKey(c.totems)
-          if dk then dk.word = "SET DECK" out[#out + 1] = dk end
         elseif inCombo(tab) then
           local combo = pick
-          local _, _, g = place(pick)
-          local set = g and setKey(g.imbue, g.totems, "Its imbue and totems onto the row (NOW)")
-          if set then out[2] = set end
           out[1] = { word = C.Armed(combo) and "SURE?" or "FORGET", peek = true, tip = "Forget every fight with this combo", fn = function()
             kept = {}
             C.ForgetAsk(combo)

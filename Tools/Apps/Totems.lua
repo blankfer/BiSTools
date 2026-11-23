@@ -1,15 +1,16 @@
---[[ BiSTools / Tools / Apps / Totems.lua  --  THE THREE CALLS (22 Nov 2026).
+--[[ BiSTools / Tools / Apps / Totems.lua  --  THE CALLS (NS.Totems; 22 Nov 2026).
 
-  Arn, 22 Nov: "if we can just have a manager that edits these so i can drop them all at once, because right now i gotta click them
-  all one at a time" (Call of the Elements, Call of the Ancestors, Call of the Spirits).
+  Arn, 22 Nov: "if we can just have a manager that edits these so i can drop them all at once" (Call of the Elements, Call of the
+  Ancestors, Call of the Spirits) - and, the same evening: "the totem set up fold into this because now we can select our totems and
+  set them to the calls from here, instead of combo we call this BiS>totems". So there is no app of its own any more: this is what the
+  Totems app (Tools/Apps/Combo.lua) asks about the game's totem bar.
 
-  A Call drops what stands in its four places of the game's own totem bar: fire, earth, water, air. The client lets an addon fill
-  them out of a fight (SetMultiCastSpell, in Forever's census 21 Oct; the game's bar is three pages of four actions, from
-  (GetMultiCastBarIndex() - 1) * 12 on). UNVERIFIED live: every fill is read back (GetActionInfo) and said when it did not take.
-  Casting a Call is the player's own click on a secure button (the deck's overlay). No frames, no events here. A shaman's app only. ]]
+  A Call drops what stands in its four places of that bar: fire, earth, water, air. The client lets an addon fill them out of a fight
+  (SetMultiCastSpell; the bar is three pages of four actions, from (GetMultiCastBarIndex() - 1) * 12 on - READ right on Arn's client
+  22 Nov; a WRITE is unverified live: every one is read back and said when it did not take). Casting a Call is the player's own click
+  on a secure button (the deck's overlay). No frames, no events here. ]]
 local _, NS = ...
-local DP, R = NS.DeckPages, NS.Registry
-if not (DP and DP.App) then return end
+local R = NS.Registry
 local T = {}
 NS.Totems = T
 
@@ -20,7 +21,6 @@ T.CALLS = {
 }
 T.BRING = "Totemic Call"
 T.SLOTS = { "Fire", "Earth", "Water", "Air" }
-T.SLOT_OF = { fire = 1, earth = 2, water = 3, air = 4 }
 
 local function plain(v) if v == nil or (issecretvalue and issecretvalue(v)) then return nil end return v end
 local function ask(fn, ...)
@@ -30,6 +30,7 @@ local function ask(fn, ...)
   return plain(a), plain(b)
 end
 local function fighting() return ask(InCombatLockdown) and true or false end
+local function db() local tool = R:Get("combo") return tool and R:DBFor(tool) or {} end
 
 function T.Shaman()
   if type(UnitClass) ~= "function" then return false end
@@ -45,6 +46,19 @@ function T.Knows(i)
   local C = NS.Combo
   return c and C and C.Knows and C.Knows(c.name) or false
 end
+--- The Calls you know: their places.
+function T.Known()
+  local out = {}
+  for i in ipairs(T.CALLS) do if T.Knows(i) then out[#out + 1] = i end end
+  return out
+end
+--- The Call that is chosen, else the first you know.
+function T.Now()
+  local now = db().callNow
+  if T.CALLS[now or 0] and T.Knows(now) then return now end
+  return T.Known()[1]
+end
+function T.Choose(page) if T.CALLS[page or 0] then db().callNow = page end end
 function T.Action(page, slot)
   local bar = ask(GetMultiCastBarIndex)
   return ((type(bar) == "number" and bar > 0 and bar or 12) - 1) * 12 + (page - 1) * 4 + slot
@@ -85,164 +99,10 @@ function T.Find(slot, name)
   end
   return best
 end
---- Fill a Call with these totems (by name; the places they say nothing about stay as they are). Answers how many took, how many not.
-function T.Fill(page, names)
-  local C, ok, bad = NS.Combo, 0, 0
-  for _, name in ipairs(names or {}) do
-    local slot = C and C.ELEMENT and T.SLOT_OF[C.ELEMENT[name] or ""]
-    local id = slot and T.Find(slot, name)
-    if id and T.Set(page, slot, id) then ok = ok + 1 else bad = bad + 1 end
-  end
-  return ok, bad
-end
---- Do these totems stand in it already?
-function T.Holds(page, names)
-  local C = NS.Combo
-  for _, name in ipairs(names or {}) do
-    local slot = C and C.ELEMENT and T.SLOT_OF[C.ELEMENT[name] or ""]
-    if not slot or T.Get(page, slot) ~= T.Find(slot, name) then return false end
-  end
-  return #(names or {}) > 0
-end
---- The Call the combo fills: your pick, else the last one you know (so the one you use every day stays yours).
-function T.ComboPage()
-  local db = R:Get("combo") and R:DBFor(R:Get("combo")) or {}
-  if T.CALLS[db.callPage or 0] and T.Knows(db.callPage) then return db.callPage end
-  for i = #T.CALLS, 1, -1 do if T.Knows(i) then return i end end
-end
---- The Calls you know: their places.
-function T.Known()
-  local out = {}
-  for i in ipairs(T.CALLS) do if T.Knows(i) then out[#out + 1] = i end end
-  return out
-end
---- The Call that is chosen (the Combo app's icons), else the first you know.
-function T.Now()
-  local db = R:Get("combo") and R:DBFor(R:Get("combo")) or {}
-  if T.CALLS[db.callNow or 0] and T.Knows(db.callNow) then return db.callNow end
-  return T.Known()[1]
-end
-function T.Choose(page)
-  local db = R:Get("combo") and R:DBFor(R:Get("combo"))
-  if db and T.CALLS[page or 0] then db.callNow = page end
-end
---- Its totems by their plain names: { [slot] = name }.
-function T.Names(page)
-  local C, out = NS.Combo, {}
-  for slot = 1, 4 do
-    local n = T.Name(T.Get(page, slot))
-    if n then out[slot] = C and C.Base and C.Base(n) or n end
-  end
-  return out
-end
 --- A totem's name under an icon: short enough to be read there.
 T.SHORT = { ["Strength of Earth"] = "Strength", ["Grace of Air"] = "Grace", ["Frost Resistance"] = "Frost Res", ["Fire Resistance"] = "Fire Res", ["Nature Resistance"] = "Nature Res",
   ["Healing Stream"] = "Healing", ["Poison Cleansing"] = "Poison", ["Disease Cleansing"] = "Disease", ["Tranquil Air"] = "Tranquil" }
 function T.Short(name)
   local n = tostring(name or ""):gsub(" Totem$", ""):gsub(" Weapon$", "")
   return T.SHORT[n] or (#n > 12 and n:match("^%S+")) or n
-end
---- A button that fills that Call with these totems and casts it, in one click (nil = this character cannot).
-function T.DropAll(names, word)
-  local page = T.Can() and T.ComboPage()
-  if not page or #(names or {}) == 0 then return nil end
-  return { word = word, spell = T.CALLS[page].name, tip = "Fills " .. T.CALLS[page].name .. " with these and drops them all. Its water totem stays as you have it.",
-    ok = function()
-      local _, bad = T.Fill(page, names)
-      T.said = bad > 0 and (bad .. " did not go into " .. T.CALLS[page].name) or nil
-      if bad == 0 then T.Choose(page) local db = R:DBFor(R:Get("combo")) db.draft = nil end
-      if bad > 0 then NS.Print("totems: %s - click again, or open the Totems app", T.said) end
-      return bad == 0
-    end }
-end
-
--- THE APP ------------------------------------------------------------------------------------------------------------------
-local D = BiSTheme and BiSTheme.Deck
-local pick                                                 -- the place being changed: { page, slot }
-local function known() return T.Known() end
---- The app on one Call, on one of its places.
-function T.Open(page, slot)
-  for i, x in ipairs(known()) do
-    if x == page and D and D.defs["BiSTools:totems"] then
-      D.defs["BiSTools:totems"].tab = i
-      pick = slot and { page = page, slot = slot, from = (D.page or "home") ~= "home" and D.page ~= "BiSTools:totems" } or nil
-      D.Open("BiSTools:totems")
-      return true
-    end
-  end
-  return false
-end
---- Out of a place: to the Call, or to the app that opened it (the Combo app's icon).
-local function leave()
-  local from = pick and pick.from
-  pick = nil
-  if from and D.Back then D.Back() end
-end
-local function words(id) local n = T.Name(id) local C = NS.Combo return n and (C and C.Base and C.Base(n) or n):gsub(" Totem$", "") or nil end
-
-function T.Register()
-  if T.done or not (D and D.Register) or not T.Shaman() then return false end
-  T.done = true
-  if D.ART then D.ART["BiSTools:totems"] = "Interface\\Icons\\Spell_Nature_EarthBindTotem" end
-  D.Register{
-    owner = "BiSTools", key = "totems", name = "Totems", icon = "To", order = 35,
-    about = "What each of your Calls drops: four places each, changed with a click.",
-    page = {
-      tour = { { text = "A Call drops its four totems at once. Click a place to change it.", note = "Out of a fight." } },
-      kicker = function() return "your calls" end,
-      title = function() return "Totems" end,
-      tabs = function() local t = {} for i, n in ipairs(known()) do t[i] = T.CALLS[n].tab end return t end,
-      text = function(tab)
-        if #known() == 0 then return "You learn Call of the Elements first: it drops all four totems at once." end
-        if not T.Can() then return "This client does not let an addon fill the totem bar." end
-      end,
-      rows = function(tab)
-        local page = known()[tab]
-        local out = {}
-        if not page then return out end
-        if pick and pick.page == page then
-          out[1] = { mark = "<", text = "Back", act = { word = "back", peek = true, fn = leave } }
-          local now = T.Get(page, pick.slot)
-          for _, id in ipairs(T.List(pick.slot)) do
-            out[#out + 1] = { pic = T.Icon(id), text = words(id) or "?", verb = id == now and "HERE" or "PUT", verbInk = id == now and "good" or nil,
-              act = { word = "put", peek = true, fn = function()
-                if not T.Set(page, pick.slot, id) then T.said = "The game did not take it" else T.said = nil end
-                leave()
-              end } }
-          end
-          out[#out + 1] = { mark = "-", text = "Nothing", verb = now and "PUT" or "HERE", act = { word = "put", peek = true, fn = function() T.Set(page, pick.slot, nil) leave() end } }
-          return out
-        end
-        for slot, name in ipairs(T.SLOTS) do
-          local id = T.Get(page, slot)
-          out[slot] = { pic = T.Icon(id), mark = "-", text = name .. ": " .. (words(id) or "nothing"), verb = "CHANGE",
-            act = { word = "change", peek = true, fn = function() pick = { page = page, slot = slot } end } }
-        end
-        local C = NS.Combo
-        local best = C and C.Rank and C.Rank()[1]
-        local try = C and C.TryNext and C.TryNext()
-        local function fill(head, x, tip)
-          if not x or #(x.totems or {}) == 0 then return end
-          out[#out + 1] = { pic = C.IconFor and C.IconFor(x.imbue), mark = "-", text = head, right = T.Holds(page, x.totems) and "IN IT" or nil, ink = "good", verb = "FILL", tip = tip .. table.concat(x.totems, ", "),
-            act = { word = "fill", peek = true, fn = function()
-              local ok, bad = T.Fill(page, x.totems)
-              T.said = bad > 0 and (bad .. " did not go in") or (ok .. " in")
-            end } }
-        end
-        fill("From your best combo", best, "Your best combo's totems: ")
-        fill("From the one to try next", try, "The combo to try next: ")
-        out[#out + 1] = { mark = "-", text = "The Combo app drops with this one", verb = T.ComboPage() == page and "YES" or "NO", verbInk = T.ComboPage() == page and "good" or nil,
-          tip = "DROP ALL in the Combo app fills this Call and casts it",
-          act = { word = "use", peek = true, fn = function() local db = R:DBFor(R:Get("combo")) db.callPage = page end } }
-        return out
-      end,
-      say = function() return T.said end,
-      big = function(tab)
-        local page = known()[tab]
-        return page and { word = "DROP: " .. T.CALLS[page].tab, spell = T.CALLS[page].name, tip = T.CALLS[page].name } or nil
-      end,
-      keys = function() return { { word = "RECALL", spell = "Totemic Recall", tip = "Totemic Recall: they go, some mana back" } } end,
-    },
-  }
-  return true
 end

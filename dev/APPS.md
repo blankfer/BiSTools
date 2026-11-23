@@ -41,7 +41,8 @@ page parts (every one is handed the tab number; only your own tabs reach you, SE
 - `text = fn(tab) -> words` (wraps), mostly for "nothing here yet: do this to fill it". nil when there is a list.
 - `say = fn -> one short line` under the list. `hero = fn -> { art = "model", creature = npcId | display = displayId, big, small }` (the picture on top).
 - `hero = fn -> { art = "number", big, small, right, under, tip, lines = { { left, right } } (on hover), fn }` one huge number; `icons = fn(tab) -> { { icon, ... }, ... }` lines of icons
-  under it, icon = { pic, word, act = button (secure too), lit, tip }.
+  under it, icon = { pic, word, act = button (secure too), lit, glow = a colour, soft, flat = a word and no picture, tip }. A row may be
+  a line of icons too: row = { text, sub (its words at the left), icons = { icon, ... }, low = true (flat buttons, less high) }.
 - `big = fn(tab) -> button` the one main thing to do, `keys = fn(tab) -> { button, ... }` up to 4 smaller ones.
 - `tick = true` when its words change by the second.
 - `tour = { { text, note }, { text } }` shown once, the first time: what this app does, in plain words (two steps at most).

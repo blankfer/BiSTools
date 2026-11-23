@@ -4,8 +4,9 @@ return function(H)
   local keep = { cls = _G.UnitClass, set = _G.SetMultiCastSpell, list = _G.GetMultiCastTotemSpells, info = _G.GetActionInfo, bar = _G.GetMultiCastBarIndex, sp = _G.C_Spell,
     knows = C.Knows, fight = _G.InCombatLockdown, is = _G.issecretvalue, try = C.TryNext, rank = C.Rank }
   _G.UnitClass = function() return "Mage", "MAGE" end
-  ok(T.Register() == false, "not a shaman: no Totems app")
+  ok(not T.Shaman() and Dk.defs["BiSTools:tool-combo"].page.icons(1) == nil, "not a shaman: no row of totems")
   _G.UnitClass = function() return "Shaman", "SHAMAN" end
+  ok(Dk.defs["BiSTools:tool-combo"].name == "Totems" and Dk.defs["BiSTools:tool-combo"].page.title(1) == "BiS>totems" and not Dk.defs["BiSTools:totems"], "one app, BiS>totems")
   -- the client's bar: page 12, actions 133-144; a slot takes only its own element's spells (the client says nothing when it refuses)
   local NAME = { [1] = "Flametongue Totem II", [2] = "Magma Totem", [3] = "Strength of Earth Totem III", [4] = "Stoneskin Totem", [5] = "Mana Spring Totem", [6] = "Grace of Air Totem", [7] = "Windfury Totem II" }
   local FITS = { { 1, 2 }, { 3, 4 }, { 5 }, { 6, 7 } }
@@ -26,37 +27,9 @@ return function(H)
   C.Knows = function(n) return n == "Call of the Elements" or n == "Call of the Spirits" end
   ok(T.Action(1, 1) == 133 and T.Action(3, 4) == 144, "the game's bar: fire of the Elements is 133, air of the Spirits 144")
   ok(T.Get(1, 1) == 2 and T.Get(1, 2) == nil and T.Find(1, "Flametongue Totem") == 1 and T.Find(4, "Windfury Totem") == 7, "what stands there; a totem by its plain name, whatever its rank")
-  ok(T.Register() == true and T.Register() == false, "a shaman: the app, once")
-  local def = Dk.defs["BiSTools:totems"]
-  local p = def.page
   local function press(b) b.fn() end
-  ok(#p.tabs() == 2 and p.tabs()[2] == "SPIRITS", "a tab for each Call you know")
-  local rows = p.rows(1)
-  ok(rows[1].text == "Fire: Magma" and rows[1].verb == "CHANGE" and rows[1].pic == 1002 and rows[2].text == "Earth: nothing" and rows[3].text == "Water: Mana Spring", "its four places", rows[1].text)
-  ok(p.big(1).spell == "Call of the Elements" and p.big(1).word == "DROP: ELEMENTS", "the big button drops them all")
-  press(rows[1].act)
-  rows = p.rows(1)
-  ok(rows[1].text == "Back" and rows[2].text == "Flametongue" and rows[2].verb == "PUT" and rows[3].verb == "HERE" and rows[4].text == "Nothing", "a place opened: what fits there", rows[2].text)
-  press(rows[2].act)
-  ok(at[133] == 1 and p.rows(1)[1].text == "Fire: Flametongue" and p.say() == nil, "put: it stands there")
-  press(p.rows(1)[3].act) press(p.rows(1)[3].act)
-  ok(at[135] == nil and p.rows(1)[3].text == "Water: nothing", "nothing: emptied")
-  at[135] = 5
-  refuse = true press(p.rows(1)[2].act) press(p.rows(1)[2].act) ok(p.say():find("did not take"), "the game refuses: said") refuse = false
-  -- from the combos
   C.Rank = function() return { { combo = "a", imbue = "Windfury Weapon", totems = { "Flametongue Totem", "Strength of Earth Totem", "Windfury Totem" }, n = 5, adj = 1, dps = 1 } } end
   C.TryNext = function() return { combo = "b", imbue = "Frostbrand Weapon", totems = { "Magma Totem", "Strength of Earth Totem", "Grace of Air Totem" }, n = 0 }, 4, 2 end
-  local function row(words) for _, r in ipairs(p.rows(1)) do if r.text:find(words, 1, true) then return r end end end
-  ok(row("best combo").verb == "FILL" and not row("best combo").right, "FILL from your best combo")
-  press(row("best combo").act)
-  ok(at[133] == 1 and at[134] == 3 and at[135] == 5 and at[136] == 7 and row("best combo").right == "IN IT", "filled, the water totem left alone")
-  -- DROP ALL: fills the Call you do not use every day, and casts it
-  ok(T.ComboPage() == 3, "the last Call you know (the Spirits)", T.ComboPage())
-  local b = T.DropAll({ "Magma Totem", "Strength of Earth Totem", "Grace of Air Totem" }, "DROP ALL")
-  ok(b.spell == "Call of the Spirits" and Dk.IsSecure(b), "one secure button")
-  ok(b.ok() == true and at[141] == 2 and at[142] == 3 and at[143] == nil and at[144] == 6 and at[133] == 1, "the click fills it first, the Elements untouched")
-  local before = writes
-  ok(b.ok() == true and writes == before, "again: it stands already, nothing written")
   -- THE COMBO APP'S ROW: the imbue and four totems, saved in a Call by a press on it; what agrees with a Call glows in its colour
   do
     local cp = Dk.defs["BiSTools:tool-combo"].page
@@ -128,22 +101,52 @@ return function(H)
     -- TRY, TOP and LAST: one line each, put on the row
     cdb.fights = { { at = 1, mob = "Boar", dur = 10, dmg = 100, imbue = "Windfury Weapon", totems = { "Flametongue Totem", "Grace of Air Totem" }, combo = "x", wf = 0, ft = 0, spells = {} } }
     moment()
-    ok(#cp.rows(1) == 3 and line("TRY").sub == "never fought" and line("TOP").sub == "1 dps, 5 fights" and line("LAST").sub == "10 dps, Boar" and not line("TRY").icons, "TRY, TOP and LAST: a line each, the icons stand on the page once", line("TOP").sub)
-    ok(line("TRY").verb == "SET" and not Dk.IsSecure(line("TRY").act), "SET: onto the row")
-    press(line("LAST").act)
-    ok(row()[1].word == "Windfury" and row()[2].word == "Flametongue" and row()[3].word == "Earth" and row()[5].word == "Grace" and row()[4].word == "Mana Spring" and line("LAST").verb == "ON IT", "its imbue and totems on the row, the water totem stays", row()[2].word .. " " .. row()[3].word)
-    ok(cp.hero(1).small:find("WF + FT, GoA", 1, true) and at[133] == 2, "and the number is that set-up's; no Call was written", cp.hero(1).small)
-    press(line("TRY").act)
-    ok(row()[1].word == "Frostbrand" and row()[2].word == "Magma" and cp.hero(1).small:find("FB + ", 1, true), "the one to try")
+    local rows1 = cp.rows(1)
+    ok(#rows1 == 5 and rows1[1].text == "BEST 1" and rows1[1].sub == "5 fights" and rows1[3].text == "TRY" and rows1[3].sub == "0/" .. C.TRY_ENOUGH .. " fights" and rows1[5].text == "Update healing deck", "BEST, TRY, then the healing deck", rows1[3].sub)
+    ok(#rows1[1].icons == 4 and rows1[1].icons[1].word == "WF" and rows1[1].icons[1].act.spell == "Windfury Weapon" and rows1[1].icons[2].word == "FT" and rows1[1].icons[4].word == "WF", "its imbue and the totems of that data", rows1[1].icons[2].word)
+    ok(rows1[2].low and #rows1[2].icons == 2 and rows1[2].icons[1].word == "Elements" and rows1[2].icons[1].glow == "red" and rows1[2].icons[2].glow == "accent" and rows1[2].icons[1].flat and not Dk.IsSecure(rows1[2].icons[1].act), "the Calls in their tints, to save it in: nothing is cast")
+    at[143] = nil
+    press(rows1[2].icons[2].act)
+    moment()
+    ok(at[141] == 1 and at[142] == 3 and at[144] == 7 and at[143] == 5 and T.Now() == 3 and cdb.callImbue[3] == "Windfury Weapon" and T.said:find("Saved in Call of the Spirits", 1, true), "BEST saved in the Spirits (an empty water place takes the row's)", at[143])
+    ok(row()[1].word == "Windfury" and row()[2].word == "Flametongue" and glows() == "accent accent accent accent accent" and not cp.rows(1)[2].icons[2].soft and cp.rows(1)[2].icons[1].soft, "the row is it, in purple; its button says it holds it", glows())
+    press(cp.rows(1)[4].icons[1].act)
+    moment()
+    ok(at[133] == 2 and at[134] == 3 and at[136] == 6 and cdb.callImbue[1] == "Frostbrand Weapon" and T.Now() == 1 and row()[1].word == "Frostbrand" and row()[1].ink == nil, "TRY saved in the Elements", at[136])
+    refuse = true
+    at[133] = 1
+    press(cp.rows(1)[4].icons[1].act)
+    ok(T.said:find("press again", 1, true), "the game refuses: said", T.said)
+    refuse = false
+    press(cp.rows(1)[4].icons[1].act)
+    moment()
+    -- the last row: the healing deck
+    local api = rawget(_G, "BiSHealingAPI")
+    _G.BiSHealingAPI = nil
+    ok(line("Update healing deck").verb == "UPDATE" and line("Update healing deck").tip:find("Install BiS Healing", 1, true), "no BiS Healing: it says so")
+    press(line("Update healing deck").act)
+    ok(T.said:find("Install BiS Healing", 1, true), "a press too", T.said)
+    local got, callGot
+    _G.BiSHealingAPI = { version = 4, SetTotems = function(x) got = x return true end, Totems = function() return got or {} end, SetCall = function(x) callGot = x return true end, Call = function() return callGot end }
+    press(line("Update healing deck").act)
+    ok(got.fire == "Magma Totem" and got.earth == "Strength of Earth Totem" and got.water == "Mana Spring Totem" and got.air == "Grace of Air Totem" and callGot == "Call of the Elements", "the row's four totems on the deck, water too, and its CALL on this Call", got.air)
+    ok(line("Update healing deck").verb == "IS ON IT", "and it says it is")
+    press(row()[2].act) moment() press(cp.rows(1)[2].act) moment()
+    ok(line("Update healing deck").verb == "UPDATE", "a totem changed: it is not any more")
+    _G.BiSHealingAPI = { version = 3, SetTotems = function() return nil, "in a fight" end, Totems = function() return {} end }
+    press(line("Update healing deck").act)
+    ok(T.said:find("in a fight", 1, true), "the deck says no: said", T.said)
+    _G.BiSHealingAPI = api
+    cdb.draft = nil
     -- a best combo without an imbue, and one without any totem (Arn's own list, 22 Nov: an error on his first look)
     do
       local rk = C.Rank
       C.Rank = function() return { { combo = "n", imbue = nil, totems = {}, n = 5, adj = 1, dps = 1 } } end
       moment()
       local fine, why = pcall(cp.rows, 1)
-      ok(fine and line("TOP") and pcall(cp.hero, 1) and pcall(cp.icons, 1), "no imbue, no totems: said, no error", why)
-      press(line("TOP").act)
-      ok(pcall(cp.icons, 1) and row()[2].word == "Fire" and call(1).act.ok() == true, "and on the row, and saved")
+      ok(fine and line("BEST") and cp.rows(1)[1].icons[1].word == "None" and pcall(cp.hero, 1) and pcall(cp.icons, 1), "no imbue, no totems: said, no error", why)
+      press(cp.rows(1)[2].icons[1].act)
+      ok(pcall(cp.icons, 1) and row()[2].word == "Fire" and call(1).act.ok() == true, "and saved")
       C.Rank = rk
       moment()
     end
@@ -162,7 +165,7 @@ return function(H)
       R:SetEnabled("combo", was)
       local icons, n, say = 0, 0, false
       for _, w in ipairs(Dk.frame.pieces) do if w:IsShown() then if w.kind == "row" then n = n + 1 elseif w.kind == "icon" then icons = icons + 1 elseif w.kind == "say" then say = true end end end
-      ok(n == 3 and icons == 5 + 3 and say, "260 x 462: every row and every icon, and what the row is in words", n .. " rows, " .. icons .. " icons")
+      ok(n == 5 and icons == 5 + 3 + 2 * (4 + 2) and say, "260 x 462: every row and every icon, and what the row is in words", n .. " rows, " .. icons .. " icons")
       Dk.page = "home" Dk.Hide()
       Dk.Store().open, Dk.Store().welcomed = false, nil
     end
@@ -182,33 +185,16 @@ return function(H)
     at[141], at[142], at[143], at[144] = 2, 3, nil, 6
     moment()
   end
-  refuse, at[144] = true, 7 ok(b.ok() == false, "the game refuses: no cast of the wrong totems") refuse = false
-  ok(b.ok() == true, "and the next click does it")
-  press(row("The Combo app drops").act) ok(T.ComboPage() == 1 and row("The Combo app drops").verb == "YES", "or with the Call you say")
-  R:DBFor(R:Get("combo")).callPage = nil
-  fighting = true ok(T.Set(1, 1, 2) == false and T.Fill(1, { "Magma Totem" }) == 0, "a fight: nothing is written") fighting = false
+  fighting = true ok(T.Set(1, 1, 2) == false, "a fight: nothing is written") fighting = false
   -- secrets, and a client without it
   local S = {}
   _G.issecretvalue = function(v) return v == S end
   _G.GetActionInfo = function() return S, S end
   _G.GetMultiCastTotemSpells = function() return S, S end
-  ok(pcall(p.rows, 1) and T.Get(1, 1) == nil and #T.List(1) == 0, "hidden answers: no error")
+  ok(T.Get(1, 1) == nil and #T.List(1) == 0, "hidden answers: no error")
   _G.issecretvalue = keep.is
   _G.SetMultiCastSpell = nil
-  ok(not T.Can() and T.DropAll({ "Magma Totem" }, "x") == nil and p.text(1):find("does not let"), "a client without it: said, no button")
-  for _, z in ipairs({ { 220, 300 }, { 260, 462 }, { 600, 420 } }) do
-    BiSTheme.DECK_LOGIN = true
-    Dk.Store().welcomed = true
-    Dk.Show()
-    Dk.W, Dk.H, Dk.shape, Dk.page = z[1], z[2], BiSTheme.DeckShape(z[1], z[2]), "BiSTools:totems"
-    Dk.Paint()
-    ok(Dk.page == "BiSTools:totems" and not def.parked, "it paints at " .. z[1])
-  end
-  Dk.page = "home"
-  Dk.Hide()
-  Dk.Store().open, Dk.Store().welcomed = false, nil
-  Dk.defs["BiSTools:totems"] = nil
-  T.done = nil
+  ok(not T.Can() and Dk.defs["BiSTools:tool-combo"].page.icons(1) == nil, "a client without it: no row, no error")
   _G.UnitClass, _G.SetMultiCastSpell, _G.GetMultiCastTotemSpells, _G.GetActionInfo, _G.GetMultiCastBarIndex, _G.C_Spell = keep.cls, keep.set, keep.list, keep.info, keep.bar, keep.sp
   C.Knows, C.TryNext, C.Rank, _G.InCombatLockdown = keep.knows, keep.try, keep.rank, keep.fight
 end

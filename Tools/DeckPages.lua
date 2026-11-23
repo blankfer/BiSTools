@@ -234,7 +234,6 @@ function DP.Tools()
   if not (D and D.Register) or DP.toolsIn then return false end
   DP.toolsIn = true
   if DP.InnervateHello then DP.InnervateHello() end        -- (the first day's card for who gives or asks)
-  if NS.Totems then NS.Totems.Register() end               -- (a shaman's: the three Calls)
   local n = 0
   for key, tool in R:Each() do
     n = n + 1
