@@ -376,6 +376,7 @@ DP.App.combo = function(tool, db)
         act = { word = "DROP", spell = c.name, peek = true, ok = function() return press(page) end } }
     end
     if C.Knows(To.BRING) then list[#list + 1] = { pic = C.IconFor(To.BRING), word = "Bring", tip = To.BRING .. ": the ones that stand come to you", act = { word = "BRING", spell = To.BRING, peek = true } } end
+    if C.Knows(To.RECALL) then list[#list + 1] = { pic = C.IconFor(To.RECALL), word = "Recall", tip = To.RECALL .. ": takes your totems back, and some of their mana", act = { word = "RECALL", spell = To.RECALL, peek = true } } end
     return { row, list }
   end
   --- THE LAST ROW (Arn, 22 Nov: "the last row should be like update healing deck click and it sets my healing deck row out of combat so i

@@ -60,6 +60,10 @@ return function(H)
     call(1).act.ok()
     C.Knows = function(n) return n == "Totemic Call" or n == "Frostbrand Weapon" or n == "Windfury Weapon" or n == "Magma Totem" or kn(n) end
     ok(#cp.icons(1)[2] == 3 and cp.icons(1)[2][3].act.spell == "Totemic Call" and not cp.icons(1)[2][3].glow, "Totemic Call beside them, when you know it")
+    local kn2 = C.Knows
+    C.Knows = function(n) return n == "Totemic Recall" or kn2(n) end
+    ok(#cp.icons(1)[2] == 4 and cp.icons(1)[2][4].act.spell == "Totemic Recall" and cp.icons(1)[2][4].word == "Recall" and Dk.IsSecure(cp.icons(1)[2][4].act), "Totemic Recall next to it (Arn: \"next to bring we do the recall\")")
+    C.Knows = kn2
     -- one totem changed, POPPED OUT over its icon (23 Nov, the game's totem bar): it and the Call glow no more
     Dk.page = "BiSTools:tool-combo"
     local fly = row()[2].fly

@@ -20,6 +20,7 @@ T.CALLS = {
   { id = 66844, name = "Call of the Spirits", tab = "SPIRITS" },
 }
 T.BRING = "Totemic Call"
+T.RECALL = "Totemic Recall"                               -- (Arn, 23 Nov: "next to bring we do the recall"; 36936 on Forever)
 T.SLOTS = { "Fire", "Earth", "Water", "Air" }
 
 local function plain(v) if v == nil or (issecretvalue and issecretvalue(v)) then return nil end return v end
