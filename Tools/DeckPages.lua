@@ -58,16 +58,40 @@ function DP.Focus(BF)
   local e = BF.FindNext() or (BF.list and BF.list[1])
   return e
 end
+-- IN COLOUR (Arn, 22 Nov, the Disenchant page beside this one: "this type of color is how bosses and the other apps should follow where
+-- appropriate"): each boss wears the raid mark MARK ALL would give it (the old phone's icons), the next one's name in gold, one in sight
+-- in the accent, a quest mob has its quest under its name; a done one shows the game's tick.
+DP.TICK = "Interface\\RaidFrame\\ReadyCheck-Ready"
+DP.QUEST = "Interface\\GossipFrame\\AvailableQuestIcon"
 function DP.Rows(tab)
   local BF = DP.SyncTab(tab)
   local out = {}
+  local marks = BF and tab ~= 2 and BF.Assign and BF.Assign() or {}
+  local nextOne
   for i, e in ipairs(BF and (tab == 2 and BF.quests or BF.bosses) or {}) do
     local st = BF.State(e)
     local word, ink = BF.Word(e, st)
-    out[i] = { mark = st == "down" and "v" or tostring(i), text = e.name, right = word, ink = ink, done = st == "down", tip = e.title,
+    local pic = st == "down" and DP.TICK or (tab == 2 and DP.QUEST) or (marks[e.id] and BF.MARK_ICON .. marks[e.id]) or nil
+    local tint = st == "down" and "good" or st == "near" and "accent" or nil
+    if not tint and st ~= "down" and not e.group and not nextOne then nextOne, tint = e, "gold" end
+    out[i] = { mark = not pic and (st == "down" and "v" or tostring(i)) or nil, pic = pic, text = e.name, tint = tint, sub = tab == 2 and e.title or nil,
+      right = word, ink = ink, done = st == "down", tip = e.title,
       act = st ~= "down" and not e.group and DP.Seek(e, "MARK", BF.RowMacro(e)) or nil }
   end
   return out
+end
+--- The numbers on top, also outside the entrance (the old phone's three, and the quests).
+function DP.BossBoxes()
+  local BF = DP.Place()
+  if not (BF and BF.bosses) then return {} end
+  local down, found = 0, 0
+  for _, e in ipairs(BF.bosses) do
+    local st = BF.State(e)
+    if st == "down" then down = down + 1 elseif st == "marked" or st == "near" then found = found + 1 end
+  end
+  local q = BF.quests and #BF.quests or 0
+  return { { "DOWN", down .. " / " .. #BF.bosses, down > 0 and "good" or "ink2" }, { "LEFT", #BF.bosses - down, "gold" }, { "FOUND", found, found > 0 and "accent" or "dim" },
+    { "QUESTS", q, q > 0 and "gold" or "dim" } }
 end
 --- A dungeon run as steps: the quests outside and in, then the bosses.
 function DP.Steps()
@@ -309,11 +333,7 @@ function DP.Register()
         { text = "In a fight the buttons go away: the old boss phone stays for that." } },
       title = function() local BF = DP.Place() return BF and (BF.data and BF.data.name or BF.outName) or "Bosses" end,
       kicker = function() return "bosses" end,
-      boxes = function()
-        local c = DP.Boss()
-        if not c then return {} end
-        return { { "DOWN", c.down .. " / " .. c.all, "good" }, { "LEFT", c.all - c.down, "gold" }, { "FOUND", c.found, "accent" } }
-      end,
+      boxes = function() return DP.BossBoxes() end,
       tabs = function() local BF = DP.Place() return { "BOSSES", "QUESTS " .. (BF and BF.quests and #BF.quests or 0) } end,
       rows = DP.Rows,
       tick = true,

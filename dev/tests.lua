@@ -10387,7 +10387,7 @@ do
   ok(page.title() == "Deadmines" and page.boxes()[1][2] == "0 / 8" and #page.rows(1) == 8 and page.rows(1)[1].text == "Rhahk'Zor", "the page: the place, the numbers, the rows")
   ok(page.rows(1)[1].act.macro == BS.RowMacro(D[36].bosses[1]), "a row's button is the boss finder's own macro")
   BS.events.scripts.OnEvent(BS.events, "ENCOUNTER_END", D[36].bosses[1].id, "Rhahk'Zor", 1, 5, 1)
-  ok(page.rows(1)[1].done and page.rows(1)[1].mark == "v" and DP.Boss().down == 1 and Dk.defs["BiSTools:bosses"].badge() == 7, "a kill: ticked, seven left")
+  ok(page.rows(1)[1].done and page.rows(1)[1].pic == DP.TICK and page.rows(1)[1].tint == "good" and page.rows(1)[2].tint == "gold" and page.rows(1)[2].pic == BS.MARK_ICON .. 8 and DP.Boss().down == 1 and Dk.defs["BiSTools:bosses"].badge() == 7, "a kill: ticked, seven left")
   local st = DP.Steps()
   ok(#st == 8 and st[1].done() and not st[2].done() and st[2].phase == "BOSS", "the run as steps: the first is done")
   local l = Dk.defs["BiSTools:bosses"].card.lines()
