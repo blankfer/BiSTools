@@ -50,6 +50,25 @@ return function(H)
   ok(p.rows(1)[5].head and p.rows(1)[5].text == "LATER" and p.rows(1)[6].text == "Sword", "LATER under READY: above your skill")
   local big = p.big(1)
   ok(big.word == "NEXT: Cloak" and Dk.IsSecure(big) and not big.fn and big.slot == 3 and big.guid == "G-C", "the next plain one, never bound, enchanted or of a mixed name; secure, so dim", big.word)
+  -- A CLICK ON AN ITEM DISENCHANTS IT (Arn, 23 Nov: "when i click an item it should disenchant ... shift click if its a soulbound
+  -- item"), and its tooltip is the game's own, your worn one beside it ("so i can compare it to my currently equiped item")
+  do
+    local cl, sh = row(1, "Cloak"), row(1, "Shield")
+    ok(cl.act and Dk.IsSecure(cl.act) and cl.act.spell == P.SpellName() and cl.act.bag == 0 and cl.act.slot == 3 and cl.bagItem and cl.bagItem[1] == 0 and cl.bagItem[2] == 3,
+      "an item's row: a click disenchants that bag slot; its tooltip is the item's", cl.act and cl.act.spell)
+    ok(cl.act.ok() == true and P.clicked and P.clicked.e.guid == "G-C", "a plain one: cast")
+    local shKeep = _G.IsShiftKeyDown
+    _G.IsShiftKeyDown = function() return false end
+    ok(sh.act and sh.act.ok() == false and P.said:find("SHIFT-CLICK", 1, true) and sh.tip:find("Shift-click: disenchants it", 1, true), "soulbound, a plain click: nothing, it says shift-click", P.said)
+    _G.IsShiftKeyDown = function() return true end
+    ok(sh.act.ok() == true, "soulbound, shift-click: cast")
+    _G.IsShiftKeyDown = shKeep
+    SLOT[3][2] = "G-X"
+    ok(cl.act.ok() == false and P.said:find("MOVED", 1, true), "the item moved since: nothing is cast, it says so")
+    SLOT[3][2] = "G-C"
+    P.said = nil
+    moment()
+  end
   H.Paint("processing", 1)
   do                                                        -- in an equipment set of yours: never the next one, and in LATER by its name
     local was, kept = rawget(_G, "C_EquipmentSet"), NS.DE.setsKept

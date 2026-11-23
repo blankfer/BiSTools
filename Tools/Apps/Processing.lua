@@ -42,12 +42,27 @@ DP.App.processing = function(tool, db)
   local function tip(e)
     local out = { e.name .. " (" .. (COLOUR[e.quality] or "gear") .. (e.ilvl and ", level " .. e.ilvl or "") .. ")" }
     if e.sets then out[#out + 1] = "In your set " .. table.concat(e.sets, ", ") .. ": left alone" end
-    if e.kind == "bound" then out[#out + 1] = "Soulbound: shift-click it in the old window" end
+    if e.kind == "bound" then out[#out + 1] = "Soulbound" end
     if e.enchanted then out[#out + 1] = "Somebody enchanted it" end
     if e.warn then out[#out + 1] = "Another of the same name is not like it: look twice" end
     if e.above then out[#out + 1] = "Needs enchanting " .. tostring(e.need) end
     if e.blocked then out[#out + 1] = tostring(e.blocked) end
     return table.concat(out, ". ") .. "."
+  end
+  --- A click that disenchants THAT item (Arn, 23 Nov: "when i click an item it should disenchant ... shift click if its a soulbound
+  --- item"): secure, aimed at its bag slot; the last word before the cast is still that item there, and Shift for soulbound or a set's.
+  local function deAct(e)
+    return { word = "DISENCHANT", spell = P.SpellName(), bag = e.bag, slot = e.slot, guid = e.guid, peek = true,
+      ok = function()
+        if not e.guid or P.GUID(e.bag, e.slot) ~= e.guid then P.Say("ITEM MOVED - LIST REFRESHED, CLICK AGAIN") kept = nil return false end
+        local shift = IsShiftKeyDown and IsShiftKeyDown()
+        local sets = NS.DE.InSets(e.bag, e.slot)
+        if sets and not shift then P.Say("IN YOUR SET " .. table.concat(sets, ", "):upper() .. " - SHIFT-CLICK TO DISENCHANT") kept = nil return false end
+        if e.kind == "bound" and not shift then P.Say("SOULBOUND - SHIFT-CLICK TO DISENCHANT") return false end
+        P.clicked = { e = e, at = GetTime() }
+        P.Say("")
+        return true
+      end }
   end
   local laterRows
   local function ignore(e, word, words) return { word = word, tip = words, fn = function() P.Ignore(e) kept = nil end } end
@@ -63,7 +78,9 @@ DP.App.processing = function(tool, db)
       local r = g and X.row(g) or { pic = e.icon or 134400, text = e.name }
       r.right = e.kind == "bound" and "BOUND" or e.enchanted and "ENCH" or e.warn and "CHECK" or (g and X.keptBack(g) and "KEPT") or ""
       r.ink = e.kind == "bound" and "warn" or "gold"
-      r.tip = tip(e)
+      r.tip = tip(e) .. (e.kind == "bound" and " Shift-click: disenchants it." or " Click: disenchants it.")
+      r.bagItem = { e.bag, e.slot }                            -- (the game's item tooltip, your worn one beside it)
+      r.act = e.guid and deAct(e) or r.act
       r.side = e.guid and ignore(e, "SKIP", "Leave this one item alone") or nil
       out[#out + 1] = r
     end
@@ -86,7 +103,7 @@ DP.App.processing = function(tool, db)
       if not e.sets then                                      -- (your sets' gear is under SETS)
       out[#out + 1] = { pic = e.icon or 134400, text = e.name, right = e.sets and table.concat(e.sets, ", ") or e.above and ("SKILL " .. tostring(e.need)) or "ROD",
         ink = e.above and not e.sets and "accent" or "gold",
-        done = true, tip = tip(e) }
+        done = true, tip = tip(e), bagItem = { e.bag, e.slot } }
       end
     end
     for _, e in ipairs(skipped()) do
@@ -199,15 +216,10 @@ DP.App.processing = function(tool, db)
       end,
       big = function(tab)
         local e = tab == 1 and not X.picked() and works() and nextOne()
-        return e and { word = "NEXT: " .. e.name, spell = P.SpellName(), bag = e.bag, slot = e.slot, guid = e.guid, peek = true,
-          ok = function()                                   -- (the last word: is it still that item?)
-            if not e.guid or P.GUID(e.bag, e.slot) ~= e.guid then P.Say("ITEM MOVED - LIST REFRESHED, CLICK AGAIN") kept = nil return false end
-            local sets = NS.DE.InSets(e.bag, e.slot)
-            if sets then P.Say("IN YOUR SET " .. table.concat(sets, ", "):upper() .. " - LEFT ALONE") kept = nil return false end
-            P.clicked = { e = e, at = GetTime() }
-            P.Say("")
-            return true
-          end } or nil
+        if not e then return nil end
+        local a = deAct(e)
+        a.word = "NEXT: " .. e.name
+        return a
       end,
       keys = function(tab)
         local e = X.picked()
