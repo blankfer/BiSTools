@@ -60,34 +60,28 @@ return function(H)
     call(1).act.ok()
     C.Knows = function(n) return n == "Totemic Call" or n == "Frostbrand Weapon" or n == "Windfury Weapon" or n == "Magma Totem" or kn(n) end
     ok(#cp.icons(1)[2] == 3 and cp.icons(1)[2][3].act.spell == "Totemic Call" and not cp.icons(1)[2][3].glow, "Totemic Call beside them, when you know it")
-    -- one totem changed, in place: it and the Call glow no more
+    -- one totem changed, POPPED OUT over its icon (23 Nov, the game's totem bar): it and the Call glow no more
     Dk.page = "BiSTools:tool-combo"
-    press(row()[2].act)
-    moment()
-    local cr = cp.rows(1)
-    ok(Dk.page == "BiSTools:tool-combo" and cr[1].text == "Fire totem" and cr[2].text == "Flametongue" and cr[2].verb == "HERE" and cr[3].text == "Magma" and cr[3].verb == "PUT" and cr[4].text == "Nothing" and row()[2].lit, "the fire totems, right there", cr[2].text)
-    press(cr[3].act)
+    local fly = row()[2].fly
+    ok(row()[2].act == nil and row()[2].flyKey == "slot1" and #fly == 3 and fly[1].word == "Flametongue" and fly[1].lit and fly[2].word == "Magma" and not fly[2].lit
+      and fly[3].word == "None" and fly[3].done, "the fire totems, popped out over its icon", fly[1] and fly[1].word)
+    press(fly[2].act)
     ok(at[133] == 1 and row()[2].word == "Magma" and glows() == "red - red red red" and call(1).glow == nil and call(2).glow == nil and cp.say(1):find("Changed", 1, true), "changed on the row only: that icon and the Call glow no more", glows())
-    press(row()[2].act) moment()
-    press(cp.rows(1)[2].act)
+    ok(row()[2].fly[2].lit and not row()[2].fly[1].lit, "the pop-out knows which is on the row")
+    press(row()[2].fly[1].act)
     ok(cdb.draft == nil and glows() == "red red red red red" and call(1).glow == "red", "put back: it agrees again", glows())
-    press(row()[2].act) moment()
-    press(cp.rows(1)[1].act)
-    moment()
-    ok(cp.rows(1)[1].mark ~= "<", "BACK: nothing changed")
+    ok(cp.rows(1)[1].mark ~= "<", "no list of choices in the rows")
     -- changed, then saved in another Call: its colour
-    press(row()[2].act) moment()
-    press(cp.rows(1)[3].act)
+    press(row()[2].fly[2].act)
     refuse = true
     ok(call(2).act.ok() == false and T.said:find("click again", 1, true), "the game refuses: nothing is cast, it says so", T.said)
     refuse = false
     ok(call(2).act.ok() == true and at[141] == 2 and at[142] == 3 and at[143] == 5 and at[144] == 7 and at[133] == 1, "saved in the Spirits, water too; the Elements untouched", at[143])
     ok(T.Now() == 3 and glows() == "accent accent accent accent accent" and call(2).glow == "accent" and cdb.callImbue[3] == "Windfury Weapon" and cdb.draft == nil, "all purple: imbue and totems as set", glows())
-    -- the imbue, in place; saved with the Call
-    press(row()[1].act) moment()
-    cr = cp.rows(1)
-    ok(cr[1].text == "Imbue" and cr[2].text == "Windfury Weapon" and cr[2].right == "ON" and cr[3].act.spell == "Frostbrand Weapon" and Dk.IsSecure(cr[3].act), "the imbue's icon: your imbues, each puts itself on", cr[2] and cr[2].text)
-    ok(cr[3].act.ok() == true and row()[1].word == "Frostbrand" and glows() == "- accent accent accent accent" and call(2).glow == nil and row()[1].ink == "warn", "another imbue: only that one differs; not on the weapon yet is said", glows())
+    -- the imbue, popped out ("imbue too"); saved with the Call
+    local cr = row()[1].fly
+    ok(row()[1].flyKey == "imbue" and #cr == 2 and cr[1].word == "Windfury" and cr[1].glow == "good" and cr[1].lit and cr[2].act.spell == "Frostbrand Weapon" and Dk.IsSecure(cr[2].act), "the imbue's icon: your imbues popped out, each puts itself on", cr[1] and cr[1].word)
+    ok(cr[2].act.ok() == true and row()[1].word == "Frostbrand" and glows() == "- accent accent accent accent" and call(2).glow == nil and row()[1].ink == "warn", "another imbue: only that one differs; not on the weapon yet is said", glows())
     weapon = 2
     ok(row()[1].ink == nil and glows():find("^%-"), "on the weapon now")
     ok(call(1).act.ok() == true and cdb.callImbue[1] == "Frostbrand Weapon" and at[133] == 2 and T.Now() == 1 and glows() == "red red red red red", "saved in the Elements: all red", glows())
@@ -131,7 +125,7 @@ return function(H)
     press(line("Update healing deck").act)
     ok(got.fire == "Magma Totem" and got.earth == "Strength of Earth Totem" and got.water == "Mana Spring Totem" and got.air == "Grace of Air Totem" and callGot == "Call of the Elements", "the row's four totems on the deck, water too, and its CALL on this Call", got.air)
     ok(line("Update healing deck").verb == "IS ON IT", "and it says it is")
-    press(row()[2].act) moment() press(cp.rows(1)[2].act) moment()
+    press(row()[2].fly[1].act) moment()
     ok(line("Update healing deck").verb == "UPDATE", "a totem changed: it is not any more")
     _G.BiSHealingAPI = { version = 3, SetTotems = function() return nil, "in a fight" end, Totems = function() return {} end }
     press(line("Update healing deck").act)
