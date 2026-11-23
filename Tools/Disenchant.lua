@@ -199,10 +199,34 @@ function D.Clear()
   D.on = false
 end
 
---- Paint every bag slot in the window under the mouse (and Blizzard's open bags). Alt only, tool on only.
+--- WHICH KEY (Arn, 23 Nov: "this did not work because gargul uses alt"): Alt, unless Gargul is there - then Ctrl, and Alt stays
+--- Gargul's. `db.key` = "alt" | "ctrl" | "shift" picks one for good; nil = that rule.
+D.KEYS = { alt = { "IsAltKeyDown", "Alt" }, ctrl = { "IsControlKeyDown", "Ctrl" }, shift = { "IsShiftKeyDown", "Shift" } }
+local function loaded(name)
+  local fn = (C_AddOns and C_AddOns.IsAddOnLoaded) or IsAddOnLoaded
+  if not fn then return false end
+  local fine, yes = pcall(fn, name)
+  return fine and yes and true or false
+end
+function D.Key()
+  local d = R:DBFor(R:Get("disenchant"))
+  local k = d and D.KEYS[d.key] and d.key or nil
+  if k then return k end
+  return loaded("Gargul") and "ctrl" or "alt"
+end
+function D.KeyWord() return D.KEYS[D.Key()][2] end
+--- Is the key held now?
+function D.Held()
+  local fn = _G[D.KEYS[D.Key()][1]]
+  if not fn then return false end
+  local fine, yes = pcall(fn)
+  return fine and yes and true or false
+end
+
+--- Paint every bag slot in the window under the mouse (and Blizzard's open bags). The key held only, tool on only.
 function D.Show()
   D.Clear()
-  if not (R:Enabled("disenchant") and IsAltKeyDown and IsAltKeyDown()) then return 0 end
+  if not (R:Enabled("disenchant") and D.Held()) then return 0 end
   local slots = D.Slots()
   for _, s in ipairs(slots) do
     local kind = D.Kind(s.bag, s.slot)
@@ -221,7 +245,7 @@ pcall(ev.RegisterEvent, ev, "MODIFIER_STATE_CHANGED")
 pcall(ev.RegisterEvent, ev, "BAG_UPDATE_DELAYED")
 ev:SetScript("OnEvent", function(_, event)
   if event == "MODIFIER_STATE_CHANGED" then
-    if IsAltKeyDown and IsAltKeyDown() then D.Show() elseif D.on or #D.lit > 0 then D.Clear() end
+    if D.Held() then D.Show() elseif D.on or #D.lit > 0 then D.Clear() end
   elseif event == "BAG_UPDATE_DELAYED" and D.on then
     D.Show()                                                    -- a bag addon reuses its buttons: paint again
   end
@@ -233,14 +257,20 @@ D.events = ev
 -- not there throws at load, so it is asked first)
 if GameTooltip and hooksecurefunc and type(GameTooltip.SetBagItem) == "function" then
   hooksecurefunc(GameTooltip, "SetBagItem", function()
-    if not D.on and IsAltKeyDown and IsAltKeyDown() then D.Show() end
+    if not D.on and D.Held() then D.Show() end
   end)
 end
 
 R:Register({
   name = "disenchant",
-  desc = "hold Alt over your bags: gear you can disenchant glows purple, soulbound gear red, gear in your equipment sets gold",
+  desc = "hold Alt over your bags (Ctrl with Gargul): gear you can disenchant glows purple, soulbound gear red, gear in your equipment sets gold",
   usage = "/bist on|off disenchant",
   defaults = {},
+  options = {
+    { kind = "seg", label = "key to hold", values = { "auto", "alt", "ctrl", "shift" },
+      help = "The key you hold over your bags to light them. auto = Alt, or Ctrl when Gargul is installed (Gargul uses Alt).",
+      get = function(d) return D.KEYS[d.key] and d.key or "auto" end,
+      set = function(d, v) d.key = D.KEYS[v] and v or nil D.Clear() end },
+  },
   OnDisable = function() D.Clear() end,
 })

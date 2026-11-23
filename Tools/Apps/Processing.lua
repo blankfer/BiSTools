@@ -209,7 +209,7 @@ DP.App.processing = function(tool, db)
         if e then return X.itemSay(e) end
         if tab ~= 1 then return nil end
         if R:Enabled("processing") and not P.Knows() then return "Not an enchanter: this only looks" end
-        if not works() then return #X.gear() > 0 and "Hold Alt over your bags: it glows there" or nil end
+        if not works() then return #X.gear() > 0 and "Hold " .. (NS.DE.KeyWord and NS.DE.KeyWord() or "Alt") .. " over your bags: it glows there" or nil end
         if type(P.said) == "string" and P.said ~= "" then return P.said end
         if #work().ready == 0 then return nil end
         return nextOne() and "One click, one item" or "All of these want a second look"

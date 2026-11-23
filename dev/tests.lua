@@ -2329,7 +2329,8 @@ do
   -- (+ innervate (2), 22 Nov: the bar, how people look - and its header)
   -- (+1 in tools, 22 Nov: the tools box, put away)
   -- (+1 in combo, 23 Nov: the totem card on screen)
-  ok(#opt.rows == 12 + 3 + 5 + 7 + 1 + 8 + 2 + 4 + 7 + 4 + 4 + 5 + 1 + 1 + 1 + 1 + 3 + 2 + 4 + 2 + 6 + 3 + 2 + 1 + 1 + 3 + 1, "one row per section header and per option", #opt.rows)
+  -- (+1 in disenchant, 23 Nov: the key to hold - Gargul uses Alt)
+  ok(#opt.rows == 12 + 3 + 5 + 7 + 1 + 8 + 2 + 4 + 7 + 4 + 4 + 5 + 1 + 1 + 1 + 1 + 3 + 2 + 4 + 2 + 6 + 3 + 2 + 1 + 1 + 3 + 1 + 1, "one row per section header and per option", #opt.rows)
   -- THE BiSTheme STANDARD, 1.43:1 (Arn, 14 Oct): its sections poured into columns, the window that shape
   ok(math.abs(opt.w / opt.h - 1.43) < 0.01 and (opt.columns or 1) >= 2, "options: 1.43:1, in columns", opt.w .. "x" .. opt.h)
   local function find(label) for _, r in ipairs(opt.rows) do if r.name and r.name.text == label then return r end end end
@@ -2597,8 +2598,8 @@ do
     end
     xpRows[1].sw.scripts.OnClick(xpRows[1].sw)
     -- a tool with nothing to set says so (the page's own words)
-    local deRow
-    for _, r in ipairs(d.rows) do if r.entry.key == "disenchant" then deRow = r end end
+    local deRow                                             -- (disenchant had none till 23 Nov - its key; any tool without one now)
+    for _, r in ipairs(d.rows) do if not deRow and #(r.entry.options or {}) == 0 and r.entry.switch then deRow = r end end
     deRow.scripts.OnClick(deRow, "LeftButton")
     ok(d.detail.none:IsShown() and d.detail.none.text == "Nothing to set: it just works while it is on.",
        "a tool with no settings: nothing to set, it just works", d.detail.none.text)
@@ -8944,6 +8945,34 @@ do
     ALT = false
     fire("MODIFIER_STATE_CHANGED", "LALT", 0)
     _G.issecretvalue = keepIs
+  end
+  -- GARGUL USES ALT (Arn, 23 Nov: "this did not work because gargul uses alt"): with Gargul there it is Ctrl, Alt stays Gargul's;
+  -- or the key you pick
+  do
+    local keepAO, keepCtrl, keepShift = rawget(_G, "C_AddOns"), rawget(_G, "IsControlKeyDown"), rawget(_G, "IsShiftKeyDown")
+    local CTRL, gargul = false, true
+    _G.C_AddOns = setmetatable({ IsAddOnLoaded = function(n) return n == "Gargul" and gargul end }, { __index = keepAO })
+    _G.IsControlKeyDown = function() return CTRL end
+    local ddb = R:DBFor(R:Get("disenchant"))
+    ddb.key = nil
+    FOCUS = btn[1]
+    ALT = true fire("MODIFIER_STATE_CHANGED", "LALT", 1)
+    ok(D.Key() == "ctrl" and D.KeyWord() == "Ctrl" and not lit(btn[1]), "Gargul there: Alt is left to Gargul, nothing lights")
+    ALT = false fire("MODIFIER_STATE_CHANGED", "LALT", 0)
+    CTRL = true fire("MODIFIER_STATE_CHANGED", "LCTRL", 1)
+    ok(lit(btn[1]), "Ctrl lights it instead")
+    CTRL = false fire("MODIFIER_STATE_CHANGED", "LCTRL", 0)
+    ok(not lit(btn[1]), "let go: gone")
+    gargul = false
+    ok(D.Key() == "alt", "no Gargul: Alt, as it was")
+    ddb.key = "shift"
+    local SHIFT = true
+    _G.IsShiftKeyDown = function() return SHIFT end
+    fire("MODIFIER_STATE_CHANGED", "LSHIFT", 1)
+    ok(D.Key() == "shift" and lit(btn[1]), "the key you pick: Shift")
+    SHIFT = false fire("MODIFIER_STATE_CHANGED", "LSHIFT", 0)
+    ddb.key = nil
+    _G.C_AddOns, _G.IsControlKeyDown, _G.IsShiftKeyDown = keepAO, keepCtrl, keepShift
   end
 
   _G.C_Container, _G.C_Item, _G.GetMouseFoci, _G.IsAltKeyDown = keep.cont, keep.item, keep.foci, keep.alt
