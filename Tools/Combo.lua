@@ -2763,7 +2763,7 @@ R:Register({
   name = "combo",
   short = "cmb",
   desc = "after each fight: your weapon imbue + totems and the damage they did; which combo is best",
-  usage = "/bist combo  (short: cmb)  |  /bist combo bar [on|off|size N|reset]  |  /bist combo probe",
+  usage = "/bist combo  (short: cmb)  |  /bist combo bar [on|off|size N|reset|why]  |  /bist combo probe",
   slashWhenOff = true,
   defaultOff = true,
   defaults = { fights = {}, card = true, min = C.MIN },

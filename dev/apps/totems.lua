@@ -204,6 +204,23 @@ return function(H)
       top[2]:GetScript("OnEnter")(top[2])
       local fb = f.flyB
       ok(f.fly:IsShown() and fb[1]:IsShown() and fb[1].inFly and #row()[2].fly == 3 and fb[3]:IsShown(), "Shift over a totem: its kind pops out", #fb)
+      -- it stays open while the mouse is on it or its icon, by the frame's own IsMouseOver (Arn: "holding shift does not pop out" -
+      -- the global was missing on Forever and it shut itself at once); gone = closed, after a moment's grace
+      local keepMO = rawget(_G, "MouseIsOver")
+      _G.MouseIsOver = nil
+      local overFly, overIcon = false, true
+      f.fly.IsMouseOver = function() return overFly end
+      top[2].IsMouseOver = function() return overIcon end
+      f.fly.scripts.OnUpdate(f.fly)
+      ok(f.fly:IsShown(), "the mouse still on its icon: open, with no MouseIsOver at all")
+      overIcon, overFly = false, true
+      W.now = W.now + 1 f.fly.scripts.OnUpdate(f.fly)
+      ok(f.fly:IsShown(), "the mouse moved up onto the pop-out: open")
+      overFly = false
+      f.fly.scripts.OnUpdate(f.fly)
+      ok(not f.fly:IsShown() and TC.why:find("mouse left", 1, true), "the mouse off both: closed, and why says so", TC.why)
+      _G.MouseIsOver, f.fly.IsMouseOver, top[2].IsMouseOver = keepMO, nil, nil
+      top[2]:GetScript("OnEnter")(top[2])
       local ft
       for _, b in ipairs(fb) do if b:IsShown() and b.attrs.spell1 == "Flametongue Totem" then ft = b end end
       ok(ft, "each one there drops itself")

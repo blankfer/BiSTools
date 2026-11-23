@@ -26,10 +26,19 @@ local T, R = NS.T, NS.Registry
 local C = NS.Combo
 if not C then return end
 
-local TC = { SIZE = 28, GAP = 2, TAB = 30, WAIT = 0.3 }
+local TC = { SIZE = 28, GAP = 2, TAB = 30, WAIT = 0.3, GRACE = 0.25 }
 NS.TotemCard = TC
 
 local function db() return C.db or R:DBFor(R:Get("combo")) end
+--- Is the mouse over this frame? Its own IsMouseOver (every frame has it), the old global only as a fallback - (Arn, 23 Nov: "holding
+--- shift does not pop out": with the global missing the pop-out shut itself the frame it opened).
+function TC.Over(fr)
+  if not fr then return false end
+  if fr.IsMouseOver then local fine, yes = pcall(fr.IsMouseOver, fr) if fine then return yes and true or false end end
+  if MouseIsOver then local fine, yes = pcall(MouseIsOver, fr) if fine then return yes and true or false end end
+  return true                                               -- (cannot tell: left open; the next leave or a pull closes it)
+end
+local function note(why) TC.why = why end
 local function fighting() return InCombatLockdown and InCombatLockdown() and true or false end
 
 --- Shown? Switched on, the combo tool on, a shaman, and the phone has its row.
@@ -182,8 +191,8 @@ function TC.Build()
   f.fly:Hide()
   f.fly:SetScript("OnUpdate", function()                    -- (only while it is open: the mouse gone = closed)
     local from = TC.flyFrom
-    local over = MouseIsOver and (MouseIsOver(f.fly) or (from and MouseIsOver(from)))
-    if not over then TC.CloseFly() end
+    if GetTime and TC.flyAt and GetTime() - TC.flyAt < TC.GRACE then return end
+    if not (TC.Over(f.fly) or TC.Over(from)) then TC.CloseFly("the mouse left it") end
   end)
   f:SetScript("OnHide", function() TC.EndDrag() end)
   TC.frame = f
@@ -214,7 +223,9 @@ end
 function TC.OpenFly(from)
   local f = TC.frame
   local list = from and from.item and from.item.fly
-  if fighting() or not f or type(list) ~= "table" or #list == 0 then return end
+  if fighting() then return note("not in a fight") end
+  if not f then return note("no card") end
+  if type(list) ~= "table" or #list == 0 then return note("nothing else of its kind to pick") end
   local size, gap = from:GetWidth(), TC.GAP
   for i, it in ipairs(list) do
     local b = f.flyB[i]
@@ -229,13 +240,15 @@ function TC.OpenFly(from)
   f.fly:SetPoint("BOTTOM", from, "TOP", 0, gap)
   f.fly:SetSize(size + 2 * gap, #list * (size + gap) + gap)
   TC.flyFrom = from
+  TC.flyAt = GetTime and GetTime() or 0
   f.fly:Show()
+  note(("opened: %d to pick"):format(#list))
 end
 
-function TC.CloseFly()
+function TC.CloseFly(why)
   local f = TC.frame
   TC.flyFrom = nil
-  if f and f.fly:IsShown() and not fighting() then f.fly:Hide() end
+  if f and f.fly:IsShown() and not fighting() then f.fly:Hide() if why then note("closed: " .. why) end end
 end
 
 -- ------------------------------------------------------------------ the paint
@@ -317,7 +330,9 @@ ev:SetScript("OnEvent", function(_, e, a1, a2)
     return
   end
   if e == "MODIFIER_STATE_CHANGED" then                       -- (Shift pressed with the mouse already on an icon)
-    if TC.hover and (a1 == "LSHIFT" or a1 == "RSHIFT") and a2 == 1 then TC.OpenFly(TC.hover) end
+    if (a1 == "LSHIFT" or a1 == "RSHIFT") and a2 == 1 then
+      if TC.hover then TC.OpenFly(TC.hover) else note("Shift pressed, but the mouse was on no totem of the card") end
+    end
     return
   end
   if e == "UNIT_INVENTORY_CHANGED" and a1 ~= "player" then return end
@@ -333,6 +348,10 @@ function TC.Slash(rest)
   if w == "on" or w == "off" then d.bar = w == "on"
   elseif w == "size" and tonumber(v) then d.barSize = math.max(18, math.min(48, math.floor(tonumber(v))))
   elseif w == "reset" then d.barPos = nil TC.Place()
+  elseif w == "why" then
+    NS.Print("totem card: %s; pop-out: %s; mouse on: %s", TC.Wanted() and "shown" or "not shown", tostring(TC.why or "never tried"),
+      TC.hover and tostring(TC.hover.item and TC.hover.item.word) or "nothing")
+    return
   elseif w == "" then d.bar = not (d.bar == true) end
   TC.Paint()
   NS.Print("totem card %s%s - drag it by the dps tab at its left; Shift over a totem: the others pop out", T.text(d.bar and "good" or "warn", d.bar and "on" or "off"),
