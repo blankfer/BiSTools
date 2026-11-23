@@ -78,6 +78,13 @@ return function(H)
   ok(def.card.prio() == nil and def.card.prio(true) == 2, "later it is gone; on your screen it stays")
   later = W.now
 
+  -- nothing on the weapon and nothing standing is no combo (Arn's real list, 22 Nov: dungeon casts on top of it)
+  fight({ imbue = nil, totems = {} }, 9000, 10, "Zombie")
+  moment()
+  ok(#p.rows(2) == 2 and not p.rows(2)[1].text:find("no totems", 1, true), "no imbue and no totems: not ranked", p.rows(2)[1].text)
+  table.remove(db.fights)
+  moment()
+
   -- a worse fight on a harder mob is not worse
   local hard = fight(WF, 1200, 10, "Ogre", { gap = 3 })
   moment()

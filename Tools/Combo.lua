@@ -653,7 +653,9 @@ function C.Swung(f)
   if f.active and f.active > 0 then return (f.dur or 0) <= 0 or f.active / f.dur >= C.UPTIME end
   return true
 end
+-- (no imbue and no totems at all is no combo - Arn's list, 22 Nov: his best was dungeon fights of Lightning Bolt and Flame Shock)
 function C.Counts(f)
+  if not f.imbue and type(f.totems) == "table" and #f.totems == 0 then return false end
   if (f.dur or 0) < C.Min() or not C.Swung(f) then return false end
   local s = C.Scope()
   if s == "all" then return true end
