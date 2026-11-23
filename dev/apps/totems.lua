@@ -224,6 +224,8 @@ return function(H)
       local ft
       for _, b in ipairs(fb) do if b:IsShown() and b.attrs.spell1 == "Flametongue Totem" then ft = b end end
       ok(ft, "each one there drops itself")
+      ok(TC.Tip(ft):find("Click: drops it, onto the row", 1, true) and not TC.Tip(ft):find("Click: onto the row$"), "its words say what a click does on the card", TC.Tip(ft))
+      ok(TC.Tip(top[2]):find("Click: drops it$") and not TC.Tip(top[2]):find("choose another", 1, true), "and the row's icon too", TC.Tip(top[2]))
       ft:GetScript("PostClick")(ft, "LeftButton", false)
       ok(row()[2].word == "Flametongue" and not f.fly:IsShown(), "a click there: onto the row, the pop-out away", row()[2].word)
       W.runAfters(1)

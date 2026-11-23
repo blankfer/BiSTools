@@ -94,8 +94,10 @@ local function button(parent, name)
   end)
   b:SetScript("OnEnter", function(self)
     if self.item and self.item.tip and GameTooltip then
-      GameTooltip:SetOwner(self, "ANCHOR_TOP")
-      GameTooltip:SetText(self.item.tip)
+      -- to the SIDE (Arn, 23 Nov: "put the tooltip to the side i cant see what im clicking" - on top it covered the pop-out)
+      GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+      GameTooltip:SetText(TC.Tip(self))
+      if self.top and self.item.fly then GameTooltip:AddLine(T.text("dim", "Shift: the others of its kind")) end
       GameTooltip:Show()
     end
     if self.top then TC.hover = self if IsShiftKeyDown and IsShiftKeyDown() then TC.OpenFly(self) end end
@@ -105,6 +107,17 @@ local function button(parent, name)
     if TC.hover == self then TC.hover = nil end
   end)
   return b
+end
+
+--- What a button says on the card: the phone's words, with what a click does HERE (the phone's "choose another" / "onto the row"
+--- are the phone's clicks; on the card a click drops it).
+function TC.Tip(b)
+  local it = b.item or {}
+  local t = tostring(it.tip or it.word or "")
+  t = t:gsub("%. Click: choose another$", ""):gsub("%. Click: choose one$", ""):gsub("%. Click: onto the row$", "")
+  if b.inFly then return t .. (TC.Cast(it) and ". Click: drops it, onto the row" or "") end
+  if b.top then return t .. (TC.Cast(it) and ". Click: drops it" or "") end
+  return t
 end
 
 --- One icon of the phone onto a button: its picture, its glow, what it casts. Out of a fight only.
