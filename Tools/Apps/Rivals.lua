@@ -278,6 +278,14 @@ DP.App.rivals = function()
         if not n then return { "RIVALS", "", "Nobody near", "", "dim" } end
         return { n.word, "", n.name, ("%ds"):format(math.floor(n.s)), "gold", hot = n.s < 30, list = n.list or {} }
       end,
+      -- a gold rival near: the old box's target button, on the card (22 Nov) - its macro, written out of a fight by RC.ApplyButton
+      buttons = function()
+        local n, b = news(), RC.tbtn
+        if not (n and n.word == "RIVAL NEAR" and b and (b.count or 0) > 0) then return {} end
+        local m = b:GetAttribute("macrotext")
+        if type(m) ~= "string" or m == "" then return {} end
+        return { { word = "TARGET", macro = m, tip = "Target your rival" } }
+      end,
     },
     page = {
       tick = true,

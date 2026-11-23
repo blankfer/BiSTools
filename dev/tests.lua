@@ -10462,10 +10462,23 @@ do
     F.SetActive(db, nil)
     local def = Dk.defs["BiSTools:farm"]
     ok(def.page.rows(1)[1].text == "Magra" and def.page.rows(1)[1].right == "x3" and #def.page.boxes() == 0, "farm: the mob you kill, nothing farmed yet")
-    ok(not Dk.IsLive(def), "opened and looked at: no card")
+    ok(def.card.prio() == nil, "three kills, nothing farmed: no card")
+    -- SIX IN A ROW (Arn, 22 Nov: "if it notices we killed 6 of the same mob itll suggest adding it to the farm target")
+    db.last = { name = "Magra", count = 6, at = time() }
+    local cl, cb = def.card.lines(), def.card.buttons()
+    ok(def.card.prio() == 5 and cl[3] == "Farm Magra?" and cl[4] == "6 kills" and cb[1].word == "FARM IT" and cb[2].word == "NOT THIS", "six of one mob: the card asks", cl[3])
+    db.last.at = time() - DP.FARM_FRESH - 1
+    ok(def.card.prio() == nil, "the kills long ago: no")
+    db.last.at = time()
+    Dk.Press(def, cb[2])()
+    ok(def.card.prio() == nil and db.noSuggest.Magra, "NOT THIS: never again for it")
+    db.noSuggest = nil
+    db.last = { name = "Magra", count = 3 }
     Dk.Press(def, def.page.rows(1)[1].act)()
     ok(db.active == "Magra" and Dk.IsLive(def), "picked: farmed, and it has a live card")
     ok(def.page.rows(1)[1].right == "FARMING" and def.card.lines()[3] == "Magra", "and they say so")
+    local fb = def.card.buttons()
+    ok(fb[1].word == "TARGET" and fb[1].macro == "/click BiSToolsFarmTargetTap" and _G.BiSToolsFarmTargetTap and fb[2].word == "STOP", "farming: TARGET on the card (the old box's button)")
     local now = time()
     db.spots.Magra = { { mark = 1, last = now - 400, respawn = 300, subs = {} }, { mark = 2, last = now - 100, respawn = 160, subs = {} } }
     local c = DP.Farm()
@@ -10486,8 +10499,8 @@ do
     ok(not Dk.pinFrames["BiSTools:farm"]:IsShown(), "the deck tool off: nothing of it on the screen")
     S("on deck")
     ok(Dk.pinFrames["BiSTools:farm"]:IsShown(), "on: back")
-    Dk.Press(def, def.card.buttons()[1])()
-    ok(db.active == nil and not Dk.IsLive(def) and not Dk.IsPinned("BiSTools:farm"), "STOP: no card, no pin")
+    Dk.Press(def, def.card.buttons()[2])()
+    ok(db.active == nil and def.card.prio() == nil, "STOP: no card")
     db.active, db.last, db.spots = keepA, keepL, keepS
     if not keepA then F.Stop() end
     S("off farm")

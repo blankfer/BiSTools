@@ -341,21 +341,53 @@ function DP.Register()
       title = function() local BF = DP.Place() return BF and ((BF.data and BF.data.name or BF.outName or "") .. " run") or "Run" end, steps = DP.Steps,
       text = function() return "Walk into a dungeon: its quests and bosses come up as steps." end },
   }
+  --- KILLED SIX IN A ROW (Arn, 22 Nov: "maybe like if it notices we killed 6 of the same mob itll suggest adding it to the farm
+  --- target"): the name, the count - while nothing is farmed, the kills fresh, and not one you said no to.
+  DP.FARM_SUGGEST, DP.FARM_FRESH = 6, 10 * 60
+  function DP.FarmSuggest()
+    local db = DP.FarmDB()
+    local l = db and db.last
+    if not (on("farm") and l and not db.active and type(l.name) == "string" and (l.count or 0) >= DP.FARM_SUGGEST) then return nil end
+    if not (type(l.at) == "number" and time() - l.at <= DP.FARM_FRESH) then return nil end
+    if type(db.noSuggest) == "table" and db.noSuggest[l.name] then return nil end
+    return l.name, l.count
+  end
   local fState, fTurnOn = gate("farm")
   D.Register{
     owner = "BiSTools", key = "farm", name = "Farm", icon = "Fa", order = 20,
     state = fState, turnOn = fTurnOn, quietOff = true, about = "Pick a mob you kill: fresh copies are found and marked, its spots are timed.",
     badge = function() local c = DP.Farm() return c and c.up or nil end,
     card = {
-      when = "use", tick = true,
-      alive = function() return DP.Farm() ~= nil end,
-      prio = function() local c = DP.Farm() return c and (c.up > 0 and 6 or 3) or nil end,
+      -- (22 Nov: it comes by itself - while you farm, and to suggest a mob you keep killing; it was the old box's button)
+      tick = true,
+      alive = function() return DP.Farm() ~= nil or DP.FarmSuggest() ~= nil end,
+      prio = function()
+        local c = DP.Farm()
+        if c then return c.up > 0 and 6 or 3 end
+        return DP.FarmSuggest() and 5 or nil
+      end,
       lines = function()
         local c = DP.Farm()
+        if not c then
+          local name, n = DP.FarmSuggest()
+          return { "FARM", "", "Farm " .. tostring(name) .. "?", n .. " kills", "gold", list = { { "Fresh copies found and marked for you" } } }
+        end
         return { "FARM", "", c.mob, c.up > 0 and (c.up .. " up") or c.next and clock(c.next) or "", c.up > 0 and "good" or "ink2", list = DP.SpotLines(c) }
       end,
       buttons = function()
-        return { { word = "STOP", fn = function() NS.Farm.SetActive(DP.FarmDB(), nil) end },
+        if not DP.Farm() then
+          local name = DP.FarmSuggest()
+          if not name then return {} end
+          return { { word = "FARM IT", tip = "Farm " .. name .. ": a fresh copy is found and marked", fn = function() NS.Farm.SetActive(DP.FarmDB(), name) end },
+            { word = "NOT THIS", tip = "Never suggest " .. name .. " again", fn = function()
+              local db = DP.FarmDB()
+              db.noSuggest = type(db.noSuggest) == "table" and db.noSuggest or {}
+              db.noSuggest[name] = true
+            end } }
+        end
+        if NS.Farm.TargetButton then NS.Farm.TargetButton() end
+        return { { word = "TARGET", macro = "/click BiSToolsFarmTargetTap", tip = "A fresh copy of " .. tostring(DP.FarmDB().active) .. ", marked" },
+          { word = "STOP", fn = function() NS.Farm.SetActive(DP.FarmDB(), nil) end },
           { word = "SPOTS", peek = true, fn = function() D.defs["BiSTools:farm"].tab = 2 D.Open("BiSTools:farm") end } }
       end,
     },

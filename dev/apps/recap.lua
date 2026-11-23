@@ -37,6 +37,7 @@ return function(H)
   ok(def.card.prio() == 6, "the card comes by itself while you are dead")
   local l = def.card.lines()
   ok(l[3] == "Molten Elemental" and l[4] == "131" and #l.list == 2 and l.list[2][1] == "Kumlust Surname", "who, and how much", tostring(l[3]) .. " " .. tostring(l[4]))
+  ok(#def.card.buttons() == 1, "a mob killed you: no RIVAL on the card")
   Dk.Press(def, def.card.buttons()[1])()
   ok(p.tabs()[1] == "HITS" and Dk.page == def.id, "its button opens the death")
   local rows = p.rows(1)
@@ -71,6 +72,17 @@ return function(H)
   RC.waitFight = nil
   RC.Summary(RC.Hits(events), 1192)
   ok(#p.rows(1) == 2 and p.rows(1)[1].text == "Kumlust Surname" and p.boxes(1)[1][2] == 2, "the second death on top, counted once")
+  do
+    local R = NS.Registry
+    local was = R:Enabled("rivals")
+    R:SetEnabled("rivals", true)
+    local b2 = def.card.buttons()[2]
+    ok(b2 and b2.word == "RIVAL", "a player killed you: RIVAL on the card (Arn, 22 Nov)")
+    b2.fn()
+    ok(RC.Rivals(db)["Kumlust Surname"] and def.card.buttons()[2].word == "DROP", "pressed: a rival")
+    RC.Rivals(db)["Kumlust Surname"] = nil
+    R:SetEnabled("rivals", was)
+  end
   p.rows(1)[1].act.fn()
   ok(p.hero(1) == nil, "a player has no model by id: no picture, never a wrong one")
   p.rows(1)[1].act.fn()

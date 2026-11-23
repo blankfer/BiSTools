@@ -45,8 +45,9 @@ function F.Record(db, name, guid)
   if last and last.name == name then
     last.count = last.count + 1
     last.guid = guid or last.guid
+    last.at = time and time() or nil
   else
-    db.last = { name = name, count = 1, guid = guid }
+    db.last = { name = name, count = 1, guid = guid, at = time and time() or nil }
   end
   return db.last
 end
@@ -300,7 +301,7 @@ function F.TargetButton()
   b:RegisterForClicks("AnyDown")
   b:SetAttribute("type", "macro")
   b:SetAttribute("macrotext", "")
-  b:SetScript("PreClick", function(self)
+  F.Aim = function(self)
     if InCombatLockdown() then return end
     local db = F.db
     local u = db and db.active and (F.marked or F.Scan(db.active))
@@ -326,8 +327,18 @@ function F.TargetButton()
       self:SetAttribute("unit", nil)
       self:SetAttribute("macrotext", db and db.active and ("/targetexact " .. db.active) or "")
     end
-  end)
+  end
+  b:SetScript("PreClick", F.Aim)
   F.tbtn = b
+  -- THE DECK'S TAP (22 Nov 2026): the farm's live card presses this one by `/click BiSToolsFarmTargetTap` (a /click in a
+  -- macro works, solved.md); it aims the same way, and hears an up or a down so a /click of either kind lands once.
+  local tap = CreateFrame("Button", "BiSToolsFarmTargetTap", UIParent, "SecureActionButtonTemplate")
+  tap:RegisterForClicks("AnyUp", "AnyDown")
+  tap:SetAttribute("type", "macro")
+  tap:SetAttribute("macrotext", "")
+  tap:SetScript("PreClick", F.Aim)
+  tap:Hide()
+  F.tap = tap
   return b
 end
 

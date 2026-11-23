@@ -124,10 +124,14 @@ DP.App.recap = function(tool, db)
         return { "YOU DIED", "", who(s.killer), s.whole and tostring(s.total) or "", "warn", list = list }
       end,
       buttons = function()
-        return { { word = "WHAT HIT YOU", peek = true, fn = function()
+        local out = { { word = "WHAT HIT YOU", peek = true, fn = function()
           go(deaths[1])
           if D then D.defs[ID].tab = 1 D.Open(ID) end
         end } }
+        -- a player killed you (Arn, 22 Nov: "if we get killed the rival live tile will pop out"): make them a rival from here
+        local k = deaths[1].s and deaths[1].s.killer
+        if k and k.player and type(k.title) == "string" and R:Enabled("rivals") then out[2] = rivalKey(db(), k) end
+        return out
       end,
     },
     page = {
