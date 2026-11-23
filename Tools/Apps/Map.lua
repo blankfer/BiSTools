@@ -86,7 +86,10 @@ DP.App.map = function(tool, db)
         local out = {}
         if tab == 2 then
           for i, p in ipairs(O.DeckPeople()) do
+            -- (the colour pass, 22 Nov: who they are to you, under the name; on your map in green)
             out[i] = { mark = p.kind == "guild" and "g" or "+", text = p.name, right = p.right, ink = p.here and "good" or "dim", done = not p.here or nil,
+              tint = p.here and (p.kind == "guild" and "good" or "accent") or nil,
+              sub = (p.kind == "guild" and "guildmate sharing their spot" or "in your group") .. (p.here and ", on this map" or ""),
               tip = p.kind == "guild" and "A guildmate who shares their spot" or "In your group" }
           end
           return out

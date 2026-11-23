@@ -443,7 +443,7 @@ DP.App.combo = function(tool, db)
     local all = rank()
     if #all == 0 then return {} end
     local crit = tiles(nil).CRIT
-    return { { "COMBOS", #all }, { "FIGHTS", (C.CountKept()) }, { "BEST", int(all[1].adj), "gold" }, { "CRIT", crit and crit[2] or "-", "good" } }
+    return { { "COMBOS", #all, "accent" }, { "FIGHTS", (C.CountKept()), "ink" }, { "BEST", int(all[1].adj), "gold" }, { "CRIT", crit and crit[2] or "-", "good" } }
   end
   local function bestRows()
     local out = {}
@@ -473,7 +473,7 @@ DP.App.combo = function(tool, db)
     for _, x in ipairs(order) do
       local t = x.t
       if SMALL[t[1]] and t[2] ~= "-" then
-        out[#out + 1] = { mark = "-", text = SMALL[t[1]], right = t[2], tip = t[4] and table.concat(t[4], ". ") or nil }
+        out[#out + 1] = { mark = "-", text = SMALL[t[1]], right = t[2], ink = "gold", tip = t[4] and table.concat(t[4], ". ") or nil }
       end
     end
     local l, shown = list(), 0
@@ -481,7 +481,7 @@ DP.App.combo = function(tool, db)
       local f = l[i]
       if f.combo == pick and shown < MANY then
         shown = shown + 1
-        out[#out + 1] = { mark = "x", text = f.mob or "?", right = int(dps(f)), ink = counts(f) and "good" or "dim", done = not counts(f), tip = fightTip(f) }
+        out[#out + 1] = { pic = C.IconFor(f.imbue), mark = "x", text = f.mob or "?", sub = secs(f) .. (f.grp and ", group" or ""), right = int(dps(f)), ink = counts(f) and "good" or "dim", done = not counts(f), tip = fightTip(f) }
       end
     end
     return out
@@ -503,14 +503,15 @@ DP.App.combo = function(tool, db)
     local best, all = 0, 0
     for _, f in ipairs(l) do all = all + (f.dur or 0) if counts(f) then best = math.max(best, dps(f)) end end
     local avg = others(nil)
-    return { { "COUNT", (C.CountKept()) }, { "AVERAGE", avg and int(avg) or "-", "good" }, { "BEST", int(best), "gold" },
+    return { { "COUNT", (C.CountKept()), "accent" }, { "AVERAGE", avg and int(avg) or "-", "good" }, { "BEST", int(best), "gold" },
       { "TIME", all >= 3600 and ("%.1f h"):format(all / 3600) or (math.floor(all / 60) .. " m"), "ink2" } }
   end
   local function fightRows()
     local out, l = {}, list()
     for i = #l, math.max(1, #l - MANY + 1), -1 do
       local f = l[i]
-      out[#out + 1] = { pic = C.IconFor(f.imbue), mark = "-", text = (f.mob or "?") .. (f.mixed and " (mixed)" or "") .. (f.grp and " - group" or ""), right = int(dps(f)),
+      -- (the colour pass, 22 Nov: how long, mixed, group under the name instead of glued onto it)
+      out[#out + 1] = { pic = C.IconFor(f.imbue), mark = "-", text = f.mob or "?", sub = secs(f) .. (f.mixed and ", mixed set-ups" or "") .. (f.grp and ", group" or ""), right = int(dps(f)),
         ink = counts(f) and "good" or "dim", done = not counts(f), tip = fightTip(f), act = open(f.combo) }
     end
     return out

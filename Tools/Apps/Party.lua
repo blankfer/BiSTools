@@ -191,7 +191,8 @@ DP.App.party = function(_, db)
     for i, r in ipairs(slow("ranks", P.Ranks)) do
       local k = r.rank:lower()
       local picked = P.picked and P.picked[k]
-      out[i] = { mark = picked and "v" or "", text = r.rank, right = r.n > 0 and (r.n .. " ON") or "-", ink = picked and "good" or "ink2", done = r.n == 0,
+      out[i] = { mark = picked and "v" or "", text = r.rank, right = r.n > 0 and (r.n .. " ON") or "-", ink = picked and "good" or r.n > 0 and "accent" or "ink2", done = r.n == 0,
+        tint = picked and "good" or nil, sub = picked and "picked: asked with the next invite" or nil,
         tip = r.n == 0 and "Nobody else online" or picked and "Click: not this rank" or "Click: pick this rank",
         act = r.n > 0 and { word = "pick", peek = true, fn = function()
           P.picked = P.picked or {}
@@ -292,7 +293,12 @@ DP.App.party = function(_, db)
       end,
       boxes = function(tab)
         local s = look()
-        if tab == 2 then return nil end
+        if tab == 2 then                                     -- (the colour pass, 22 Nov: the guild's ranks in numbers)
+          local ranks, on = slow("ranks", P.Ranks), 0
+          if #ranks == 0 then return nil end
+          for _, r in ipairs(ranks) do on = on + (r.n or 0) end
+          return { { "ONLINE", on, on > 0 and "good" or "dim" }, { "RANKS", #ranks, "accent" }, { "PICKED", picks(), picks() > 0 and "gold" or "dim" } }
+        end
         if wave and tab == 1 then
           local w = waveNow()
           return { { "TO SEND", #w.send, "gold" }, { "ASKED", w.asked, "accent" }, { "WITH YOU", w.here, "good" } }
