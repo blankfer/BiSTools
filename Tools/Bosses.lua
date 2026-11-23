@@ -495,7 +495,7 @@ function BF.QuestsNow()
   local had = #BF.quests
   BF.ReadQuests()
   BF.Write()
-  if not BF.map and had == 0 and #BF.quests > 0 and BF.db and BF.db.open and not BF.IsOpen() then BF.Toggle(true) end
+  if not BF.map and had == 0 and #BF.quests > 0 and BF.db and BF.db.open and not BF.IsOpen() and not BF.DeckTakes() then BF.Toggle(true) end
   if NS.Box and NS.Box.Refresh then NS.Box.Refresh() end
   BF.Paint()
 end
@@ -510,6 +510,14 @@ function BF.SetTab(tab)
   BF.Write()
   BF.Paint()
   return true
+end
+
+--- THE PHONE TAKES IT (22 Nov 2026, Arn, the old boss phone open beside the deck's Bosses page: "it did pop it out with the new
+--- deck that should not happen anymore"): with the deck on, the old phone never comes up by itself - not once a run, not
+--- because it was open when you left. The deck's app does (DP.BossesHere); OLD PHONE there still opens this one by hand.
+function BF.DeckTakes()
+  local DP = NS.DeckPages
+  return DP and DP.DeckOn and DP.DeckOn() or false
 end
 
 --- Into a place (or out of one): the list, the run, the eyes on or off. A place = a dungeon of the list, or the zone of
@@ -538,6 +546,7 @@ function BF.Enter()
     BF.tab = (place and not map) and "quest" or "boss"
     local was = db.run
     if map then BF.run = BF.Run(db, map) end
+    BF.CopyWatch(map ~= nil)                       -- (which copy this is: one sure reading, then off)
     BF.ReadQuests()
     BF.Eyes(place ~= nil)
     if place then BF.Scan() end
@@ -545,8 +554,10 @@ function BF.Enter()
       -- up by itself once a run; and back again if it was open when you left (a wipe's run back, a hearth) -
       -- leaving shuts it below without touching db.open; only your own close does
       local fresh = db.auto ~= false and BF.run ~= was
-      if (fresh or db.open) and not fighting() then BF.Toggle(true) end
-    elseif place and #BF.quests > 0 and db.open then     -- outside the entrance: only if it was yours and open
+      if BF.DeckTakes() then
+        if fresh and not fighting() then NS.DeckPages.BossesHere() end    -- (the phone's app, never the old phone)
+      elseif (fresh or db.open) and not fighting() then BF.Toggle(true) end
+    elseif place and #BF.quests > 0 and db.open and not BF.DeckTakes() then     -- outside the entrance: only if it was yours and open
       if not fighting() then BF.Toggle(true) end
     elseif BF.frame and BF.frame:IsShown() and not fighting() then BF.frame:Hide() end
     BF.Write()
@@ -1306,6 +1317,47 @@ for _, e in ipairs({ "PLAYER_ENTERING_WORLD", "ZONE_CHANGED_NEW_AREA", "PLAYER_R
 end
 BF.EYES = { "NAME_PLATE_UNIT_ADDED", "NAME_PLATE_UNIT_REMOVED", "PLAYER_TARGET_CHANGED" }
 
+--[[ WHICH COPY OF THE DUNGEON (22 Nov 2026, Arn: "had to restart the boss app, how did fojji determin it was a new dungeon" - FojjiCore
+  said "this is a fresh copy"; learned from its idea, written our own way). A GUID of a thing in a dungeon carries the dungeon's id and
+  the number of the copy it lives in: Kind-0-server-DUNGEON-COPY-... Inside, a creature's GUID is a secret - but YOUR OWN cast's GUID
+  (UNIT_SPELLCAST_SUCCEEDED's second answer) and a corpse you loot (GetLootSourceInfo) are in this copy for sure. The run remembers
+  its copy; a sure reading of another copy = the dungeon was reset: a fresh run by itself. A copy only changes across a loading screen,
+  so the watch is armed at BF.Enter and switched off after its first plain reading. ]]
+function BF.CopyOf(guid)
+  guid = plain(guid)
+  if type(guid) ~= "string" then return nil end
+  local inst, copy = guid:match("^%a+%-%d+%-%d+%-(%d+)%-(%d+)")
+  if not inst or not BF.map or tonumber(inst) ~= BF.map then return nil end
+  return copy
+end
+--- A sure reading of this copy. Answers "same" | "fresh" | "learned" | nil.
+function BF.Copy(guid)
+  local c = BF.CopyOf(guid)
+  local r = BF.run
+  if not (c and r and BF.db) then return nil end
+  BF.CopyWatch(false)
+  if not r.copy then r.copy = c return "learned" end
+  if r.copy == c then return "same" end
+  BF.found = {}
+  BF.run = BF.Run(BF.db, BF.map, true)
+  BF.run.copy = c
+  BF.allAt, BF.findAt = 1, 1
+  BF.Say("a fresh copy of the dungeon: a new run", "gold")
+  BF.Write()
+  BF.Paint()
+  return "fresh"
+end
+BF.COPY_EVENTS = { "LOOT_READY" }
+function BF.CopyWatch(on)
+  for _, e in ipairs(BF.COPY_EVENTS) do
+    if on then pcall(ev.RegisterEvent, ev, e) else pcall(ev.UnregisterEvent, ev, e) end
+  end
+  if on and ev.RegisterUnitEvent then pcall(ev.RegisterUnitEvent, ev, "UNIT_SPELLCAST_SUCCEEDED", "player")
+  elseif on then pcall(ev.RegisterEvent, ev, "UNIT_SPELLCAST_SUCCEEDED")
+  else pcall(ev.UnregisterEvent, ev, "UNIT_SPELLCAST_SUCCEEDED") end
+  BF.copyWatch = on and true or false
+end
+
 --- The eyes are open only inside a place of the list.
 function BF.Eyes(on)
   for _, e in ipairs(BF.EYES) do
@@ -1328,6 +1380,13 @@ function BF.OnEvent(event, a1, a2, _, _, a5)
     end
   elseif event == "PLAYER_TARGET_CHANGED" then
     if BF.Look("target") then BF.Paint() end
+  elseif event == "UNIT_SPELLCAST_SUCCEEDED" then
+    if a1 == "player" then BF.Copy(a2) end
+  elseif event == "LOOT_READY" then
+    for i = 1, tonumber(ask(GetNumLootItems)) or 0 do
+      local g = ask(GetLootSourceInfo, i)
+      if g and BF.Copy(g) then break end
+    end
   elseif event == "ENCOUNTER_START" then
     BF.fight = plain(a1)
   elseif event == "ENCOUNTER_END" then

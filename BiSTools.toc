@@ -10,8 +10,17 @@
 ## X-Curse-Project-ID: 1686340
 
 Libs\BiSTheme\Console.lua
+Libs\BiSTheme\Pad.lua
 Libs\BiSTheme\Options.lua
 Libs\BiSTheme\Settings.lua
+Libs\BiSTheme\DeckLayout.lua
+Libs\BiSTheme\Deck.lua
+Libs\BiSTheme\DeckPins.lua
+Libs\BiSTheme\DeckWindows.lua
+Libs\BiSTheme\DeckOverlay.lua
+Libs\BiSTheme\DeckStatus.lua
+Libs\BiSTheme\DeckApps.lua
+Libs\BiSTheme\DeckAPI.lua
 Libs\LibBiSComm-1.0\LibBiSComm-1.0.lua
 Libs\RezComm-1.0\RezComm-1.0.lua
 Libs\LibStub\LibStub.lua
@@ -50,5 +59,23 @@ Tools\BossQuests.lua
 Tools\Alts.lua
 Tools\Combo.lua
 Tools\Windfury.lua
+Tools\Innervate.lua
 API.lua
+Tools\DeckPages.lua
+Tools\Apps\Sounds.lua
+Tools\Apps\Party.lua
+Tools\Apps\Social.lua
+Tools\Apps\Rivals.lua
+Tools\Apps\Recap.lua
+Tools\Apps\BG.lua
+Tools\Apps\Map.lua
+Tools\Apps\Alts.lua
+Tools\Apps\Totems.lua
+Tools\Apps\Combo.lua
+Tools\Apps\Windfury.lua
+Tools\Apps\Innervate.lua
+Tools\Apps\XP.lua
+Tools\Apps\Disenchant.lua
+Tools\Apps\Processing.lua
+Tools\Apps\Codex.lua
 Tools\Hub.lua

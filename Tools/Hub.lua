@@ -117,8 +117,12 @@ function H.BuildMinimap()
   -- ONE STANDARD for every BiS minimap button (Forever 1.0, Arn 7 Nov: "we gotta get everything on the same
   -- page"): left = the main window (the Hub), right = options - the BiS> Tools page in the game's own options,
   -- else the own options window. No shift/ctrl/middle extras.
+  -- NO COMMAND TO TYPE (Arn, 22 Nov: "it was very hard for me to get my cousins to type /pws game name command"): with the deck
+  -- switched on it IS the main window - left-click opens and closes it; its Tools icon is the Hub
   b:SetScript("OnClick", function(self, button)
-    if button == "RightButton" then H.OpenOptions() else H.ToggleHub() end
+    if button == "RightButton" then H.OpenOptions()
+    elseif NS.DeckPages and NS.DeckPages.Toggle and NS.DeckPages.Toggle() then -- the deck
+    else H.ToggleHub() end
     H.UnburyIcon(self)
   end)
   b:SetScript("OnDragStart", function(self) self.dragging = true self:SetScript("OnUpdate", H.DragMinimap) end)
@@ -127,7 +131,7 @@ function H.BuildMinimap()
     if not GameTooltip then return end
     GameTooltip:SetOwner(self, "ANCHOR_LEFT")
     GameTooltip:AddLine(T.text("accent", "BiS") .. " Tools " .. T.text("muted", NS.VERSION))
-    GameTooltip:AddLine("left-click  the tools", 1, 1, 1)
+    GameTooltip:AddLine(NS.DeckPages and NS.DeckPages.IsOn and NS.DeckPages.IsOn() and "left-click  the deck" or "left-click  the tools", 1, 1, 1)
     GameTooltip:AddLine("right-click  options", 1, 1, 1)
     GameTooltip:AddLine("drag  move", 1, 1, 1)
     GameTooltip:Show()
@@ -226,6 +230,37 @@ function H.BuildHub()
       if GameTooltip then GameTooltip:Hide() end
     end)
   end
+  -- TRY THE DECK (Arn, 22 Nov: "A TRY THE DECK button at the top of the Hub? Yes"): one big button over the window's top edge. It
+  -- switches the deck on and opens it; with the deck on it opens and closes it (and the minimap button does the same from then on).
+  local deck = CreateFrame("Button", "BiSToolsHubDeck", f)
+  deck:SetPoint("BOTTOMLEFT", f, "TOPLEFT", 0, 4)
+  deck:SetPoint("BOTTOMRIGHT", f, "TOPRIGHT", 0, 4)
+  deck:SetHeight(26)
+  K.tex(deck, "BACKGROUND", "field", 0.95)
+  deck.edge = K.border(deck, "gold", 1)
+  deck.label = K.fs(deck, "TRY THE DECK", 11, "gold")
+  deck.label:SetPoint("CENTER")
+  deck.wash = K.tex(deck, "BORDER", "accent", 0.35)
+  deck.wash:SetAllPoints()
+  deck.wash:SetAlpha(0)
+  deck:SetScript("OnClick", function()
+    local DP = NS.DeckPages
+    if not (DP and DP.Toggle) then return end
+    if not DP.Toggle() then R:SetEnabled("deck", true) end
+    H.PaintHub()
+    f:Hide()                                                -- (out of the deck's way: Arn's first look, 22 Nov)
+  end)
+  deck:SetScript("OnEnter", function(self)
+    deck.wash:SetAlpha(1)
+    if GameTooltip then
+      GameTooltip:SetOwner(self, "ANCHOR_TOP")
+      GameTooltip:AddLine("The BiS deck")
+      GameTooltip:AddLine("All your BiS addons on one phone: live cards, apps, games, the radio. Right-click its row below to switch it off.", 1, 1, 1, true)
+      GameTooltip:Show()
+    end
+  end)
+  deck:SetScript("OnLeave", function() deck.wash:SetAlpha(0) if GameTooltip then GameTooltip:Hide() end end)
+  f.deckButton = deck
   -- footer: one button, full width
   local foot = CreateFrame("Button", "BiSToolsHubOptions", f)
   foot:SetPoint("BOTTOMLEFT") foot:SetPoint("BOTTOMRIGHT")
@@ -257,6 +292,7 @@ function H.PaintHub()
     r.name:SetTextColor(cr, cg, cb, 1)
     r.state:SetText(en and T.text("good", "on") or T.text("warn", "off"))
   end
+  if f.deckButton then f.deckButton.label:SetText(R:Enabled("deck") and "THE DECK" or "TRY THE DECK") end
   f.con:Set("count", on .. " of " .. #f.rows .. " on", "ink2")
 end
 
@@ -297,6 +333,8 @@ function H.OwnOptions()
       set = function(_, on) H.DB().minimap = on and true or false H.ApplyMinimap() end },
     { kind = "toggle", label = "BiS channel (/biscomm)", help = "Lets BiS addons talk to each other's copies in your group and guild (summon facts, rivals the guild shares). Off: you hear nothing and say nothing.", get = function() local l = _G.LibBiSComm return l and l:Enabled() end,
       set = function(_, on) local l = _G.LibBiSComm if l then l:SetEnabled(on and true or false) end end },
+    { kind = "toggle", label = "tools box", help = "The small BiS> tools box of buttons (farm target, rival, XP food, bosses...). Hidden for now while it is remade; the keys still work.",
+      get = function() return NS.Box and not NS.Box.Hidden() end, set = function(_, on) if NS.Box then NS.Box.SetShown(on) end end },
     { kind = "button", label = "reset window positions", help = "Puts every BiS Tools window back in the middle of the screen, if one was dragged out of reach.", button = "reset", action = function() H.ResetPositions() end },
   }
 end

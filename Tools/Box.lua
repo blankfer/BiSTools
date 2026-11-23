@@ -31,6 +31,15 @@ function B.DB()
   return d.box
 end
 
+--- PUT AWAY (22 Nov 2026, Arn: "no more bis tool box lil box we are going to change it"): the box stays hidden unless
+--- "tools box" is ticked in BiS Tools' own options (`box.shown`, nil = hidden). Its buttons keep working by their keys
+--- (a key clicks a secure button whether it shows or not); the code stays for what comes next.
+function B.Hidden() return B.DB().shown ~= true end
+function B.SetShown(on)
+  B.DB().shown = on and true or nil
+  return B.Refresh()
+end
+
 function B.Build()
   if B.frame then return B.frame end
   local F = K()
@@ -387,6 +396,12 @@ function B.Refresh()
   end
   local n = #shown
   B.count = n
+  if n > 0 and B.Hidden() then
+    for _, b in ipairs(shown) do b:Hide() end
+    B.count = 0
+    f:Hide()
+    return true
+  end
   if n == 0 then f:Hide() return true end
   -- one row first, so the dock is chosen the same way as before; then wrap where the grid starts
   f:SetSize(math.max(B.MIN_W, B.PAD * 2 + n * B.SIZE + (n - 1) * B.GAP), B.SIZE + B.PAD * 2)

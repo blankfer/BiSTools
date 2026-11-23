@@ -595,6 +595,7 @@ function RD.Paint(now, quick)
   elseif RD.asked and RD.asked ~= map then RD.asked = nil end
   if #here == 0 then return RD.Hide() end
   RD.Watching(true)
+  if NS.DeckPages and NS.DeckPages.RidePinned() then RD.HideCard() return {} end        -- (it is out on the screen, from the deck)
   if map == lib.TRAM_MAP then
     -- ONE CARD (Arn, 23 Oct: "i can ship in both but dont want two cards floating"): BiS Shell's TRAM-TRAK up, ours
     -- waits; the watch goes on, so it comes back the moment TRAM-TRAK goes

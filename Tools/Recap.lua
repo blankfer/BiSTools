@@ -299,6 +299,7 @@ local function pct(n, total)
   if not (n and total and total > 0) then return "" end
   return (" (%d%%)"):format(math.floor(n / total * 100 + 0.5))
 end
+RC.Pct = pct                                  -- (the deck's app says the same shares: Tools/Apps/Recap.lua)
 
 -- ---------------------------------------------------------------- rivals
 -- Arn, 12 Oct, after three hunters killed him: "if i click on the player they get added to my
@@ -424,6 +425,7 @@ local function place()
   if sub ~= "" and sub ~= zone then return sub end
   return zone
 end
+RC.Place = place
 
 -- WHAT THE TRACKER LAST SAW, AND WHY IT STAYED QUIET (12 Oct 2026). Arn, with Hunting Moms on his
 -- target: "dont think i got a notification or sound". /bist recap why prints this. Kept in three
@@ -2316,6 +2318,49 @@ function RC.PaintView(db)
   return detail
 end
 
+--- WHAT KIND: physical and magic, the magic named by its biggest school; hidden amounts skipped.
+function RC.Kinds(s)
+  local phys, magic, bySchool = 0, 0, {}
+  for _, h in ipairs(s.hits) do
+    if h.amount then
+      if h.school == 1 or (h.school == nil and h.spell == "melee") then phys = phys + h.amount
+      elseif h.school then
+        magic = magic + h.amount
+        local nm = RC.SCHOOLS[h.school] or "magic"
+        bySchool[nm] = (bySchool[nm] or 0) + h.amount
+      end
+    end
+  end
+  local topSchool, topAmt = nil, 0
+  for nm, v in pairs(bySchool) do if v > topAmt then topSchool, topAmt = nm, v end end
+  return phys, magic, "magic" .. (topSchool and topSchool ~= "magic" and (" - mostly " .. topSchool) or "")
+end
+
+--- One hit in words: what it was, and how much ("melee crit 22 blk", "27 +14").
+function RC.HitWords(h)
+  local tag = h.spell
+  if h.crit then tag = tag .. " crit" end
+  if h.blocked and h.blocked > 0 then tag = tag .. (" %d blk"):format(h.blocked) end
+  local amt = h.amount and tostring(h.amount) or "?"
+  if h.overkill and h.overkill > 0 then amt = amt .. (" +%d"):format(h.overkill) end
+  return tag, amt
+end
+
+--- The total line.
+function RC.Foot(s)
+  if s.whole and s.seconds then
+    -- MORE DAMAGE THAN HEALTH is not a bug: the record keeps the hits, not your heals (Arn, killed
+    -- by three hunters from 361 health while 1047 landed). Said, so it does not read as one.
+    -- the overkill landed on nobody: 306 with 14 over, from 292, is not a heal (Ragefire, 12 Oct)
+    local over = (s.blow and s.blow.overkill and s.blow.overkill > 0) and s.blow.overkill or 0
+    local healed = s.startHP and (s.total - over) > s.startHP
+    return ("%d damage in %.1f seconds%s"):format(s.total, s.seconds, healed and " - you healed through some of it" or "")
+  elseif s.seconds then
+    return ("damage in %.1f seconds (some amounts hidden)"):format(s.seconds)
+  end
+  return ""
+end
+
 function RC.Paint(s)
   local f = RC.win
   if not f then return end
@@ -2346,24 +2391,10 @@ function RC.Paint(s)
     if a then paintBar(r, a.title, a.class, a.whole and a.total or nil, s.total, a == s.killer and "warn" or "muted")
     else paintBar(r) end
   end
-  -- WHAT KIND: physical and magic, the magic named by its biggest school; hidden amounts skipped
-  local phys, magic, bySchool = 0, 0, {}
-  for _, h in ipairs(s.hits) do
-    if h.amount then
-      if h.school == 1 or (h.school == nil and h.spell == "melee") then phys = phys + h.amount
-      elseif h.school then
-        magic = magic + h.amount
-        local nm = RC.SCHOOLS[h.school] or "magic"
-        bySchool[nm] = (bySchool[nm] or 0) + h.amount
-      end
-    end
-  end
-  local topSchool, topAmt = nil, 0
-  for nm, v in pairs(bySchool) do if v > topAmt then topSchool, topAmt = nm, v end end
+  local phys, magic, magicWord = RC.Kinds(s)
   local sum = phys + magic
   paintBar(f.kind[1], phys > 0 and "physical" or nil, nil, phys, sum, "ink2")
-  paintBar(f.kind[2], magic > 0 and ("magic" .. (topSchool and topSchool ~= "magic" and (" - mostly " .. topSchool) or "")) or nil,
-    nil, magic, sum, "accent")
+  paintBar(f.kind[2], magic > 0 and magicWord or nil, nil, magic, sum, "accent")
   paintBar(f.kind[3])
 
   -- the strip: oldest hit on the left
@@ -2392,12 +2423,8 @@ function RC.Paint(s)
       local ago = (newestT and h.t) and (newestT - h.t) or nil
       r.ago:SetText(ago and ("-%.1fs"):format(ago) or "")
       fitText(r.who, h.name or "?", 66)
-      local tag = h.spell
-      if h.crit then tag = tag .. " crit" end
-      if h.blocked and h.blocked > 0 then tag = tag .. (" %d blk"):format(h.blocked) end
+      local tag, amt = RC.HitWords(h)
       fitText(r.what, tag, 84)
-      local amt = h.amount and tostring(h.amount) or "?"
-      if h.overkill and h.overkill > 0 then amt = amt .. (" +%d"):format(h.overkill) end
       r.amt:SetText(amt)
       local c = (i == 1) and "warn" or (h.crit and "gold" or "ink2")
       local cr, cg, cb = F.color(c) r.amt:SetTextColor(cr, cg, cb, 1)
@@ -2405,19 +2432,7 @@ function RC.Paint(s)
       r.ago:SetText("") r.who:SetText("") r.what:SetText("") r.amt:SetText("")
     end
   end
-  if s.whole and s.seconds then
-    -- MORE DAMAGE THAN HEALTH is not a bug: the record keeps the hits, not your heals (Arn, killed
-    -- by three hunters from 361 health while 1047 landed). Said, so it does not read as one.
-    -- the overkill landed on nobody: 306 with 14 over, from 292, is not a heal (Ragefire, 12 Oct)
-    local over = (s.blow and s.blow.overkill and s.blow.overkill > 0) and s.blow.overkill or 0
-    local healed = s.startHP and (s.total - over) > s.startHP
-    f.foot:SetText(("%d damage in %.1f seconds%s"):format(s.total, s.seconds,
-      healed and " - you healed through some of it" or ""))
-  elseif s.seconds then
-    f.foot:SetText(("damage in %.1f seconds (some amounts hidden)"):format(s.seconds))
-  else
-    f.foot:SetText("")
-  end
+  f.foot:SetText(RC.Foot(s))
 end
 
 -- ---------------------------------------------------------------- the rivals & pals window

@@ -424,6 +424,7 @@ function C.Pull()
   C.cur.gap, C.cur.skull = C.TargetGap()
   C.cur.mh, C.cur.oh = mh, oh
   C.cur.wfAura, C.cur.ftAura = C.AuraUp("Windfury Totem"), C.AuraUp("Flametongue Totem")   -- (a party member's totems)
+  C.cur.grp = C.Grouped() or nil
   C.TapeClear()
   if C.activeTicker and C.activeTicker.Cancel then C.activeTicker:Cancel() end
   if C_Timer and C_Timer.NewTicker then C.activeTicker = C_Timer.NewTicker(C.ACTIVE_EVERY, C.ActiveTick) end
@@ -532,9 +533,12 @@ function C.Close(cur)
   local ok, s = pcall(D.GetCombatSessionFromID, sid, dmgType)
   if not (ok and type(s) == "table") then return why("fight " .. sid .. " would not open") end
   local mine
+  local all, people = 0, 0                                   -- (everybody's: told beside yours in a group, never ranked)
   pcall(function()
     for _, src in ipairs(s.combatSources or {}) do
-      if plain(src.isLocalPlayer) == true then mine = src break end
+      if plain(src.isLocalPlayer) == true then mine = mine or src end
+      local amt = plain(src.totalAmount)
+      if type(amt) ~= "number" then all = nil elseif all and amt > 0 then all, people = all + amt, people + 1 end
     end
   end)
   local dmg = mine and plain(mine.totalAmount)
@@ -581,15 +585,17 @@ function C.Close(cur)
                 active = active, how = how,
                 imbue = imbue, totems = totems, combo = C.Label(imbue, set),
                 wf = dmg > 0 and wf / dmg or 0, ft = dmg > 0 and ft / dmg or 0, spells = C.TopSpells(spells, dmg),
-                procs = cur.procs, mixed = mixed or nil, swings = cur.beats, gap = cur.gap, skull = cur.skull }
+                procs = cur.procs, mixed = mixed or nil, swings = cur.beats, gap = cur.gap, skull = cur.skull,
+                grp = cur.grp or C.Grouped() or nil }
+  if rec.grp and all and people > 1 and all >= dmg then rec.group, rec.groupN = all / dur, people end
   d.fights = d.fights or {}
   d.fights[#d.fights + 1] = rec
-  while #d.fights > C.KEEP do table.remove(d.fights, 1) end
+  C.Trim(d)
   C.lastWhy = ("kept fight %d: %s, %d s (%s %s), %d dps"):format(sid, rec.combo, math.floor(dur + 0.5),
     active and math.floor(active + 0.5) .. " s" or "-", rec.how, math.floor(dmg / C.Time(rec) + 0.5))
   rec.foreign = cur.foreign
   C.MeterCheck(rec)
-  if d.card ~= false then C.ShowCard(rec) end
+  if d.card ~= false and C.Counts(rec) and not (NS.DeckPages and NS.DeckPages.CardSeen and NS.DeckPages.CardSeen("BiSTools:tool-combo")) then C.ShowCard(rec) end
   if C.IsOpen() then C.Paint() end
   return rec
 end
@@ -624,6 +630,96 @@ function C.TopSpells(list, dmg)
   return out
 end
 
+-- ---------------------------------------------------------------- which fights count
+--[[ IN A PARTY YOUR DPS IS NOT THE COMBO'S (Arn, 22 Nov 2026: "combo in a party for it messed up my best combo completly" - a
+  Maraudon night as the healer: 60 damage on one mob, 369 on Theradras, 217 of the 300 fights kept, and the solo ones pushed out
+  of the 300). A fight in a group (or any instance) is marked `grp` and kept apart: the ranking, TRY NEXT, the boxes and the card
+  are over the fights that COUNT - solo ones unless you say otherwise ("fights that count": solo / group / all), and only those
+  you swung in for most of it, with a few swings (one swing beside a fire totem read as 1117 dps). Solo and group fights each
+  have their own room in the save. The proc rate stays over all of them: a proc per swing is a proc per swing. ]]
+C.KEEP_GROUP = 300
+C.UPTIME, C.LEAST_SWINGS, C.SURE = 0.5, 3, 3
+--- With others: a party, a raid, or an instance (plain answers only; a hidden one = with others).
+function C.Grouped()
+  local function yes(fn)
+    if type(fn) ~= "function" then return false end
+    local ok, v = pcall(fn)
+    if not ok then return false end
+    if issecretvalue and issecretvalue(v) then return true end
+    return v and true or false
+  end
+  return yes(IsInGroup) or yes(IsInRaid) or yes(function() return (IsInInstance()) end)
+end
+--- Which fights count: what you said, else AUTO (Arn, 22 Nov: "in a party should we switch the top number to group dps?" - "go with the
+--- small group"): your group fights while you are with others, your solo ones otherwise. Never both in one ranking.
+function C.Scope()
+  local s = db().scope
+  if s == "group" or s == "all" or s == "solo" then return s end
+  local at = GetTime and GetTime() or 0
+  if C.scopeAt ~= at then C.scopeAt, C.scopeNow = at, C.Grouped() and "group" or "solo" end
+  return C.scopeNow
+end
+--- Did you swing for most of it? (a record from before this was kept says nothing: it counts)
+function C.Swung(f)
+  if f.swings and f.swings < C.LEAST_SWINGS then return false end
+  if f.active and f.active > 0 then return (f.dur or 0) <= 0 or f.active / f.dur >= C.UPTIME end
+  return true
+end
+-- (no imbue and no totems at all is no combo - Arn's list, 22 Nov: his best was dungeon fights of Lightning Bolt and Flame Shock)
+function C.Counts(f)
+  if not f.imbue and type(f.totems) == "table" and #f.totems == 0 then return false end
+  if (f.dur or 0) < C.Min() or not C.Swung(f) then return false end
+  local s = C.Scope()
+  if s == "all" then return true end
+  return (f.grp and true or false) == (s == "group")
+end
+--- How many count, and how many were with others.
+function C.CountKept()
+  local n, g = 0, 0
+  for _, f in ipairs(db().fights or {}) do
+    if C.Counts(f) then n = n + 1 end
+    if f.grp then g = g + 1 end
+  end
+  return n, g
+end
+--- The newest C.KEEP solo fights and C.KEEP_GROUP with others: neither kind pushes the other out.
+function C.Trim(d)
+  local f = d.fights or {}
+  local left = { solo = C.KEEP, group = C.KEEP_GROUP }
+  for i = #f, 1, -1 do
+    local k = f[i].grp and "group" or "solo"
+    left[k] = left[k] - 1
+    if left[k] < 0 then table.remove(f, i) end
+  end
+end
+--- Fights kept before this: no mark. Guessed ONCE, from what they say themselves - a boss, or hardly any swinging, with more of
+--- the same around it (a run): everything in those minutes was with others.
+C.SORT_NEAR = 600
+function C.SortOld(d)
+  if d.sorted then return 0 end
+  d.sorted = 1
+  local f, odd, n = d.fights or {}, {}, 0
+  for i, x in ipairs(f) do
+    if type(x.at) == "number" and x.at > 0 and x.grp == nil then
+      odd[i] = (type(x.mob) == "string" and x.mob:find("^%(!%)") ~= nil) or not (x.active and (x.dur or 0) > 0 and x.active / x.dur >= C.UPTIME)
+    end
+  end
+  for i, x in ipairs(f) do
+    if odd[i] ~= nil then
+      local near, bad = 0, 0
+      for j, y in ipairs(f) do
+        if j ~= i and odd[j] ~= nil and math.abs(y.at - x.at) <= C.SORT_NEAR then
+          near = near + 1
+          if odd[j] then bad = bad + 1 end
+        end
+      end
+      if (odd[i] and bad >= 2) or (bad >= 3 and bad * 2 >= near) then x.guess = true n = n + 1 end
+    end
+  end
+  for _, x in ipairs(f) do if x.guess then x.grp, x.guess = "guess", nil end end
+  return n
+end
+
 -- ---------------------------------------------------------------- the ranking
 function C.Min() return tonumber(db().min) or C.MIN end
 --- The time a fight's DPS is counted over: the time you were swinging, else (none measured) the fight's length.
@@ -632,7 +728,7 @@ function C.Time(f) return (f.active and f.active > 0) and f.active or f.dur end
 function C.Rank()
   local by, list = {}, {}
   for _, f in ipairs(db().fights or {}) do
-    if (f.dur or 0) >= C.Min() then
+    if C.Counts(f) then
       local g = by[f.combo]
       if not g then g = { combo = f.combo, n = 0, dmg = 0, dur = 0, adjDmg = 0, imbue = f.imbue, totems = f.totems } by[f.combo] = g list[#list + 1] = g end
       g.n, g.dmg, g.dur = g.n + 1, g.dmg + f.dmg, g.dur + C.Time(f)
@@ -644,7 +740,15 @@ function C.Rank()
     g.adj = g.dur > 0 and g.adjDmg / g.dur or 0
   end
   -- (sorted by the ADJUSTED dps: a combo tried on harder mobs is not ranked down for it)
-  table.sort(list, function(a, b) if a.adj ~= b.adj then return a.adj > b.adj end return a.dps > b.dps end)
+  -- (and one lucky fight never beats a proven combo: under C.SURE fights it stands after those that have them)
+  local any = false
+  for _, g in ipairs(list) do if g.n >= C.SURE then any = true end end
+  table.sort(list, function(a, b)
+    local sa, sb = not any or a.n >= C.SURE, not any or b.n >= C.SURE
+    if sa ~= sb then return sa end
+    if a.adj ~= b.adj then return a.adj > b.adj end
+    return a.dps > b.dps
+  end)
   return list
 end
 --[[ TRY NEXT (17 Nov 2026, Arn: "it seems Flametongue Totem is best with WF imbue ... or is there a combination I am not
@@ -658,7 +762,7 @@ C.TRY = {
   earth = { "Strength of Earth Totem" },
   air = { "Grace of Air Totem", "Windfury Totem" },
 }
-C.TRY_ENOUGH = 5
+C.TRY_ENOUGH = 3                            -- (as many as a combo needs to stand on top, C.SURE; Arn, 22 Nov: "1/3 fights or something")
 --- Do you know this spell? (by name: the client's spell info, then whether it is yours)
 function C.Knows(name)
   if not (C_Spell and C_Spell.GetSpellInfo) then return false end
@@ -1310,8 +1414,9 @@ function C.Paint()
   local tiles, last = C.StatTiles(C.sel or (list[1] and list[1].combo))
   for i, t in ipairs(f.tiles or {}) do C.PaintTile(t, tiles[i]) end
   f.detail:SetText(last or (#list > 0 and "click a combo: its numbers" or "no fights yet - fight something with an imbue and totems up"))
-  f.foot:SetText(C.Min() > 0 and ("%d fights kept  ·  fights under %d s are not counted"):format(#(db().fights or {}), C.Min())
-    or ("%d fights kept  ·  dps over the time you swing"):format(#(db().fights or {})))
+  local kn, kg = C.CountKept()
+  f.foot:SetText(("%d %s count  ·  %d with others kept apart%s"):format(kn, C.Scope() == "solo" and "solo fights" or C.Scope() == "group" and "group fights" or "fights",
+    kg, C.Min() > 0 and ("  ·  none under %d s"):format(C.Min()) or ""))
   f.foot:SetTextColor(F().color("dim"))
   if C.forgetArm and C.Armed(C.forgetArm) then
     local n = 0
@@ -1332,7 +1437,7 @@ function C.StatLines(combo)
   local n, dmg, secs, best, wfDmg, sw, wfP, ftP, lastF = 0, 0, 0, 0, 0, 0, 0, 0, nil
   local fbP = 0
   for _, fi in ipairs(db().fights or {}) do
-    if fi.combo == combo and (fi.dur or 0) >= C.Min() then
+    if fi.combo == combo and C.Counts(fi) then
       n = n + 1
       local t = C.Time(fi)
       dmg, secs = dmg + (fi.dmg or 0), secs + t
@@ -1357,7 +1462,7 @@ function C.StatLines(combo)
   end
   local gaps, gn = 0, 0
   for _, fi in ipairs(db().fights or {}) do
-    if fi.combo == combo and fi.gap ~= nil and (fi.dur or 0) >= C.Min() then gaps, gn = gaps + fi.gap, gn + 1 end
+    if fi.combo == combo and fi.gap ~= nil and C.Counts(fi) then gaps, gn = gaps + fi.gap, gn + 1 end
   end
   if gn > 0 then
     local avg = gaps / gn
@@ -1416,7 +1521,7 @@ function C.StatTiles(combo)
   local out = {}
   local n, dmg, secs, best, wfDmg, sw, wfP, ftP, fbP, lastF, gaps, gn = 0, 0, 0, 0, 0, 0, 0, 0, 0, nil, 0, 0
   for _, fi in ipairs(combo and db().fights or {}) do
-    if fi.combo == combo and (fi.dur or 0) >= C.Min() then
+    if fi.combo == combo and C.Counts(fi) then
       n = n + 1
       local t = C.Time(fi)
       dmg, secs = dmg + (fi.dmg or 0), secs + t
@@ -1527,6 +1632,16 @@ function C.SendDeck(totems)
   end
   say("combo: the deck said no (%s)", tostring(ok and why or a))
   return false
+end
+--- The row onto the healing deck (Arn, 22 Nov: "update healing deck click and it sets my healing deck row out of combat so i can drop
+--- during combat"): set = { fire, earth, water, air = a totem's name or false }, and which Call its CALL button drops.
+function C.SendRow(set, call)
+  if not C.DeckCan() then return false, C.DeckMissing() end
+  if InCombatLockdown and InCombatLockdown() then return false, "Out of a fight only" end
+  local ok, a, why = pcall(BiSHealingAPI.SetTotems, set)
+  if not (ok and a) then return false, "The deck said no: " .. tostring(ok and why or a) end
+  if call and type(BiSHealingAPI.SetCall) == "function" then pcall(BiSHealingAPI.SetCall, call) end
+  return true, "Your healing deck drops these now"
 end
 function C.PaintTry()
   local tr = C.frame and C.frame.try
@@ -2664,12 +2779,17 @@ R:Register({
       get = function(d) return d.tapeStyle == "clean" end, set = function(d, v) d.tapeStyle = v and "clean" or "receipt" C.StyleChanged() end },
     { kind = "step", label = "shortest fight counted", help = "0 = every fight counts (a long fight weighs more than a short one). Above 0, shorter fights are kept but not ranked.",
       min = 0, max = 60, step = 5, get = function(d) return tonumber(d.min) or C.MIN end,
-      set = function(d, v) d.min = v if C.IsOpen() then C.Paint() end end, show = function(d) return (tonumber(d.min) or C.MIN) .. " s" end },
+      set = function(d, v) d.min = v == 0 and 0 or v if C.IsOpen() then C.Paint() end end,
+      show = function(d) local v = tonumber(d.min) or C.MIN return (v == 0 and 0 or v) .. " s" end },
+    { kind = "seg", label = "fights that count", values = { "auto", "solo", "group", "all" },
+      help = "Solo and group fights are never in one ranking. auto = your group fights while you are in a group, your solo ones otherwise. solo / group = always those, all = both.",
+      get = function(d) return (d.scope == "group" or d.scope == "all" or d.scope == "solo") and d.scope or "auto" end,
+      set = function(d, v) d.scope = v ~= "auto" and v or nil C.scopeAt = nil if C.IsOpen() then C.Paint() end end },
     { kind = "button", label = "the combo list", button = "open",
       help = "Every imbue + totem combo you fought with, ranked by damage per second, with how many fights each is based on.",
       action = function(d) C.db = d C.Toggle(true) end },
   },
-  OnInit = function(_, d) C.db = d end,
+  OnInit = function(_, d) C.db = d C.SortOld(d) end,
   OnLogin = function(_, d)
     C.db = d
     if d.open and R:Enabled("combo") then C.Toggle(true) end       -- (it was up when you left: up again)

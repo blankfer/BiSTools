@@ -77,6 +77,7 @@ local function classOf(u)
   local ok, _, cls = pcall(UnitClass, u)
   return ok and plain(cls) or nil
 end
+W.ClassOf = classOf                                    -- (the deck's app asks too: Tools/Apps/Windfury.lua)
 --- A shaman in your party (your raid group's party too), or you are one.
 function W.ShamanNear()
   if classOf("player") == "SHAMAN" then return true end
@@ -376,6 +377,7 @@ local function nameOf(u)
   n = ok and plain(n) or nil
   return (type(n) == "string" and n ~= "") and n or u
 end
+W.NameOf = nameOf
 function W.Log(e)
   local d = db()
   d.log = d.log or {}

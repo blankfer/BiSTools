@@ -2,4 +2,7 @@
 	<Binding name="BISTOOLS_OVERLAYMAP" header="BISTOOLS" category="ADDONS">
 		BiSTools_ToggleOverlayMap()
 	</Binding>
+	<Binding name="BISTOOLS_DECK" category="ADDONS">
+		BiSTools_ToggleDeck()
+	</Binding>
 </Bindings>

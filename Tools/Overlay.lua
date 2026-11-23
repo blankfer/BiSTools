@@ -49,10 +49,10 @@ function O.MapID()
   return ok and num(id) or nil
 end
 
---- Your spot on this map, 0-1 each way, or nil (hidden, an instance, no map).
-function O.Where(mapID)
+--- Your spot on this map (or a groupmate's), 0-1 each way, or nil (hidden, an instance, no map).
+function O.Where(mapID, unit)
   if not (mapID and C_Map and C_Map.GetPlayerMapPosition) then return nil end
-  local ok, pos = pcall(C_Map.GetPlayerMapPosition, mapID, "player")
+  local ok, pos = pcall(C_Map.GetPlayerMapPosition, mapID, unit or "player")
   if not ok or pos == nil or hidden(pos) then return nil end
   local ok2, x, y = pcall(function() return pos:GetXY() end)
   if ok2 then
@@ -324,6 +324,7 @@ local function groupUnits()
   for i = 1, raid and n or math.min(4, n - 1) do out[#out + 1] = (raid and "raid" or "party") .. i end
   return out
 end
+O.GroupUnits = groupUnits
 
 --- One dot (the i-th of the pool) at a map spot, with a small name in its colour.
 local function dot(i, x, y, c, nm, size)
@@ -402,6 +403,7 @@ end
 O.GUILD = { r = 1.00, g = 0.62, b = 0.10 }   -- the family's guild amber (guild rivals wear it too)
 
 local function commLib() return NS.Comm and NS.Comm.Lib and NS.Comm.Lib() end
+O.CommLib = commLib
 
 function O.Sharing()
   local l = commLib()

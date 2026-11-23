@@ -149,6 +149,7 @@ function API.Rides(map)
       id = s.id, name = s.name, ship = s.ship, kind = s.kind, to = s.toName,
       timed = sc ~= nil, docked = sc and sc.docked or false, left = sc and sc.left or nil,
       by = sc and sc.by or nil, via = sc and sc.via or nil, age = sc and sc.age or nil,
+      sure = sc and RD.Confidence(sc, s) or nil,             -- 0-100: how likely the clock is still right
       line = lib:RideLine(s, sc),
     }
   end
