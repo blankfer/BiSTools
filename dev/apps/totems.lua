@@ -175,6 +175,30 @@ return function(H)
       C.Knows = function(n) return n == "Flametongue Totem" or kn3(n) end
       R:SetEnabled("combo", true)
       press(row()[2].fly[2].act)                             -- (Magma on the fire place)
+      -- the client's secure handlers, as far as the card uses them (WrapScript, frame refs, a state driver): recorded, run below
+      local keepCF, keepRef, keepRSD, keepWS = _G.CreateFrame, rawget(_G, "SecureHandlerSetFrameRef"), rawget(_G, "RegisterStateDriver"), rawget(_G, "SecureHandlerWrapScript")
+      local wrapped, drivers = {}, {}
+      _G.SecureHandlerWrapScript = function(b, script, header, pre, post)
+        assert(header == TC.header, "wrapped by the card's header")
+        wrapped[#wrapped + 1] = { b = b, script = script, pre = pre, post = post }
+      end
+      _G.SecureHandlerSetFrameRef = function(b, k, to) b.refs = b.refs or {} b.refs[k] = to end
+      _G.RegisterStateDriver = function(fr, state, cond) drivers[#drivers + 1] = { fr = fr, state = state, cond = cond } end
+      -- a snippet runs as the game runs it: `self` a handle (Show/Hide legal in a fight), refs, the mouse, [combat] and Shift
+      local function handle(fr)
+        if not fr then return nil end
+        return { Show = function() fr.shown = true end, Hide = function() fr.shown = false end, IsShown = function() return fr.shown end,
+          IsVisible = function() return fr.shown end, IsUnderMouse = function() return fr.under and true or false end,
+          GetFrameRef = function(_, k) return handle(fr.refs and fr.refs[k]) end,
+          SetAttribute = function(_, k, v) fr.attrs[k] = v end, GetAttribute = function(_, k) return fr.attrs[k] end }
+      end
+      local function snip(code, fr, newstate)
+        local fn = assert(loadstring(code))
+        setfenv(fn, { self = handle(fr), newstate = newstate, PlayerInCombat = function() return W.combat and true or false end,
+          IsShiftKeyDown = function() return W.shift and true or false end })
+        return fn()
+      end
+      local function wrapOf(b, script) for _, w in ipairs(wrapped) do if w.b == b and w.script == script then return w end end end
       cdb.bar = nil
       TC.Paint()
       ok(not (TC.frame and TC.frame:IsShown()), "off until switched on")
@@ -200,10 +224,14 @@ return function(H)
       low[1].item.act.ok = okFn
       TC.Paint()
       -- Shift over a totem: the others pop out; a click there drops it and puts it on the row
+      ok(TC.secure == "ready" and TC.header and f.cols[2] and not f.cols[2]:IsShown() and #f.cols[2].b == 3 and f.cols[1].b[1],
+        "every icon's pop-out built and aimed before it is wanted, hidden", tostring(TC.secure))
       W.shift = true
       top[2]:GetScript("OnEnter")(top[2])
-      local fb = f.flyB
-      ok(f.fly:IsShown() and fb[1]:IsShown() and fb[1].inFly and #row()[2].fly == 3 and fb[3]:IsShown(), "Shift over a totem: its kind pops out", #fb)
+      local col = f.cols[2]
+      local fb = col.b
+      ok(col:IsShown() and fb[1]:IsShown() and fb[1].inFly and #row()[2].fly == 3 and fb[3]:IsShown() and not f.cols[1]:IsShown(), "Shift over a totem: its kind pops out", #fb)
+      f.fly = col
       -- it stays open while the mouse is on it or its icon, by the frame's own IsMouseOver (Arn: "holding shift does not pop out" -
       -- the global was missing on Forever and it shut itself at once); gone = closed, after a moment's grace
       local keepMO = rawget(_G, "MouseIsOver")
@@ -211,18 +239,20 @@ return function(H)
       local overFly, overIcon = false, true
       f.fly.IsMouseOver = function() return overFly end
       top[2].IsMouseOver = function() return overIcon end
-      f.fly.scripts.OnUpdate(f.fly)
+      local watch = TC.watch
+      ok(watch:IsShown(), "out of a fight its watcher looks at the mouse while it is open")
+      watch.scripts.OnUpdate(watch)
       ok(f.fly:IsShown(), "the mouse still on its icon: open, with no MouseIsOver at all")
       overIcon, overFly = false, true
-      W.now = W.now + 1 f.fly.scripts.OnUpdate(f.fly)
+      W.now = W.now + 1 watch.scripts.OnUpdate(watch)
       ok(f.fly:IsShown(), "the mouse moved up onto the pop-out: open")
       overFly = false
-      f.fly.scripts.OnUpdate(f.fly)
+      watch.scripts.OnUpdate(watch)
       ok(f.fly:IsShown(), "one frame off it (the gap between icon and column): still open")
-      overFly = true W.now = W.now + 0.1 f.fly.scripts.OnUpdate(f.fly)
-      overFly = false W.now = W.now + 0.2 f.fly.scripts.OnUpdate(f.fly)
+      overFly = true W.now = W.now + 0.1 watch.scripts.OnUpdate(watch)
+      overFly = false W.now = W.now + 0.2 watch.scripts.OnUpdate(watch)
       ok(f.fly:IsShown(), "back on it in between: the wait starts again")
-      W.now = W.now + TC.OFF + 0.01 f.fly.scripts.OnUpdate(f.fly)
+      W.now = W.now + TC.OFF + 0.01 watch.scripts.OnUpdate(watch)
       ok(not f.fly:IsShown() and TC.why:find("mouse left", 1, true), "off both for a moment: closed, and why says so", TC.why)
       _G.MouseIsOver, f.fly.IsMouseOver, top[2].IsMouseOver = keepMO, nil, nil
       top[2]:GetScript("OnEnter")(top[2])
@@ -243,19 +273,59 @@ return function(H)
       -- Shift pressed with the mouse already on it
       top[1]:GetScript("OnEnter")(top[1])
       TC.events.scripts.OnEvent(TC.events, "MODIFIER_STATE_CHANGED", "LSHIFT", 1)
-      ok(f.fly:IsShown() and fb[1].attrs.spell1 == row()[1].fly[1].act.spell, "Shift pressed over the imbue: the imbues pop out")
-      -- a fight: put away before the lockdown, nothing touched in it, painted after
+      ok(f.cols[1]:IsShown() and f.cols[1].b[1].attrs.spell1 == row()[1].fly[1].act.spell, "Shift pressed over the imbue: the imbues pop out")
+      top[1]:GetScript("OnLeave")(top[1])
+      -- out of a fight the snippets stand aside (the plain code does it)
+      W.shift = true
+      TC.CloseFly()
+      snip(TC.SNIP_ENTER, top[2])
+      ok(not col:IsShown(), "out of a fight: the snippets stand aside")
+      -- A FIGHT (Arn: "how is blizz able to pop them out during a fight" - "yes build it"): put away before the lockdown...
       TC.events.scripts.OnEvent(TC.events, "PLAYER_REGEN_DISABLED")
-      ok(not f.fly:IsShown(), "a pull: the pop-out away first")
+      ok(not col:IsShown() and not f.cols[1]:IsShown(), "a pull: the pop-outs away first")
       fighting, W.combat = true, true
-      top[1]:GetScript("OnEnter")(top[1])
-      TC.events.scripts.OnEvent(TC.events, "MODIFIER_STATE_CHANGED", "LSHIFT", 1)
-      ok(pcall(TC.Paint) and not f.fly:IsShown() and TC.late, "in a fight: nothing aimed, nothing popped out")
+      ok(pcall(TC.Paint) and TC.late, "in a fight the plain code touches nothing")
+      -- ...and the game's own snippets do it: wrapped on every top icon and every pop-out icon
+      ok(wrapOf(top[2], "OnEnter") and wrapOf(top[2], "OnLeave") and wrapOf(fb[1], "OnLeave") and wrapOf(fb[1], "OnClick") and wrapOf(fb[1], "OnClick").post,
+        "the snippets wrapped: Shift-over, mouse-off, the pick")
+      ok(top[2].refs.fly == col and fb[1].refs.src == top[2] and fb[1].refs.fly == col and TC.header.refs.top2 == top[2] and TC.header.refs.fly2 == col,
+        "each knows its column and its icon")
+      W.shift = false
+      snip(TC.SNIP_ENTER, top[2])
+      ok(not col:IsShown(), "in a fight, no Shift: nothing")
+      W.shift = true
+      snip(TC.SNIP_ENTER, top[2])
+      ok(col:IsShown(), "in a fight, Shift over a totem: its column")
+      top[2].under, col.under = false, true
+      snip(TC.SNIP_LEAVE, top[2])
+      ok(col:IsShown(), "the mouse up onto the column: open")
+      local pick
+      for _, b in ipairs(fb) do if b:IsShown() and b.attrs.spell1 == "Magma Totem" then pick = b end end
+      ok(pick, "Magma there, aimed before the pull")
+      local _, msg = snip(TC.SNIP_PICK, pick)
+      ok(top[2].attrs.spell1 == "Magma Totem" and top[2].attrs.type1 == "spell" and msg, "a pick in a fight: the row's icon now drops Magma", top[2].attrs.spell1)
+      snip(TC.SNIP_PICKED, pick)
+      ok(not col:IsShown(), "and the column closes after the cast")
+      pick:GetScript("PostClick")(pick, "LeftButton", false)
+      ok(top[2].pic.file == pick.item.pic and pick.item.pic ~= nil, "its picture onto the row at once", tostring(top[2].pic.file))
+      ok(TC.queue and TC.queue[1] == pick.item and row()[2].word == "Flametongue", "the phone hears of it after the fight, not now")
+      -- Shift pressed with the mouse already on it: the state driver
+      local dr
+      for _, x in ipairs(drivers) do if x.fr == TC.header and x.state == "shift" then dr = x end end
+      ok(dr and dr.cond:find("mod:shift", 1, true) and TC.header.attrs["_onstate-shift"] == TC.SNIP_SHIFT, "a state driver on Shift, its snippet on the header")
+      top[1].under = true
+      snip(TC.SNIP_SHIFT, TC.header, "down")
+      ok(f.cols[1]:IsShown() and not col:IsShown(), "Shift pressed with the mouse on the imbue: the imbues")
+      top[1].under, f.cols[1].under = false, false
+      snip(TC.SNIP_LEAVE, top[1])
+      ok(not f.cols[1]:IsShown(), "the mouse off both: closed")
       fighting, W.combat = false, false
       TC.events.scripts.OnEvent(TC.events, "PLAYER_REGEN_ENABLED")
       W.runAfters(1)
-      ok(TC.late == nil and f:IsShown(), "after it: painted again")
-      top[1]:GetScript("OnLeave")(top[1])
+      ok(TC.late == nil and f:IsShown() and TC.queue == nil and row()[2].word == "Magma" and top[2].attrs.spell1 == "Magma Totem",
+        "after it: the fight's pick onto the phone's row, painted again", row()[2].word)
+      W.shift = false
+      _G.CreateFrame, _G.SecureHandlerSetFrameRef, _G.RegisterStateDriver, _G.SecureHandlerWrapScript = keepCF, keepRef, keepRSD, keepWS
       -- the deck tab on the right (Arn: "send to bis heling deck ... on the right side"): only with BiS Healing there
       local api0 = rawget(_G, "BiSHealingAPI")
       _G.BiSHealingAPI = nil
@@ -266,7 +336,7 @@ return function(H)
       TC.Paint()
       ok(f.deck:IsShown() and f.deck.state.text:find("SEND", 1, true), "BiS Healing there: the deck tab, SEND", f.deck.state.text)
       f.deck.scripts.OnClick(f.deck)
-      ok(got2 and got2.fire == "Flametongue Totem", "a click: the row's totems onto the healing deck", got2 and got2.fire)
+      ok(got2 and got2.fire == "Magma Totem", "a click: the row's totems onto the healing deck (Magma, picked in the fight)", got2 and got2.fire)
       W.runAfters(1)
       ok(f.deck.state.text:find("ON", 1, true), "and then it says ON", f.deck.state.text)
       _G.BiSHealingAPI = api0

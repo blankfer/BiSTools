@@ -17,8 +17,14 @@
 -- pop-out, so the right side): the same tab on the right, the phone's "Update healing deck" - a click sends the row's four totems
 -- and its Call to BiS Healing's deck; ON when the deck has them. Only with BiS Healing there (C.DeckCan).
 --
--- SECURE BUTTONS: everything is aimed, shown, moved and popped out OUT OF A FIGHT only; in one the card stays as it was and its
--- buttons still cast what they hold. The pop-out closes at PLAYER_REGEN_DISABLED (the lockdown has not started yet), a drag ends
+-- SECURE BUTTONS: everything is aimed, shown and moved OUT OF A FIGHT only; in one the card stays as it was and its buttons
+-- still cast what they hold.
+-- IN A FIGHT TOO (Arn: "how is blizz able to pop them out during a fight" - "yes build it"): the game's own totem bar way. Every
+-- pop-out is BUILT AND AIMED before the pull - one column per icon of the top row, hidden - and small SECURE SNIPPETS (run by the
+-- game itself, legal in a fight) show one: Shift over an icon (its OnEnter, wrapped), or Shift pressed with the mouse already on it
+-- (a state driver on [mod:shift]). The mouse off both = closed (OnLeave, wrapped). A pick casts, and the snippet re-aims the row's
+-- icon at it, so the next click drops the new one; the picture follows, and the phone hears of it after the fight. Out of a fight
+-- the snippets stand aside (they ask [combat]) and the plain code below does it, as before. The pop-out closes at PLAYER_REGEN_DISABLED (the lockdown has not started yet), a drag ends
 -- there too. Painted on events only - a fight saved, a row changed, the bars, the weapon, the group - never on a timer; the pop-out
 -- watches the mouse with an OnUpdate only while it is open. Off until switched on (`/bist combo bar`, or the phone's SETTINGS).
 local _, NS = ...
@@ -86,7 +92,16 @@ local function button(parent, name)
   end)
   b:SetScript("PostClick", function(self, _, down)
     local it = self.item
-    if down or fighting() or not it then return end
+    if down or not it then return end
+    if fighting() then                                      -- (a pick in a fight: its picture on the row now, the phone later)
+      if self.inFly and self.src then
+        pcall(self.src.pic.SetTexture, self.src.pic, it.pic)
+        TC.queue = TC.queue or {}
+        TC.queue[#TC.queue + 1] = it
+        note("picked in a fight: " .. tostring(it.word))
+      end
+      return
+    end
     local a = it.act
     if self.inFly and type(a) == "table" and type(a.fn) == "function" then pcall(a.fn) end   -- (a pick: onto the row)
     if type(a) == "table" and type(a.after) == "function" then pcall(a.after) end
@@ -197,22 +212,23 @@ function TC.Build()
   end)
   k:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
   f.deck = k
-  f.top, f.low, f.flyB = {}, {}, {}
-  f.fly = CreateFrame("Frame", nil, f)
-  f.fly.bg = tex(f.fly, "BACKGROUND", "line2")
-  f.fly.bg:SetAllPoints(f.fly)
-  f.fly:SetFrameLevel((f:GetFrameLevel() or 1) + 5)
-  f.fly:Hide()
-  f.fly:SetScript("OnUpdate", function()                    -- (only while it is open: the mouse gone = closed)
+  f.top, f.low, f.cols = {}, {}, {}
+  -- the watcher: out of a fight, the open column's mouse check (shown only while one is open; a fight's is the snippets')
+  TC.watch = TC.watch or CreateFrame("Frame")
+  TC.watch:Hide()
+  TC.watch:SetScript("OnUpdate", function()
+    if fighting() then return end
     local from = TC.flyFrom
+    local col = from and f.cols[from.slot]
     local now = GetTime and GetTime() or 0
     if TC.flyAt and now - TC.flyAt < TC.GRACE then return end
     -- (Arn, 23 Nov: "as soon as i move off the first totem the pop out totems go away": one frame in the gap between the icon and
     -- the column closed it. Now a margin round both, and the mouse must stay off a moment.)
-    if TC.Over(f.fly) or TC.Over(from) then TC.offAt = nil return end
+    if TC.Over(col) or TC.Over(from) then TC.offAt = nil return end
     TC.offAt = TC.offAt or now
     if now - TC.offAt >= TC.OFF then TC.CloseFly("the mouse left it") end
   end)
+  TC.Secure(f)
   f:SetScript("OnHide", function() TC.EndDrag() end)
   TC.frame = f
   TC.Place()
@@ -238,37 +254,143 @@ function TC.EndDrag()
 end
 
 -- ------------------------------------------------------------------ the pop-out
---- Shift over an icon of the top row: the others of its kind over it (the phone's own list). Out of a fight only.
+local FIGHT = [[
+  local fight = (PlayerInCombat and PlayerInCombat()) or (SecureCmdOptionParse and SecureCmdOptionParse("[combat] y; n") == "y")
+]]
+local SHIFT = [[
+  local shift = (IsShiftKeyDown and IsShiftKeyDown()) or (SecureCmdOptionParse and SecureCmdOptionParse("[mod:shift] y; n") == "y")
+]]
+--- Shift over a top icon, in a fight: its column.
+TC.SNIP_ENTER = FIGHT .. SHIFT .. [[
+  if not (fight and shift) then return end
+  local c = self:GetFrameRef("fly")
+  if c then c:Show() end
+]]
+--- The mouse off a top icon or a pop-out icon, in a fight: the column closes when the mouse is on neither.
+TC.SNIP_LEAVE = FIGHT .. [[
+  if not fight then return end
+  local c, s = self:GetFrameRef("fly"), self:GetFrameRef("src")
+  if c and c:IsShown() and not c:IsUnderMouse(true) and not (s and s:IsUnderMouse(true)) then c:Hide() end
+]]
+--- A pick (before its cast): the row's icon now drops this one. Its message has the column close after the cast.
+TC.SNIP_PICK = [[
+  local s, spell = self:GetFrameRef("src"), self:GetAttribute("spell1")
+  if s and spell then s:SetAttribute("type1", "spell") s:SetAttribute("spell1", spell) end
+  return nil, "picked"
+]]
+TC.SNIP_PICKED = [[
+  local c = self:GetFrameRef("fly")
+  if c then c:Hide() end
+]]
+--- Shift pressed with the mouse already on a top icon, in a fight (a state driver on [mod:shift], on the header).
+TC.SNIP_SHIFT = FIGHT .. [[
+  if newstate ~= "down" or not fight then return end
+  for i = 1, 8 do
+    local b, c = self:GetFrameRef("top" .. i), self:GetFrameRef("fly" .. i)
+    if b and c and b:IsVisible() and b:IsUnderMouse(true) then c:Show() end
+  end
+]]
+
+--- The secure header, once, out of a fight. No header, no wrapping = the pop-out only out of a fight (TC.secure says why).
+function TC.Secure()
+  if TC.header or fighting() then return end
+  local okH, h = pcall(CreateFrame, "Frame", "BiSToolsTotemCardHeader", UIParent, "SecureHandlerStateTemplate")
+  -- (the globals, not the template's methods: the fence's Forever baseline has SecureHandlerWrapScript / SecureHandlerSetFrameRef,
+  -- and no SetFrameRef method)
+  if not (okH and h) then TC.secure = "no secure header on this client" return end
+  if not (SecureHandlerWrapScript and SecureHandlerSetFrameRef) then TC.secure = "no secure snippets on this client" return end
+  TC.header = h
+  h:SetAttribute("_onstate-shift", TC.SNIP_SHIFT)
+  if RegisterStateDriver then pcall(RegisterStateDriver, h, "shift", "[mod:shift] down; up") end
+  TC.secure = "ready"
+end
+local function wrap(b, script, pre, post)
+  if not TC.header then return end
+  local fine = pcall(SecureHandlerWrapScript, b, script, TC.header, pre, post)
+  if not fine then TC.secure = "the game refused to wrap " .. script end
+end
+local function ref(b, label, to)
+  if TC.header and b and SecureHandlerSetFrameRef and to then pcall(SecureHandlerSetFrameRef, b, label, to) end
+end
+
+--- Column `i` over top icon `from`, built and aimed now (out of a fight): the phone's list for that icon.
+function TC.Column(f, i, from, size)
+  local col = f.cols[i]
+  if not col then
+    local okC, c = pcall(CreateFrame, "Frame", "BiSToolsTotemCardCol" .. i, f, "SecureHandlerBaseTemplate")
+    col = okC and c or CreateFrame("Frame", "BiSToolsTotemCardCol" .. i, f)
+    col.bg = tex(col, "BACKGROUND", "line2")
+    col.bg:SetAllPoints(col)
+    col:SetFrameLevel((f:GetFrameLevel() or 1) + 5)
+    col.b = {}
+    f.cols[i] = col
+  end
+  local list, gap = from.item and from.item.fly or {}, TC.GAP
+  for j, it in ipairs(list) do
+    local b = col.b[j]
+    if not b then
+      b = button(col, "BiSToolsTotemCardFly" .. i .. "_" .. j)
+      b.inFly = true
+      wrap(b, "OnLeave", TC.SNIP_LEAVE)
+      wrap(b, "OnClick", TC.SNIP_PICK, TC.SNIP_PICKED)
+      col.b[j] = b
+    end
+    dress(b, it, size)
+    b.src = from
+    ref(b, "src", from)
+    ref(b, "fly", col)
+    b:SetFrameLevel((col:GetFrameLevel() or 1) + 1)
+    b:ClearAllPoints()
+    b:SetPoint("BOTTOM", col, "BOTTOM", 0, gap + (j - 1) * (size + gap))      -- (the first nearest its icon, the game's way)
+  end
+  for j = #list + 1, #col.b do col.b[j]:Hide() end
+  col:ClearAllPoints()
+  col:SetPoint("BOTTOM", from, "TOP", 0, 0)                  -- (touching its icon: no gap to cross)
+  col:SetSize(size + 2 * gap, math.max(1, #list * (size + gap) + gap))
+  ref(from, "fly", col)
+  ref(from, "src", from)
+  ref(TC.header, "top" .. i, from)
+  ref(TC.header, "fly" .. i, col)
+  if TC.flyFrom ~= from then col:Hide() end
+  return col
+end
+
+--- Shift over an icon of the top row, out of a fight: its column (built at the paint).
 function TC.OpenFly(from)
   local f = TC.frame
-  local list = from and from.item and from.item.fly
-  if fighting() then return note("not in a fight") end
+  if fighting() then return end                              -- (in a fight the snippets do it)
   if not f then return note("no card") end
-  if type(list) ~= "table" or #list == 0 then return note("nothing else of its kind to pick") end
-  local size, gap = from:GetWidth(), TC.GAP
-  for i, it in ipairs(list) do
-    local b = f.flyB[i]
-    if not b then b = button(f.fly, "BiSToolsTotemCardFly" .. i) b.inFly = true f.flyB[i] = b end
-    dress(b, it, size)
-    b:SetFrameLevel((f.fly:GetFrameLevel() or 1) + 1)
-    b:ClearAllPoints()
-    b:SetPoint("BOTTOM", f.fly, "BOTTOM", 0, gap + (i - 1) * (size + gap))      -- (the first nearest its icon, the game's way)
-  end
-  for i = #list + 1, #f.flyB do f.flyB[i]:Hide() end
-  f.fly:ClearAllPoints()
-  f.fly:SetPoint("BOTTOM", from, "TOP", 0, 0)                -- (touching its icon: no gap to cross)
-  f.fly:SetSize(size + 2 * gap, #list * (size + gap) + gap)
+  local col = from and from.slot and f.cols[from.slot]
+  if not col or #(from.item and from.item.fly or {}) == 0 then return note("nothing else of its kind to pick") end
+  for k, c in pairs(f.cols) do if k ~= from.slot then c:Hide() end end
   TC.flyFrom = from
   TC.flyAt = GetTime and GetTime() or 0
   TC.offAt = nil
-  f.fly:Show()
-  note(("opened: %d to pick"):format(#list))
+  col:Show()
+  TC.watch:Show()
+  note(("opened: %d to pick"):format(#from.item.fly))
 end
 
 function TC.CloseFly(why)
   local f = TC.frame
   TC.flyFrom = nil
-  if f and f.fly:IsShown() and not fighting() then f.fly:Hide() if why then note("closed: " .. why) end end
+  if TC.watch then TC.watch:Hide() end
+  if not f or fighting() then return end
+  local was = false
+  for _, c in pairs(f.cols) do if c:IsShown() then was = true c:Hide() end end
+  if was and why then note("closed: " .. why) end
+end
+
+--- After a fight: the picks made in it go onto the phone's row (what the snippets already aimed).
+function TC.Settle()
+  local q = TC.queue
+  TC.queue = nil
+  for _, it in ipairs(q or {}) do
+    local a = it.act
+    if type(a) == "table" then
+      if type(a.fn) == "function" then pcall(a.fn) elseif type(a.ok) == "function" then pcall(a.ok) end
+    end
+  end
 end
 
 -- ------------------------------------------------------------------ the paint
@@ -315,15 +437,22 @@ function TC.Paint()
     local pool = r == 1 and f.top or f.low
     for i, it in ipairs(list) do
       local b = pool[i]
-      if not b then b = button(f, "BiSToolsTotemCard" .. (r == 1 and "Top" or "Low") .. i) b.top = r == 1 pool[i] = b end
+      if not b then
+        b = button(f, "BiSToolsTotemCard" .. (r == 1 and "Top" or "Low") .. i)
+        b.top, b.slot = r == 1 or nil, r == 1 and i or nil
+        if r == 1 then wrap(b, "OnEnter", TC.SNIP_ENTER) wrap(b, "OnLeave", TC.SNIP_LEAVE) end
+        pool[i] = b
+      end
       dress(b, it, size)
       b:ClearAllPoints()
       b:SetPoint("TOPLEFT", f, "TOPLEFT", x0 + (i - 1) * (size + gap), -(top + (r - 1) * (size + gap)))
+      if r == 1 then TC.Column(f, i, b, size) end
     end
     for i = #list + 1, #pool do pool[i]:Hide() end
     wide = math.max(wide, #list)
   end
   f:SetSize(x0 + wide * (size + gap) + (TC.deck and TC.TAB or 0), top + 2 * (size + gap))
+  for i = #rows[1] + 1, #f.top do if f.cols[i] then f.cols[i]:Hide() end end
   if TC.flyFrom and TC.flyFrom:IsShown() and TC.flyFrom.item and TC.flyFrom.item.fly then TC.OpenFly(TC.flyFrom) else TC.CloseFly() end
   f:Show()
   return true
@@ -356,7 +485,11 @@ ev:SetScript("OnEvent", function(_, e, a1, a2)
     return
   end
   if e == "UNIT_INVENTORY_CHANGED" and a1 ~= "player" then return end
-  if e == "PLAYER_REGEN_ENABLED" and not TC.late then return end   -- (a fight saved paints it, 1.5 s later)
+  if e == "PLAYER_REGEN_ENABLED" then
+    TC.Settle()                                              -- (picks made in the fight, onto the phone's row)
+    if TC.frame then TC.CloseFly() end
+    if not TC.late then return end                           -- (a fight saved paints it, 1.5 s later)
+  end
   TC.late = nil
   TC.Soon()
 end)
@@ -369,8 +502,8 @@ function TC.Slash(rest)
   elseif w == "size" and tonumber(v) then d.barSize = math.max(18, math.min(48, math.floor(tonumber(v))))
   elseif w == "reset" then d.barPos = nil TC.Place()
   elseif w == "why" then
-    NS.Print("totem card: %s; pop-out: %s; mouse on: %s", TC.Wanted() and "shown" or "not shown", tostring(TC.why or "never tried"),
-      TC.hover and tostring(TC.hover.item and TC.hover.item.word) or "nothing")
+    NS.Print("totem card: %s; pop-out: %s; mouse on: %s; in a fight: %s", TC.Wanted() and "shown" or "not shown", tostring(TC.why or "never tried"),
+      TC.hover and tostring(TC.hover.item and TC.hover.item.word) or "nothing", tostring(TC.secure or "not built yet"))
     return
   elseif w == "" then d.bar = not (d.bar == true) end
   TC.Paint()
