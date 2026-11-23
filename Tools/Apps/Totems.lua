@@ -189,12 +189,18 @@ function T.Open(page, slot)
   for i, x in ipairs(known()) do
     if x == page and D and D.defs["BiSTools:totems"] then
       D.defs["BiSTools:totems"].tab = i
-      pick = slot and { page = page, slot = slot } or nil
+      pick = slot and { page = page, slot = slot, from = (D.page or "home") ~= "home" and D.page ~= "BiSTools:totems" } or nil
       D.Open("BiSTools:totems")
       return true
     end
   end
   return false
+end
+--- Out of a place: to the Call, or to the app that opened it (the Combo app's icon).
+local function leave()
+  local from = pick and pick.from
+  pick = nil
+  if from and D.Back then D.Back() end
 end
 local function words(id) local n = T.Name(id) local C = NS.Combo return n and (C and C.Base and C.Base(n) or n):gsub(" Totem$", "") or nil end
 
@@ -219,16 +225,16 @@ function T.Register()
         local out = {}
         if not page then return out end
         if pick and pick.page == page then
-          out[1] = { mark = "<", text = "Back", act = { word = "back", peek = true, fn = function() pick = nil end } }
+          out[1] = { mark = "<", text = "Back", act = { word = "back", peek = true, fn = leave } }
           local now = T.Get(page, pick.slot)
           for _, id in ipairs(T.List(pick.slot)) do
             out[#out + 1] = { pic = T.Icon(id), text = words(id) or "?", verb = id == now and "HERE" or "PUT", verbInk = id == now and "good" or nil,
               act = { word = "put", peek = true, fn = function()
                 if not T.Set(page, pick.slot, id) then T.said = "The game did not take it" else T.said = nil end
-                pick = nil
+                leave()
               end } }
           end
-          out[#out + 1] = { mark = "-", text = "Nothing", verb = now and "PUT" or "HERE", act = { word = "put", peek = true, fn = function() T.Set(page, pick.slot, nil) pick = nil end } }
+          out[#out + 1] = { mark = "-", text = "Nothing", verb = now and "PUT" or "HERE", act = { word = "put", peek = true, fn = function() T.Set(page, pick.slot, nil) leave() end } }
           return out
         end
         for slot, name in ipairs(T.SLOTS) do

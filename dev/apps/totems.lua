@@ -76,9 +76,16 @@ return function(H)
     C.Knows = knows
     ok(cp.icons(1)[1][4].word == "Water" and cp.icons(1)[1][4].pic == nil and cp.icons(1)[1][2].word == "Magma", "its totems; an empty place says which", cp.icons(1)[1][2].word)
     H.Paint("combo", 1)
+    Dk.page = "BiSTools:tool-combo"
     press(cp.icons(1)[1][5].act)
     ok(Dk.page == "BiSTools:totems" and def.tab == 2 and p.rows(2)[1].text == "Back", "a totem's icon: that place, to change it", Dk.page)
     press(p.rows(2)[1].act)
+    ok(Dk.page == "BiSTools:tool-combo", "and back: to the Combo app, not home", Dk.page)
+    press(cp.icons(1)[1][5].act)
+    press(p.rows(2)[2].act)
+    ok(Dk.page == "BiSTools:tool-combo", "a totem put: back there too", Dk.page)
+    Dk.Back()
+    ok(Dk.page == "home", "then home", Dk.page)
     Dk.page = "home" Dk.Hide()
     -- TRY and LAST: their imbue and totems onto the row
     local function line(words) for _, x in ipairs(cp.rows(1)) do if x.text:find(words, 1, true) then return x end end end
