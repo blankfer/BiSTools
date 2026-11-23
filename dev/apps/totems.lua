@@ -207,9 +207,9 @@ return function(H)
       ok(TC.Paint() and TC.frame:IsShown(), "switched on: shown")
       local f = TC.frame
       local top, low = f.top, f.low
-      ok(top[1]:IsShown() and top[5]:IsShown() and top[2].attrs.type1 == "spell" and top[2].attrs.spell1 == row()[2].cast and row()[2].cast ~= nil,
-        "the top row: the imbue and four totems, a click drops the one there", top[2].attrs.spell1)
-      ok(low[1].attrs.spell1 == "Call of the Elements" and low[2].attrs.spell1 == "Call of the Spirits", "under it the Calls, each casts", low[2].attrs.spell1)
+      ok(top[1]:IsShown() and top[5]:IsShown() and top[2].attrs["*type1"] == "spell" and top[2].attrs["*spell1"] == row()[2].cast and row()[2].cast ~= nil,
+        "the top row: the imbue and four totems, a click drops the one there", top[2].attrs["*spell1"])
+      ok(low[1].attrs["*spell1"] == "Call of the Elements" and low[2].attrs["*spell1"] == "Call of the Spirits", "under it the Calls, each casts", low[2].attrs["*spell1"])
       ok(f.tab and f.tab.num.text and f.tab.num.text ~= "" and f.tab.dps.text:find("dps", 1, true), "the dps number on its tab", f.tab.num.text)
       ok(f.w > TC.TAB + 5 * TC.SIZE and f.h >= 2 * TC.SIZE and f.h < 3 * TC.SIZE, "two rows, the size of a bar", f.w .. "x" .. f.h)
       -- a Call clicked: the row goes into it first (the phone's own ok)
@@ -217,10 +217,10 @@ return function(H)
       local okFn = top[1].item and low[1].item.act.ok
       low[1].item.act.ok = function() saved = true return true end
       low[1]:GetScript("PreClick")(low[1], "LeftButton")
-      ok(saved and low[1].attrs.type1 == "spell", "a Call's click: the phone's own word first, then it casts")
+      ok(saved and low[1].attrs["*type1"] == "spell", "a Call's click: the phone's own word first, then it casts")
       low[1].item.act.ok = function() return false end
       low[1]:GetScript("PreClick")(low[1], "LeftButton")
-      ok(low[1].attrs.type1 == nil, "the phone says no: nothing is cast that click")
+      ok(low[1].attrs["*type1"] == nil, "the phone says no: nothing is cast that click")
       low[1].item.act.ok = okFn
       TC.Paint()
       -- Shift over a totem: the others pop out; a click there drops it and puts it on the row
@@ -257,14 +257,14 @@ return function(H)
       _G.MouseIsOver, f.fly.IsMouseOver, top[2].IsMouseOver = keepMO, nil, nil
       top[2]:GetScript("OnEnter")(top[2])
       local ft
-      for _, b in ipairs(fb) do if b:IsShown() and b.attrs.spell1 == "Flametongue Totem" then ft = b end end
+      for _, b in ipairs(fb) do if b:IsShown() and b.attrs["*spell1"] == "Flametongue Totem" then ft = b end end
       ok(ft, "each one there drops itself")
       ok(TC.Tip(ft):find("Click: drops it, onto the row", 1, true) and not TC.Tip(ft):find("Click: onto the row$"), "its words say what a click does on the card", TC.Tip(ft))
       ok(TC.Tip(top[2]):find("Click: drops it$") and not TC.Tip(top[2]):find("choose another", 1, true), "and the row's icon too", TC.Tip(top[2]))
       ft:GetScript("PostClick")(ft, "LeftButton", false)
       ok(row()[2].word == "Flametongue" and not f.fly:IsShown(), "a click there: onto the row, the pop-out away", row()[2].word)
       W.runAfters(1)
-      ok(top[2].attrs.spell1 == "Flametongue Totem", "and the card drops it now")
+      ok(top[2].attrs["*spell1"] == "Flametongue Totem", "and the card drops it now")
       top[2]:GetScript("OnLeave")(top[2])
       W.shift = false
       top[2]:GetScript("OnEnter")(top[2])
@@ -273,7 +273,7 @@ return function(H)
       -- Shift pressed with the mouse already on it
       top[1]:GetScript("OnEnter")(top[1])
       TC.events.scripts.OnEvent(TC.events, "MODIFIER_STATE_CHANGED", "LSHIFT", 1)
-      ok(f.cols[1]:IsShown() and f.cols[1].b[1].attrs.spell1 == row()[1].fly[1].act.spell, "Shift pressed over the imbue: the imbues pop out")
+      ok(f.cols[1]:IsShown() and f.cols[1].b[1].attrs["*spell1"] == row()[1].fly[1].act.spell, "Shift pressed over the imbue: the imbues pop out")
       top[1]:GetScript("OnLeave")(top[1])
       -- out of a fight the snippets stand aside (the plain code does it)
       W.shift = true
@@ -300,10 +300,10 @@ return function(H)
       snip(TC.SNIP_LEAVE, top[2])
       ok(col:IsShown(), "the mouse up onto the column: open")
       local pick
-      for _, b in ipairs(fb) do if b:IsShown() and b.attrs.spell1 == "Magma Totem" then pick = b end end
+      for _, b in ipairs(fb) do if b:IsShown() and b.attrs["*spell1"] == "Magma Totem" then pick = b end end
       ok(pick, "Magma there, aimed before the pull")
       local _, msg = snip(TC.SNIP_PICK, pick)
-      ok(top[2].attrs.spell1 == "Magma Totem" and top[2].attrs.type1 == "spell" and msg, "a pick in a fight: the row's icon now drops Magma", top[2].attrs.spell1)
+      ok(top[2].attrs["*spell1"] == "Magma Totem" and top[2].attrs["*type1"] == "spell" and msg, "a pick in a fight: the row's icon now drops Magma", top[2].attrs["*spell1"])
       snip(TC.SNIP_PICKED, pick)
       ok(not col:IsShown(), "and the column closes after the cast")
       pick:GetScript("PostClick")(pick, "LeftButton", false)
@@ -322,7 +322,7 @@ return function(H)
       fighting, W.combat = false, false
       TC.events.scripts.OnEvent(TC.events, "PLAYER_REGEN_ENABLED")
       W.runAfters(1)
-      ok(TC.late == nil and f:IsShown() and TC.queue == nil and row()[2].word == "Magma" and top[2].attrs.spell1 == "Magma Totem",
+      ok(TC.late == nil and f:IsShown() and TC.queue == nil and row()[2].word == "Magma" and top[2].attrs["*spell1"] == "Magma Totem",
         "after it: the fight's pick onto the phone's row, painted again", row()[2].word)
       W.shift = false
       _G.CreateFrame, _G.SecureHandlerSetFrameRef, _G.RegisterStateDriver, _G.SecureHandlerWrapScript = keepCF, keepRef, keepRSD, keepWS

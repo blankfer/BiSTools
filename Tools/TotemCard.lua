@@ -87,7 +87,7 @@ local function button(parent, name)
     local a = it.act
     if type(a) == "table" and type(a.ok) == "function" and not it.cast then
       local fine, yes = pcall(a.ok)
-      if not (fine and yes) then self:SetAttribute("type1", nil) end      -- (refused: nothing is cast this click)
+      if not (fine and yes) then self:SetAttribute("*type1", nil) end     -- (refused: nothing is cast this click)
     end
   end)
   b:SetScript("PostClick", function(self, _, down)
@@ -144,8 +144,9 @@ local function dress(b, it, size)
   b.pic:SetAlpha(it.done and 0.45 or 1)
   b.edge:SetColorTexture(T.rgb(it.lit and "gold" or (not it.soft and it.glow) or "line"))
   local spell = TC.Cast(it)
-  b:SetAttribute("type1", spell and "spell" or nil)
-  b:SetAttribute("spell1", spell)
+  -- ("*type1": any modifier too - Shift is held over the pop-out, and a Shift-click on a plain "type1" casts nothing)
+  b:SetAttribute("*type1", spell and "spell" or nil)
+  b:SetAttribute("*spell1", spell)
   b:Show()
 end
 
@@ -274,8 +275,8 @@ TC.SNIP_LEAVE = FIGHT .. [[
 ]]
 --- A pick (before its cast): the row's icon now drops this one. Its message has the column close after the cast.
 TC.SNIP_PICK = [[
-  local s, spell = self:GetFrameRef("src"), self:GetAttribute("spell1")
-  if s and spell then s:SetAttribute("type1", "spell") s:SetAttribute("spell1", spell) end
+  local s, spell = self:GetFrameRef("src"), self:GetAttribute("*spell1")
+  if s and spell then s:SetAttribute("*type1", "spell") s:SetAttribute("*spell1", spell) end
   return nil, "picked"
 ]]
 TC.SNIP_PICKED = [[
