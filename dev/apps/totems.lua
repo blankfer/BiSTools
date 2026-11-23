@@ -343,6 +343,42 @@ return function(H)
       ok(f.deck.state.text:find("ON", 1, true), "and then it says ON", f.deck.state.text)
       _G.BiSHealingAPI = api0
       TC.Paint()
+      -- THE WHEEL PICKS A RANK (Arn: "scroll wheel up to select a rank" - "yes build the wheel ranks on the card"): your ranks from
+      -- your spellbook; the card casts the one picked, by its id; the Calls stay newest
+      do
+        local keepSB, keepEnum = rawget(_G, "C_SpellBook"), rawget(_G, "Enum")
+        NAME[20], NAME[21] = "Magma Totem", "Magma Totem"
+        local book = { 3, 20, 21, 5 }                         -- (Strength of Earth, Magma 1, Magma 2, Mana Spring - as the spellbook lists them)
+        _G.C_SpellBook = { GetNumSpellBookSkillLines = function() return 1 end, GetSpellBookSkillLineInfo = function() return { itemIndexOffset = 0, numSpellBookItems = #book } end,
+          GetSpellBookItemInfo = function(i) return book[i] and { spellID = book[i] } end }
+        local sp1 = _G.C_Spell
+        _G.C_Spell = setmetatable({ GetSpellSubtext = function(id) return ({ [20] = "Rank 1", [21] = "Rank 2" })[id] end }, { __index = sp1 })
+        TC.rankCache = nil
+        cdb.barRank = nil
+        local mag = TC.Ranks("Magma Totem")
+        ok(#mag == 2 and mag[1].id == 20 and mag[2].id == 21 and mag[2].rank == 2, "your Magma ranks, read from your spellbook, lowest first", #mag)
+        TC.Paint()
+        ok(top[2].attrs["*spell1"] == 21 and top[2].rank.text == "", "the newest by default, by its id; no rank word", tostring(top[2].attrs["*spell1"]))
+        top[2].scripts.OnMouseWheel(top[2], -1)
+        ok(cdb.barRank["Magma Totem"] == 1 and top[2].attrs["*spell1"] == 20 and top[2].rank.text:find("R1", 1, true), "the wheel down: rank 1, R1 on the icon", top[2].rank.text)
+        top[2].scripts.OnMouseWheel(top[2], -1)
+        ok(top[2].attrs["*spell1"] == 20, "no lower than your lowest")
+        TC.Paint()
+        ok(top[2].attrs["*spell1"] == 20, "kept through a paint")
+        W.combat, fighting = true, true
+        top[2].scripts.OnMouseWheel(top[2], 1)
+        ok(top[2].attrs["*spell1"] == 20 and TC.why:find("not in a fight", 1, true), "in a fight: the rank stays")
+        W.combat, fighting = false, false
+        top[2].scripts.OnMouseWheel(top[2], 1)
+        ok(cdb.barRank["Magma Totem"] == nil and top[2].attrs["*spell1"] == 21, "the wheel up: the newest again")
+        TC.events.scripts.OnEvent(TC.events, "SPELLS_CHANGED")
+        ok(TC.rankCache == nil, "your spells change: read again")
+        _G.C_SpellBook, _G.C_Spell = keepSB, sp1
+        NAME[20], NAME[21] = nil, nil
+        TC.rankCache = nil
+        TC.Paint()
+        ok(top[2].attrs["*spell1"] == "Magma Totem", "no spellbook answer: by its name, as before", tostring(top[2].attrs["*spell1"]))
+      end
       -- the drag: by the tab, saved; ended by a pull
       f.tab.scripts.OnDragStart(f.tab)
       ok(f.moving, "the tab drags it")

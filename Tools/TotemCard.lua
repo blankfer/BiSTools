@@ -63,6 +63,74 @@ function TC.Cast(b)
   return nil
 end
 
+-- ------------------------------------------------------------------ ranks
+--[[ THE WHEEL PICKS A RANK (Arn, 23 Nov: "maybe when we are selecting a totem we can scroll wheel up to select a rank?" - "yes build
+  the wheel ranks on the card"). The game's totem bar offers only the newest rank of each totem (the probe, 23 Nov: Searing Rank 4,
+  Healing Stream Rank 4...), so the Calls stay newest. But a card button can cast ANY rank you know, by its spell id. Your ranks are
+  read from your own spellbook (C_SpellBook, cached till SPELLS_CHANGED); the wheel over an icon steps its rank (out of a fight),
+  db.barRank[name] = the rank number (nil = the newest), an "R2" on the icon says it is not the newest. ]]
+local function plainV(v) if v ~= nil and issecretvalue and issecretvalue(v) then return nil end return v end
+local function askV(fn, ...)
+  if type(fn) ~= "function" then return nil end
+  local ok, a = pcall(fn, ...)
+  return ok and plainV(a) or nil
+end
+--- Every rank of a spell you know, by its plain name: { { id, rank }, ... }, lowest rank first. The spellbook is read ONCE for
+--- every name (then cached till your spells change) - a read per name was a spellbook a totem.
+function TC.Ranks(name)
+  if type(name) ~= "string" then return {} end
+  if not TC.rankCache then
+    local all, B = {}, C_SpellBook
+    local bank = (Enum and Enum.SpellBookSpellBank and Enum.SpellBookSpellBank.Player) or 0
+    if B and B.GetNumSpellBookSkillLines and B.GetSpellBookSkillLineInfo and B.GetSpellBookItemInfo then
+      for line = 1, askV(B.GetNumSpellBookSkillLines) or 0 do
+        local li = askV(B.GetSpellBookSkillLineInfo, line)
+        local from, n = type(li) == "table" and plainV(li.itemIndexOffset) or 0, type(li) == "table" and plainV(li.numSpellBookItems) or 0
+        for i = from + 1, from + (n or 0) do
+          local it = askV(B.GetSpellBookItemInfo, i, bank)
+          local id = type(it) == "table" and plainV(it.spellID) or nil
+          local nm = id and askV(C_Spell and C_Spell.GetSpellName, id)
+          if type(nm) == "string" then
+            local sub = askV(C_Spell and C_Spell.GetSpellSubtext, id)
+            all[nm] = all[nm] or {}
+            table.insert(all[nm], { id = id, rank = type(sub) == "string" and tonumber(sub:match("(%d+)")) or nil })
+          end
+        end
+      end
+    end
+    for _, list in pairs(all) do
+      table.sort(list, function(a, b) if (a.rank or 0) ~= (b.rank or 0) then return (a.rank or 0) < (b.rank or 0) end return a.id < b.id end)
+    end
+    TC.rankCache = all
+  end
+  return TC.rankCache[name] or {}
+end
+--- The rank the card casts for that name: its spell id, its place in your ranks, how many you have (nil = cast by name).
+function TC.RankOf(name)
+  local list = TC.Ranks(name)
+  if #list == 0 then return nil end
+  local want = (db().barRank or {})[name]
+  for i, r in ipairs(list) do if want and r.rank == want then return r.id, i, #list end end
+  return list[#list].id, #list, #list
+end
+--- The wheel over an icon: a rank up (delta > 0) or down. Out of a fight only.
+function TC.Wheel(b, delta)
+  local it = b and b.item
+  local name = it and TC.Cast(it)
+  if not name then return end
+  if fighting() then return note("ranks: not in a fight") end
+  local list = TC.Ranks(name)
+  if #list < 2 then return note("one rank of " .. name .. " in your spellbook") end
+  local _, at = TC.RankOf(name)
+  at = math.max(1, math.min(#list, (at or #list) + (delta > 0 and 1 or -1)))
+  local d = db()
+  d.barRank = d.barRank or {}
+  d.barRank[name] = at < #list and list[at].rank or nil
+  note(("%s: rank %s of %d"):format(name, tostring(list[at].rank or at), #list))
+  TC.dress(b, it, b:GetWidth())
+  if b:GetScript("OnEnter") and GameTooltip and GameTooltip.IsOwned and GameTooltip:IsOwned(b) then b:GetScript("OnEnter")(b) end
+end
+
 -- ------------------------------------------------------------------ the frame
 local function tex(parent, layer, name)
   local t = parent:CreateTexture(nil, layer)
@@ -81,6 +149,10 @@ local function button(parent, name)
   b.pic:SetTexCoord(0.08, 0.92, 0.08, 0.92)
   b.word = b:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
   b.word:SetPoint("CENTER")
+  b.rank = b:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+  b.rank:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -1, 1)
+  if b.EnableMouseWheel then b:EnableMouseWheel(true) end                -- (made out of a fight: the wheel picks a rank)
+  b:SetScript("OnMouseWheel", function(self, delta) TC.Wheel(self, delta) end)
   b:SetScript("PreClick", function(self)
     local it = self.item
     if fighting() or not it then return end
@@ -114,6 +186,12 @@ local function button(parent, name)
       GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
       GameTooltip:SetText(TC.Tip(self))
       if self.top and self.item.fly then GameTooltip:AddLine(T.text("dim", "Shift: the others of its kind")) end
+      local name = TC.Cast(self.item)
+      local _, at, of = TC.RankOf(name)
+      if of and of > 1 then
+        local r = TC.Ranks(name)[at]
+        GameTooltip:AddLine(T.text(at < of and "gold" or "dim", ("Rank %s of %d - the wheel: another rank"):format(tostring(r.rank or at), of)))
+      end
       GameTooltip:Show()
     end
     if self.top then TC.hover = self if IsShiftKeyDown and IsShiftKeyDown() then TC.OpenFly(self) end end
@@ -144,11 +222,15 @@ local function dress(b, it, size)
   b.pic:SetAlpha(it.done and 0.45 or 1)
   b.edge:SetColorTexture(T.rgb(it.lit and "gold" or (not it.soft and it.glow) or "line"))
   local spell = TC.Cast(it)
+  local id, at, of = TC.RankOf(spell)                         -- (the rank the wheel picked; none read = by its name)
+  local r = id and TC.Ranks(spell)[at]
+  b.rank:SetText(id and at < of and T.text("gold", "R" .. tostring(r and r.rank or at)) or "")
   -- ("*type1": any modifier too - Shift is held over the pop-out, and a Shift-click on a plain "type1" casts nothing)
   b:SetAttribute("*type1", spell and "spell" or nil)
-  b:SetAttribute("*spell1", spell)
+  b:SetAttribute("*spell1", spell and (id or spell) or nil)
   b:Show()
 end
+TC.dress = dress
 
 function TC.Build()
   if TC.frame then return TC.frame end
@@ -475,8 +557,9 @@ C.CardSoon = TC.Soon
 local ev = CreateFrame("Frame")
 TC.events = ev
 for _, e in ipairs({ "PLAYER_LOGIN", "PLAYER_REGEN_DISABLED", "PLAYER_REGEN_ENABLED", "ACTIONBAR_SLOT_CHANGED", "UNIT_INVENTORY_CHANGED",
-  "GROUP_ROSTER_UPDATE", "MODIFIER_STATE_CHANGED" }) do ev:RegisterEvent(e) end
+  "GROUP_ROSTER_UPDATE", "MODIFIER_STATE_CHANGED", "SPELLS_CHANGED" }) do ev:RegisterEvent(e) end
 ev:SetScript("OnEvent", function(_, e, a1, a2)
+  if e == "SPELLS_CHANGED" then TC.rankCache = nil end        -- (a new rank: read again when next asked; then painted)
   if e == "PLAYER_REGEN_DISABLED" then                       -- (before the lockdown: the last moment to put things away)
     TC.EndDrag()
     TC.CloseFly()
