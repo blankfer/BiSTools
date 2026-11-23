@@ -218,7 +218,12 @@ return function(H)
       ok(f.fly:IsShown(), "the mouse moved up onto the pop-out: open")
       overFly = false
       f.fly.scripts.OnUpdate(f.fly)
-      ok(not f.fly:IsShown() and TC.why:find("mouse left", 1, true), "the mouse off both: closed, and why says so", TC.why)
+      ok(f.fly:IsShown(), "one frame off it (the gap between icon and column): still open")
+      overFly = true W.now = W.now + 0.1 f.fly.scripts.OnUpdate(f.fly)
+      overFly = false W.now = W.now + 0.2 f.fly.scripts.OnUpdate(f.fly)
+      ok(f.fly:IsShown(), "back on it in between: the wait starts again")
+      W.now = W.now + TC.OFF + 0.01 f.fly.scripts.OnUpdate(f.fly)
+      ok(not f.fly:IsShown() and TC.why:find("mouse left", 1, true), "off both for a moment: closed, and why says so", TC.why)
       _G.MouseIsOver, f.fly.IsMouseOver, top[2].IsMouseOver = keepMO, nil, nil
       top[2]:GetScript("OnEnter")(top[2])
       local ft

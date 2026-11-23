@@ -26,7 +26,7 @@ local T, R = NS.T, NS.Registry
 local C = NS.Combo
 if not C then return end
 
-local TC = { SIZE = 28, GAP = 2, TAB = 30, WAIT = 0.3, GRACE = 0.25 }
+local TC = { SIZE = 28, GAP = 2, TAB = 30, WAIT = 0.3, GRACE = 0.25, OFF = 0.3, MARGIN = 6 }
 NS.TotemCard = TC
 
 local function db() return C.db or R:DBFor(R:Get("combo")) end
@@ -34,8 +34,9 @@ local function db() return C.db or R:DBFor(R:Get("combo")) end
 --- shift does not pop out": with the global missing the pop-out shut itself the frame it opened).
 function TC.Over(fr)
   if not fr then return false end
-  if fr.IsMouseOver then local fine, yes = pcall(fr.IsMouseOver, fr) if fine then return yes and true or false end end
-  if MouseIsOver then local fine, yes = pcall(MouseIsOver, fr) if fine then return yes and true or false end end
+  local m = TC.MARGIN                                       -- (a little round it: the gaps between icons count as on it)
+  if fr.IsMouseOver then local fine, yes = pcall(fr.IsMouseOver, fr, m, -m, -m, m) if fine then return yes and true or false end end
+  if MouseIsOver then local fine, yes = pcall(MouseIsOver, fr, m, -m, -m, m) if fine then return yes and true or false end end
   return true                                               -- (cannot tell: left open; the next leave or a pull closes it)
 end
 local function note(why) TC.why = why end
@@ -204,8 +205,13 @@ function TC.Build()
   f.fly:Hide()
   f.fly:SetScript("OnUpdate", function()                    -- (only while it is open: the mouse gone = closed)
     local from = TC.flyFrom
-    if GetTime and TC.flyAt and GetTime() - TC.flyAt < TC.GRACE then return end
-    if not (TC.Over(f.fly) or TC.Over(from)) then TC.CloseFly("the mouse left it") end
+    local now = GetTime and GetTime() or 0
+    if TC.flyAt and now - TC.flyAt < TC.GRACE then return end
+    -- (Arn, 23 Nov: "as soon as i move off the first totem the pop out totems go away": one frame in the gap between the icon and
+    -- the column closed it. Now a margin round both, and the mouse must stay off a moment.)
+    if TC.Over(f.fly) or TC.Over(from) then TC.offAt = nil return end
+    TC.offAt = TC.offAt or now
+    if now - TC.offAt >= TC.OFF then TC.CloseFly("the mouse left it") end
   end)
   f:SetScript("OnHide", function() TC.EndDrag() end)
   TC.frame = f
@@ -250,10 +256,11 @@ function TC.OpenFly(from)
   end
   for i = #list + 1, #f.flyB do f.flyB[i]:Hide() end
   f.fly:ClearAllPoints()
-  f.fly:SetPoint("BOTTOM", from, "TOP", 0, gap)
+  f.fly:SetPoint("BOTTOM", from, "TOP", 0, 0)                -- (touching its icon: no gap to cross)
   f.fly:SetSize(size + 2 * gap, #list * (size + gap) + gap)
   TC.flyFrom = from
   TC.flyAt = GetTime and GetTime() or 0
+  TC.offAt = nil
   f.fly:Show()
   note(("opened: %d to pick"):format(#list))
 end
