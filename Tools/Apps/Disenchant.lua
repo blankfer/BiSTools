@@ -7,7 +7,15 @@ local _, NS = ...
 local DP = NS.DeckPages
 if not (DP and DP.App) then return end
 
-DP.App.disenchant = function()
+--[[ ONE APP, PROCESSING (22 Nov 2026, Arn: "there are two things that do the same thing disenchanting and processing" - "disenchanting
+  has the new stuff with the gear it belongs to" - "processing is also going to do something if they are miner that need to smelt").
+  So the Disenchant app has no icon of its own any more: its parts - the gear with its sets and levels, the SETS list, one item's page -
+  are built here and the Processing app (Tools/Apps/Processing.lua) shows them. The Disenchant tool (the Alt glow) keeps its switch,
+  under Processing's SETTINGS. ]]
+DP.App.disenchant = function() return { hidden = true } end
+
+--- The parts: { gear(), row(e), setRows(), picked(), open(e), close(), itemRows(e), itemBoxes(e), itemSay(e), itemKeys(e), keptBack(e), status(e) }.
+function DP.DisenchantParts()
   local DE, P, D = NS.DE, NS.Proc, BiSTheme.Deck
   local COLOUR = { [2] = "Green", [3] = "Blue", [4] = "Epic" }
   local TINT = { [2] = "uncommon", [3] = "rare", [4] = "epic" }
@@ -168,57 +176,24 @@ DP.App.disenchant = function()
     return out
   end
 
+  local function itemBoxes(e)
+    local _, _, _, _, req, _, _, _, _, _, sells = asks(e.link and ((C_Item and C_Item.GetItemInfo) or GetItemInfo), e.link)
+    return { { "LEVEL", e.ilvl or "-", TINT[e.quality] }, { "YOU WEAR", e.worn or "-", e.worn and e.ilvl and (e.ilvl > e.worn and "good" or "ink2") or "dim" },
+      { "NEEDS", num(req) and req > 0 and req or "-" }, { "SELLS", num(sells) and sells > 0 and money(sells) or "-", "gold" } }
+  end
+  local function itemKeys(e)
+    local out = {}
+    if e.guid and P and P.Ignore then
+      out[1] = keptBack(e) and { word = "LET GO", tip = "It may be disenchanted again", fn = function() P.Ignore({ guid = e.guid, name = e.text }) end }
+        or { word = "KEEP", tip = "Never disenchanted: it stays with you", fn = function() P.Ignore({ guid = e.guid, name = e.text }) end }
+    end
+    return out
+  end
   return {
-    page = {
-      tour = { { text = "The gear in your bags that can be disenchanted. A gold name at the right is one of your equipment sets.",
-        note = "Press an item for everything about it." }, { text = "Hold Alt over your bags: gold edge = in a set, red = soulbound, purple = free to go.", note = "SPARE is what is in no set." } },
-      kicker = function() return "what can go" end,
-      tabs = function() return { "ALL", "SPARE", "SETS" } end,
-      boxes = function()
-        local e = picked()
-        if e then
-          local _, _, _, _, req, _, _, _, _, _, sells = asks(e.link and ((C_Item and C_Item.GetItemInfo) or GetItemInfo), e.link)
-          return { { "LEVEL", e.ilvl or "-", TINT[e.quality] }, { "YOU WEAR", e.worn or "-", e.worn and e.ilvl and (e.ilvl > e.worn and "good" or "ink2") or "dim" },
-            { "NEEDS", num(req) and req > 0 and req or "-" }, { "SELLS", num(sells) and sells > 0 and money(sells) or "-", "gold" } }
-        end
-        local all, sets, bound, blue = gear(), 0, 0, 0
-        if #all == 0 then return {} end
-        for _, x in ipairs(all) do
-          if x.sets then sets = sets + 1 end
-          if x.kind == "bound" and not x.sets then bound = bound + 1 end
-          if (x.quality or 0) >= 3 then blue = blue + 1 end
-        end
-        return { { "SPARE", #all - sets, "good" }, { "IN A SET", sets, sets > 0 and "gold" or "dim" }, { "BOUND", bound, bound > 0 and "warn" or "dim" },
-          { "BLUE UP", blue, blue > 0 and "accent" or "dim" } }
-      end,
-      rows = function(tab)
-        local e = picked()
-        if e then return itemRows(e) end
-        return listRows(tab)
-      end,
-      text = function(tab)
-        if picked() then return nil end
-        if tab == 3 then
-          local _, all = DE.Sets()
-          return #all == 0 and "No equipment sets yet. Make one in the game's Equipment Manager (character window): its gear is marked here and left alone." or nil
-        end
-        if #gear() == 0 then return "Nothing to disenchant in your bags. Green, blue and epic weapons and armor show up here." end
-        if tab == 2 and #listRows(2) == 0 then return "Everything here is in one of your sets." end
-      end,
-      say = function()
-        local e = picked()
-        if e then return e.sets and "in a set: the processing app leaves it alone" or e.text end
-        return #gear() > 0 and "Hold Alt over your bags: it glows there" or nil
-      end,
-      keys = function()
-        local e, out = picked(), {}
-        if e and e.guid and P and P.Ignore then
-          out[1] = keptBack(e) and { word = "LET GO", tip = "Processing may take it again", fn = function() P.Ignore({ guid = e.guid, name = e.text }) end }
-            or { word = "KEEP", tip = "The processing app leaves this one alone", fn = function() P.Ignore({ guid = e.guid, name = e.text }) end }
-        end
-        out[#out + 1] = { word = "PROCESSING", peek = true, tip = "Where it is disenchanted, one item at a time", fn = function() D.Open("BiSTools:tool-processing") end }
-        return out
-      end,
-    },
+    gear = gear, row = row, setRows = setRows, picked = picked, itemRows = itemRows, itemBoxes = itemBoxes, itemKeys = itemKeys, keptBack = keptBack, status = status,
+    under = under, tint = function(q) return TINT[q] end,
+    open = function(e) pick = { bag = e.bag, slot = e.slot, guid = e.guid, text = e.text } D.skip = 0 end,
+    close = function() pick = nil end,
+    itemSay = function(e) return e.sets and "in a set: never disenchanted from here" or e.text end,
   }
 end

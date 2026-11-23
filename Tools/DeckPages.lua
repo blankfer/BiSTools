@@ -221,7 +221,23 @@ function DP.Page(key, tool, name, app)
     t[#t + 1] = DP.SET
     return t
   end or nil
-  out.rows = function(tab) if own(tab) then return p.rows and p.rows(tab) or {} end return DP.ToolRows(tool) end
+  out.rows = function(tab)
+    if own(tab) then return p.rows and p.rows(tab) or {} end
+    local rows = DP.ToolRows(tool)
+    -- a tool folded into this app (22 Nov: Disenchant into Processing): its switch and its options under its own heading
+    for _, k in ipairs(app and app.alsoTools or {}) do
+      local t = R:Get(k)
+      if t then
+        local tn = t.title or t.name
+        rows[#rows + 1] = { head = true, text = tn:upper(), right = "" }
+        local is = on(k)
+        rows[#rows + 1] = { text = (t.desc:sub(1, 1):upper() .. t.desc:sub(2)), right = is and "ON" or "OFF", ink = is and "good" or "dim",
+          act = { word = "switch", chip = true, fn = function() R:SetEnabled(k, not on(k)) end } }
+        for _, r in ipairs(DP.ToolRows(t)) do rows[#rows + 1] = r end
+      end
+    end
+    return rows
+  end
   out.text = function(tab) if own(tab) then return p.text and p.text(tab) or nil end return about end
   out.keys = function(tab)
     if own(tab) then return p.keys and p.keys(tab) or {} end
@@ -248,6 +264,7 @@ function DP.Tools()
       end
       D.Register{
         owner = "BiSTools", key = "tool-" .. key, name = app and app.name or name, icon = name:sub(1, 2), art = app and app.art, order = 40 + n / 100, quietOff = true,
+        hidden = app and app.hidden or nil,                    -- (folded into another app: no icon of its own)
         about = (tool.desc:sub(1, 1):upper() .. tool.desc:sub(2)) .. ".",
         state = function() return on(key) and "on" or "off" end,
         turnOn = { word = "TURN ON", fn = function() R:SetEnabled(key, true) end },

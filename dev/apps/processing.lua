@@ -34,18 +34,20 @@ return function(H)
   _G.GetProfessionInfo = function() return "Enchanting", 1, 60, 75, 1, 0, P.LINE end
   _G.IsResting = function() return resting end
   local function moment() W.now = W.now + 1 end
+  local function ready() local o = {} for _, r in ipairs(p.rows(1)) do if r.head then break end o[#o + 1] = r end return o end
   local function row(tab, words) for _, r in ipairs(p.rows(tab)) do if r.text:find(words, 1, true) then return r end end end
   local function key(tab, word) for _, b in ipairs(p.keys(tab)) do if b.word == word then return b end end end
   local function press(b) ok(type(b) == "table" and type(b.fn) == "function", "there is something to press", b and b.word) Dk.Press(def, b)() end
   moment()
 
   -- READY
-  ok(#p.tabs() == 4, "READY, LATER, HAUL and the settings")
-  local list = p.rows(1)
+  ok(#p.tabs() == 4 and p.tabs()[2] == "SETS", "READY, SETS, HAUL and the settings")
+  local list = ready()
   ok(#list == 4 and list[1].text == "Belt" and list[1].pic == 132001 and list[1].right == "CHECK" and list[2].right == "ENCH" and row(1, "Shield").right == "BOUND" and row(1, "Cloak").right == "",
     "READY: each item, and what to look twice at", #list)
   local b = p.boxes(1)
-  ok(b[1][2] == 4 and b[2][2] == 1 and b[3][2] == 0 and b[4][2] == 60, "counted")
+  ok(b[1][2] == 4 and b[2][2] == 0 and b[3][2] == 1 and b[4][2] == 60, "counted: ready, in a set, later, skill")
+  ok(p.rows(1)[5].head and p.rows(1)[5].text == "LATER" and p.rows(1)[6].text == "Sword", "LATER under READY: above your skill")
   local big = p.big(1)
   ok(big.word == "NEXT: Cloak" and Dk.IsSecure(big) and not big.fn and big.slot == 3 and big.guid == "G-C", "the next plain one, never bound, enchanted or of a mixed name; secure, so dim", big.word)
   H.Paint("processing", 1)
@@ -54,7 +56,7 @@ return function(H)
     _G.C_EquipmentSet = { GetEquipmentSetIDs = function() return { 0 } end, GetEquipmentSetInfo = function() return "DMg" end, GetItemIDs = function() return { [15] = 2002 } end }
     NS.DE.setsKept = nil
     moment()
-    ok(not row(1, "Cloak") and p.big(1) == nil and row(2, "Cloak").right == "DMg" and row(2, "Cloak").ink == "gold" and row(2, "Cloak").tip:find("In your set DMg", 1, true), "in a set: left alone")
+    ok(not row(1, "Cloak") and p.big(1) == nil and row(2, "Cloak").right == "DMg" and row(2, "Cloak").ink == "gold" and row(2, "Cloak").tip:find("In your set DMg", 1, true), "in a set: under SETS, left alone")
     local n = P.Recount()
     _G.C_EquipmentSet, NS.DE.setsKept = was, nil
     moment()
@@ -62,24 +64,26 @@ return function(H)
     NS.DE.setsKept = kept
   end
   press(row(1, "Cloak").side)
-  ok(db.ignore["G-C"] == "Cloak" and not row(1, "Cloak") and p.big(1) == nil and p.say(1):find("second look", 1, true), "SKIP leaves it alone; nothing plain is left")
+  local inReady = false
+  for _, r in ipairs(ready()) do if r.text == "Cloak" then inReady = true end end
+  ok(db.ignore["G-C"] == "Cloak" and not inReady and p.big(1) == nil and p.say(1):find("second look", 1, true), "SKIP leaves it alone; nothing plain is left")
   H.Paint("processing", 1)
 
   -- LATER
-  ok(row(2, "Sword").right == "SKILL 125" and row(2, "Sword").done and row(2, "Cloak").side.word == "BACK", "LATER: above your skill, and what you skipped")
+  ok(row(1, "Sword").right == "SKILL 125" and row(1, "Sword").done and row(1, "Cloak").side.word == "BACK", "LATER: above your skill, and what you skipped")
   H.Paint("processing", 2)
-  press(row(2, "Cloak").side)
+  press(row(1, "Cloak").side)
   ok(next(db.ignore) == nil and row(1, "Cloak"), "BACK puts it back")
   db.blocked[12] = "Requires Runed Copper Rod"
   moment()
-  ok(row(2, "Cloak").right == "ROD" and row(2, "Cloak").tip:find("Runed Copper Rod", 1, true) and not row(1, "Cloak"), "a rod the game asked for")
-  press(key(2, "NO RODS"))
-  ok(key(2, "SURE?") and next(db.blocked), "it asks first")
-  press(key(2, "SURE?"))
-  ok(next(db.blocked) == nil and row(1, "Cloak") and not key(2, "NO RODS"), "then they are forgotten")
+  ok(row(1, "Cloak").right == "ROD" and row(1, "Cloak").tip:find("Runed Copper Rod", 1, true) and not ready()[3], "a rod the game asked for")
+  press(key(1, "NO RODS"))
+  ok(key(1, "SURE?") and next(db.blocked), "it asks first")
+  press(key(1, "SURE?"))
+  ok(next(db.blocked) == nil and row(1, "Cloak") and not key(1, "NO RODS"), "then they are forgotten")
   press(row(1, "Cloak").side)
-  press(key(2, "ALL BACK"))
-  press(key(2, "SURE?"))
+  press(key(1, "ALL BACK"))
+  press(key(1, "SURE?"))
   ok(next(db.ignore) == nil and row(1, "Cloak"), "ALL BACK the same way")
   P.said = "REQUIRES A ROD"
   ok(p.say(1) == "REQUIRES A ROD", "the game's own words, as on the old window's scratchpad")
@@ -117,7 +121,7 @@ return function(H)
   _G.C_Container.GetContainerItemInfo = info
   KNOWN = false
   moment()
-  ok(#p.rows(1) == 0 and #p.boxes(1) == 0 and p.text(1):find("does not know", 1, true) and p.big(1) == nil, "not an enchanter: said")
+  ok(#p.rows(1) == 5 and p.say(1):find("Not an enchanter", 1, true) and p.big(1) == nil and not p.rows(1)[1].side, "not an enchanter: the gear, looking only, and said")
   H.Paint("processing", 1)
 
   _G.C_Container, _G.C_Item, _G.ItemLocation, _G.IsPlayerSpell = keep.cont, keep.item, keep.loc, keep.known

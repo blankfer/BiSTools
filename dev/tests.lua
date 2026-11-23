@@ -10531,9 +10531,12 @@ do
       if type(def) == "table" and Dk.defs["BiSTools:tool-" .. key] then
         ok(def.quietOff and def.about and #def.about > 10 and (def.state() == "on") == R:Enabled(key), key .. ": an icon, and it follows the tool's switch")
         local okR, list = pcall(def.page.rows, def.page.tabs and #def.page.tabs() or 1)
-        ok(okR and #list == #(tool.options or {}), key .. ": one row for each of its options", okR and #list or list)
+        local want = #(tool.options or {})
+        if key == "processing" then want = want + 2 + #(R:Get("disenchant").options or {}) end   -- (Disenchant folded in: its heading, its switch, its options)
+        ok(okR and #list == want, key .. ": one row for each of its options", okR and #list or list)
         for i, row in ipairs(okR and list or {}) do
-          rowsSeen = rowsSeen + 1
+          if not row.head then rowsSeen = rowsSeen + 1 end
+          if row.head then row = { text = row.text, act = true } end
           ok(type(row.text) == "string" and (row.act or row.less) and (row.right == nil or type(row.right) == "string"), key .. " " .. i .. ": says something and does something", row.text)
         end
       end
