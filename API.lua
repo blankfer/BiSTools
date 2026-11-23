@@ -62,10 +62,17 @@
 --   BossFace(name) -> npcId, displayId (either may be nil) for a boss by its name: the one the boss finder met there,
 --                    else the Codex's boss of that name (its names come in live, so an unknown one may answer a
 --                    second later). nil when nobody knows it.
+--
+-- Since version 8 (22 Nov 2026, for BiS Healing - Arn: "in the healing frame we can show our mvp ... kind of like how we
+-- mark who is hellfire"):
+--   BGMarks()      -> { inBG = true|false, mvps = { { name, what = "healer"|"killer" }, ... } (OUR side's best),
+--                    healers = { { name, rank = 1..3 }, ... } and killer = name|nil (THEIR side's) } - a copy of what the
+--                    battleground tool marks now (its scoreboard read), names as the scoreboard gives them. Read-only.
+--                    nil, "not ready" | "bg tool off".
 --------------------------------------------------------------------------------
 local _, NS = ...
 
-local API = { major = 1, version = 7 }
+local API = { major = 1, version = 8 }
 BiSToolsAPI = API
 
 local function Party()
@@ -258,6 +265,19 @@ function API.FoodNow()
   local item = X.pick
   if ok and show and type(item) == "number" and X.MayBeFood and X.MayBeFood(item) then return item end
   return nil, "not now"
+end
+
+function API.BGMarks()
+  local B, R = NS.BG, NS.Registry
+  if not B then return nil, "not ready" end
+  if R and R.Enabled and not R:Enabled("bg") then return nil, "bg tool off" end
+  local out = { inBG = (B.InBG and B.InBG()) and true or false, mvps = {}, healers = {} }
+  for name, what in pairs(B.mvps or {}) do if type(name) == "string" then out.mvps[#out.mvps + 1] = { name = name, what = what } end end
+  for name, rank in pairs(B.healers or {}) do if type(name) == "string" then out.healers[#out.healers + 1] = { name = name, rank = rank } end end
+  table.sort(out.healers, function(a, b) return (a.rank or 9) < (b.rank or 9) end)
+  local k = B.killer
+  out.killer = type(k) == "table" and k.name or (type(k) == "string" and k) or nil
+  return out
 end
 
 function API.BossesShow()

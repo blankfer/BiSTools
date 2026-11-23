@@ -6394,6 +6394,14 @@ do
     -- OUR MVPs (Arn: "do 2 for friendly players and just mark them MVP with the same box style" - "best
     -- healer and best killer"): Ourhealer is our best healer AND our best killer - one >MVP<
     ok(BG.mvps.Ourhealer, "our side's best healer and best killer, read off the same sorts", tostring(BG.mvps.Ourhealer))
+    do                                                    -- BiSToolsAPI v8: the marks for BiS Healing (Arn: "in the healing frame we can show our mvp")
+      local m = BiSToolsAPI.BGMarks()
+      local mine
+      for _, x in ipairs(m.mvps) do if x.name == "Ourhealer" then mine = x end end
+      ok(BiSToolsAPI.version >= 8 and m and mine and mine.what == "healer" and #m.healers >= 1 and m.healers[1].rank == 1, "BGMarks: our MVPs and their healers, a copy", m and #m.mvps)
+      m.mvps[1] = nil
+      ok(BG.mvps.Ourhealer, "editing the copy changes nothing")
+    end
     local mvp = mark("E")
     ok(mvp and mvp.kind == "mvp" and mvp.tag and mvp.text.text:find("MVP", 1, true) and mvp.text.text:find("ffd100", 1, true),
        "a friend on top wears >MVP< - the tag box, the word in gold", mvp and mvp.text and mvp.text.text)
