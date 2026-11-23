@@ -57,116 +57,130 @@ return function(H)
   ok(b.ok() == true and at[141] == 2 and at[142] == 3 and at[143] == nil and at[144] == 6 and at[133] == 1, "the click fills it first, the Elements untouched")
   local before = writes
   ok(b.ok() == true and writes == before, "again: it stands already, nothing written")
-  -- THE COMBO APP'S ICONS: the chosen Call's four totems (the water one too), and the Calls you know
+  -- THE COMBO APP'S ROW: the imbue and four totems, saved in a Call by a press on it; what agrees with a Call glows in its colour
   do
     local cp = Dk.defs["BiSTools:tool-combo"].page
     local cdb = R:DBFor(R:Get("combo"))
-    local was, fights = cdb.callNow, cdb.fights
-    cdb.callNow, cdb.fights = nil, {}
-    at[135] = 5
+    local keepDb = { callNow = cdb.callNow, fights = cdb.fights, draft = cdb.draft, callImbue = cdb.callImbue, seen = cdb.imbueSeen, names = cdb.imbueNames }
+    local we, kn = _G.GetWeaponEnchantInfo, C.Knows
+    cdb.callNow, cdb.fights, cdb.draft, cdb.callImbue, cdb.imbueSeen = nil, {}, nil, nil, nil
+    cdb.imbueNames = { [283] = "Windfury Weapon", [2] = "Frostbrand Weapon" }
+    local weapon = 283
+    _G.GetWeaponEnchantInfo = function() return weapon ~= nil, 100000, 0, weapon end
+    C.Knows = function(n) return n == "Frostbrand Weapon" or n == "Windfury Weapon" or n == "Magma Totem" or kn(n) end
+    at[133], at[134], at[135], at[136] = 1, 3, 5, 7
+    at[141], at[142], at[143], at[144] = 2, 3, nil, 6
+    T.said = nil
+    local function moment() W.now = W.now + 1 end
+    local function row() moment() return cp.icons(1)[1] end
+    local function call(i) moment() return cp.icons(1)[2][i] end
+    local function line(words) moment() for _, x in ipairs(cp.rows(1)) do if x.text:find(words, 1, true) == 1 then return x end end end
+    local function glows() local o = {} for k, x in ipairs(row()) do o[k] = x.glow or "-" end return table.concat(o, " ") end
     local ic = cp.icons(1)
-    ok(#ic == 2 and #ic[1] == 5 and #ic[2] == 2 and T.Now() == 1 and ic[2][1].lit and not ic[2][2].lit and ic[2][2].word == "Spirits", "two Calls known: the first is chosen", ic and #ic[2])
-    ok(ic[1][1].word == "No imbue" and ic[1][1].act and ic[1][2].word == "Flametongue" and ic[1][2].pic == 1001 and ic[1][3].word == "Strength" and ic[1][4].word == "Mana Spring" and ic[1][4].pic == 1005 and ic[1][5].word == "Windfury", "the imbue first, then its four totems, water too", ic[1][4].word)
-    ok(cp.hero(1).big == "NEW" and cp.hero(1).small:find("FT, SoE, WF", 1, true) and cp.hero(1).under:find("never fought", 1, true), "the number is that set-up's: not fought yet", cp.hero(1).small)
-    ok(cp.big(1) == nil and ic[2][1].act.spell == "Call of the Elements" and Dk.IsSecure(ic[2][2].act), "a Call's icon casts it; no big button beside them")
-    ok(ic[2][2].act.spell == "Call of the Spirits" and ic[2][2].act.ok() == true and T.Now() == 3 and cp.icons(1)[2][2].lit, "another: chosen by the same click")
-    local knows = C.Knows
-    C.Knows = function(n) return n == "Totemic Call" or knows(n) end
-    ok(#cp.icons(1)[2] == 3 and cp.icons(1)[2][3].act.spell == "Totemic Call", "Totemic Call beside them, when you know it")
-    C.Knows = knows
-    ok(cp.icons(1)[1][4].word == "Water" and cp.icons(1)[1][4].pic == nil and cp.icons(1)[1][2].word == "Magma", "its totems; an empty place says which", cp.icons(1)[1][2].word)
-    H.Paint("combo", 1)
-    -- a totem's icon: what fits there, under the row, in this app
+    ok(#ic == 2 and #ic[1] == 5 and #ic[2] == 2 and T.Now() == 1 and ic[1][1].word == "Windfury" and ic[1][2].word == "Flametongue" and ic[1][2].pic == 1001 and ic[1][3].word == "Strength"
+      and ic[1][4].word == "Mana Spring" and ic[1][5].word == "Windfury", "the row: the imbue, then the Call's four totems, water too", ic[1][4].word)
+    ok(glows() == "red red red red red" and call(1).glow == "red" and call(2).glow == nil and cp.say(1):find("The row is Call of the Elements (red)", 1, true), "all agrees: the row and its Call in its colour", glows())
+    ok(cp.hero(1).big == "NEW" and cp.hero(1).small:find("WF + FT, SoE, WF", 1, true) and cp.big(1) == nil and #cp.keys(1) == 0, "its number over it; no other buttons", cp.hero(1).small)
+    -- another Call, nothing changed: it comes onto the row
+    ok(call(2).act.spell == "Call of the Spirits" and Dk.IsSecure(call(2).act) and call(2).act.ok() == true, "a Call's press casts it")
+    ok(T.Now() == 3 and glows() == "accent accent accent - accent" and call(2).glow == "accent" and call(1).glow == nil and row()[4].word == "Water" and row()[4].pic == nil, "the Spirits on the row, in purple; an empty place says which", glows())
+    call(1).act.ok()
+    C.Knows = function(n) return n == "Totemic Call" or n == "Frostbrand Weapon" or n == "Windfury Weapon" or n == "Magma Totem" or kn(n) end
+    ok(#cp.icons(1)[2] == 3 and cp.icons(1)[2][3].act.spell == "Totemic Call" and not cp.icons(1)[2][3].glow, "Totemic Call beside them, when you know it")
+    -- one totem changed, in place: it and the Call glow no more
     Dk.page = "BiSTools:tool-combo"
-    press(cp.icons(1)[1][5].act)
+    press(row()[2].act)
+    moment()
     local cr = cp.rows(1)
-    ok(Dk.page == "BiSTools:tool-combo" and cr[1].text == "Air totem" and cr[2].text == "Grace of Air" and cr[2].verb == "HERE" and cr[3].text == "Windfury" and cr[3].verb == "PUT" and cr[4].text == "Nothing" and cp.icons(1)[1][5].lit, "the air totems, right there", cr[2].text)
+    ok(Dk.page == "BiSTools:tool-combo" and cr[1].text == "Fire totem" and cr[2].text == "Flametongue" and cr[2].verb == "HERE" and cr[3].text == "Magma" and cr[3].verb == "PUT" and cr[4].text == "Nothing" and row()[2].lit, "the fire totems, right there", cr[2].text)
     press(cr[3].act)
-    ok(T.Get(3, 4) == 7 and cp.rows(1)[1].mark ~= "<" and cp.icons(1)[1][5].word == "Windfury", "put: it stands on the row, the list is gone")
-    press(cp.icons(1)[1][5].act)
+    ok(at[133] == 1 and row()[2].word == "Magma" and glows() == "red - red red red" and call(1).glow == nil and call(2).glow == nil and cp.say(1):find("Changed", 1, true), "changed on the row only: that icon and the Call glow no more", glows())
+    press(row()[2].act) moment()
+    press(cp.rows(1)[2].act)
+    ok(cdb.draft == nil and glows() == "red red red red red" and call(1).glow == "red", "put back: it agrees again", glows())
+    press(row()[2].act) moment()
     press(cp.rows(1)[1].act)
+    moment()
     ok(cp.rows(1)[1].mark ~= "<", "BACK: nothing changed")
-    press(cp.icons(1)[1][5].act)
-    press(cp.icons(1)[1][5].act)
-    ok(cp.rows(1)[1].mark ~= "<", "the icon again closes it")
-    local kn = C.Knows
-    C.Knows = function(n) return n == "Frostbrand Weapon" or n == "Windfury Weapon" or kn(n) end
-    press(cp.icons(1)[1][1].act)
-    cr = cp.rows(1)
-    ok(cr[1].text == "Imbue" and cr[2].text == "Windfury Weapon" and cr[2].act.spell == "Windfury Weapon" and Dk.IsSecure(cr[3].act), "the imbue's icon: your imbues, each puts itself on", cr[2] and cr[2].text)
-    ok(cr[3].act.ok() == true and cp.icons(1)[1][1].word == "Frostbrand" and cp.rows(1)[1].mark ~= "<", "one picked: on the row", cp.icons(1)[1][1].word)
-    cdb.imbueNow, cdb.imbueSeen = nil, nil
-    C.Knows = kn
-    at[144] = 6
-    Dk.page = "home" Dk.Hide()
-    -- TRY and LAST: their imbue and totems onto the row
-    local function line(words) for _, x in ipairs(cp.rows(1)) do if x.text:find(words, 1, true) then return x end end end
-    T.Choose(1)
-    local knows2, mine = C.Knows, at[133]
-    C.Knows = function(n) return n == "Frostbrand Weapon" or n == "Windfury Weapon" or knows2(n) end
-    local function rowsOf(words) for i, x in ipairs(cp.rows(1)) do if x.text:find(words, 1, true) then return x.icons, cp.rows(1)[i + 1].icons, x end end end
-    local it, calls, tr = rowsOf("TRY")
-    ok(#it == 5 and it[1].word == "FB" and it[1].act.spell == "Frostbrand Weapon" and it[2].word == "Magma" and it[2].act == nil and it[4].word == "Windfury" == false and tr.sub == "never fought", "TRY: the imbue and the four totems, each its own press", it[1].word .. " " .. it[2].word)
-    ok(#calls == 2 and calls[2].word == "Spirits" and Dk.IsSecure(calls[2].act) and calls[2].act.spell == "Call of the Spirits", "and the Calls under it")
-    ok(#cp.keys(1) == 0, "no keys beside them")
-    ok(calls[2].act.ok() == true, "a Call there: these go in")
-    local top = cp.icons(1)[1]
-    ok(T.Now() == 3 and at[141] == 2 and at[142] == 3 and at[144] == 6 and at[133] == mine, "its totems go into the combo's own Call, the everyday one untouched", at[141])
-    ok(top[1].word == "Frostbrand" and not top[1].lit and top[2].word == "Magma" and top[4].word == "Mana Spring", "on the row: the imbue, a press puts it on; the water totem came along", top[4].word)
-    ok(cp.hero(1).small:find("FB + ", 1, true), "and the number is that set-up's", cp.hero(1).small)
-    cdb.fights = { { at = 1, mob = "Boar", dur = 10, dmg = 100, imbue = "Windfury Weapon", totems = { "Flametongue Totem", "Grace of Air Totem" }, combo = "x", wf = 0, ft = 0, spells = {} } }
-    ok(line("Last: ").verb == "SET", "the last fight: SET")
-    press(line("Last: ").act)
-    top = cp.icons(1)[1]
-    ok(top[1].word == "Windfury" and top[2].word == "Flametongue" and top[5].word == "Grace", "its imbue and totems on the row", top[1].word .. " " .. top[2].word .. " " .. top[5].word)
-    local _, _, best = rowsOf("TOP ")
-    ok(best and best.text == "TOP 1" and best.sub == "5 fights" and best.icons[5].word == "WF" and rowsOf("TOP ")[4].word == "Mana Spring", "under it the top one, the same way", best and best.text)
+    -- changed, then saved in another Call: its colour
+    press(row()[2].act) moment()
+    press(cp.rows(1)[3].act)
     refuse = true
-    local tc = select(2, rowsOf("TOP "))
-    local said = #T.CALLS
-    at[144] = 6
-    ok(tc[2].act.ok() == false, "the game refuses: nothing is cast") refuse = false
-    ok(tc[2].act.ok() == true and at[144] == 7 and cp.icons(1)[1][1].word == "Windfury", "else it is set and dropped, and is the row on top")
-    H.Paint("combo", 1)
+    ok(call(2).act.ok() == false and T.said:find("click again", 1, true), "the game refuses: nothing is cast, it says so", T.said)
+    refuse = false
+    ok(call(2).act.ok() == true and at[141] == 2 and at[142] == 3 and at[143] == 5 and at[144] == 7 and at[133] == 1, "saved in the Spirits, water too; the Elements untouched", at[143])
+    ok(T.Now() == 3 and glows() == "accent accent accent accent accent" and call(2).glow == "accent" and cdb.callImbue[3] == "Windfury Weapon" and cdb.draft == nil, "all purple: imbue and totems as set", glows())
+    -- the imbue, in place; saved with the Call
+    press(row()[1].act) moment()
+    cr = cp.rows(1)
+    ok(cr[1].text == "Imbue" and cr[2].text == "Windfury Weapon" and cr[2].right == "ON" and cr[3].act.spell == "Frostbrand Weapon" and Dk.IsSecure(cr[3].act), "the imbue's icon: your imbues, each puts itself on", cr[2] and cr[2].text)
+    ok(cr[3].act.ok() == true and row()[1].word == "Frostbrand" and glows() == "- accent accent accent accent" and call(2).glow == nil and row()[1].ink == "warn", "another imbue: only that one differs; not on the weapon yet is said", glows())
+    weapon = 2
+    ok(row()[1].ink == nil and glows():find("^%-"), "on the weapon now")
+    ok(call(1).act.ok() == true and cdb.callImbue[1] == "Frostbrand Weapon" and at[133] == 2 and T.Now() == 1 and glows() == "red red red red red", "saved in the Elements: all red", glows())
+    ok(call(2).act.ok() == true and row()[1].word == "Windfury" and row()[1].ink == "warn" and glows() == "accent accent accent accent accent", "the Spirits again: its own imbue on the row, not on the weapon yet")
+    -- imbued by hand: the row follows
+    weapon = 283
+    row()
+    weapon = 2
+    ok(row()[1].word == "Frostbrand" and T.Now() == 1 and glows() == "red red red red red", "imbued by hand: the row follows - and is what the Elements hold, so it is them", glows())
+    cdb.draft = nil
+    -- TRY, TOP and LAST: one line each, put on the row
+    cdb.fights = { { at = 1, mob = "Boar", dur = 10, dmg = 100, imbue = "Windfury Weapon", totems = { "Flametongue Totem", "Grace of Air Totem" }, combo = "x", wf = 0, ft = 0, spells = {} } }
+    moment()
+    ok(#cp.rows(1) == 3 and line("TRY").sub == "never fought" and line("TOP").sub == "1 dps, 5 fights" and line("LAST").sub == "10 dps, Boar" and not line("TRY").icons, "TRY, TOP and LAST: a line each, the icons stand on the page once", line("TOP").sub)
+    ok(line("TRY").verb == "SET" and not Dk.IsSecure(line("TRY").act), "SET: onto the row")
+    press(line("LAST").act)
+    ok(row()[1].word == "Windfury" and row()[2].word == "Flametongue" and row()[3].word == "Earth" and row()[5].word == "Grace" and row()[4].word == "Mana Spring" and line("LAST").verb == "ON IT", "its imbue and totems on the row, the water totem stays", row()[2].word .. " " .. row()[3].word)
+    ok(cp.hero(1).small:find("WF + FT, GoA", 1, true) and at[133] == 2, "and the number is that set-up's; no Call was written", cp.hero(1).small)
+    press(line("TRY").act)
+    ok(row()[1].word == "Frostbrand" and row()[2].word == "Magma" and cp.hero(1).small:find("FB + ", 1, true), "the one to try")
     -- a best combo without an imbue, and one without any totem (Arn's own list, 22 Nov: an error on his first look)
     do
       local rk = C.Rank
       C.Rank = function() return { { combo = "n", imbue = nil, totems = {}, n = 5, adj = 1, dps = 1 } } end
-      W.now = W.now + 1
+      moment()
       local fine, why = pcall(cp.rows, 1)
-      ok(fine and rowsOf("TOP ")[1].word == "No imbue" and rowsOf("TOP ")[2].word == "Fire" and pcall(cp.hero, 1) and pcall(cp.icons, 1), "no imbue, no totems: said, no error", why)
-      local call = select(2, rowsOf("TOP "))[2].act
-      ok(pcall(call.ok), "and a press on a Call there")
+      ok(fine and line("TOP") and pcall(cp.hero, 1) and pcall(cp.icons, 1), "no imbue, no totems: said, no error", why)
+      press(line("TOP").act)
+      ok(pcall(cp.icons, 1) and row()[2].word == "Fire" and call(1).act.ok() == true, "and on the row, and saved")
       C.Rank = rk
-      W.now = W.now + 1
+      moment()
     end
     -- all of it at the normal size (Arn, 22 Nov: "lets always make stuff fit the 100% size")
     do
       BiSTheme.DECK_LOGIN = true
       Dk.Store().welcomed = true
       Dk.Show()
-      Dk.W, Dk.H, Dk.shape, Dk.page = 260, 462, "portrait", "BiSTools:tool-combo"
-      Dk.defs["BiSTools:tool-combo"].tab = 1
       local was = R:Enabled("combo")
       R:SetEnabled("combo", true)
+      Dk.W, Dk.H, Dk.shape, Dk.page = 260, 462, "portrait", "BiSTools:tool-combo"
+      Dk.Store().toured = type(Dk.Store().toured) == "table" and Dk.Store().toured or {}
+      Dk.Store().toured["BiSTools:tool-combo"] = true
+      Dk.defs["BiSTools:tool-combo"].tab = 1
       Dk.Paint()
       R:SetEnabled("combo", was)
-      local seen, n = {}, 0
-      for _, w in ipairs(Dk.frame.pieces) do if w:IsShown() and w.kind == "row" then n = n + 1 elseif w:IsShown() and w.kind == "icon" then seen[#seen + 1] = w end end
-      ok(n == #cp.rows(1) and n >= 5 and #seen == 5 + 2 + 2 * (5 + 2), "260 x 462: every row and every icon is there", n .. " of " .. #cp.rows(1) .. " rows, " .. #seen .. " icons")
+      local icons, n, say = 0, 0, false
+      for _, w in ipairs(Dk.frame.pieces) do if w:IsShown() then if w.kind == "row" then n = n + 1 elseif w.kind == "icon" then icons = icons + 1 elseif w.kind == "say" then say = true end end end
+      ok(n == 3 and icons == 5 + 3 and say, "260 x 462: every row and every icon, and what the row is in words", n .. " rows, " .. icons .. " icons")
       Dk.page = "home" Dk.Hide()
       Dk.Store().open, Dk.Store().welcomed = false, nil
     end
-    cdb.imbueNow, cdb.imbueSeen = "Frostbrand Weapon", nil
-    local we, nm = _G.GetWeaponEnchantInfo, cdb.imbueNames
-    _G.GetWeaponEnchantInfo = function() return true, 100000, 0, 283 end
-    cdb.imbueNames = { [283] = "Windfury Weapon" }
-    ok(cp.icons(1)[1][1].word == "Windfury" and cp.icons(1)[1][1].lit, "imbued by hand: the row follows, lit", cp.icons(1)[1][1].word)
-    _G.GetWeaponEnchantInfo, cdb.imbueNames = we, nm
-    cdb.imbueNow, cdb.imbueSeen = nil, nil
-    C.Knows = knows2
-    cdb.callNow, cdb.fights = was, fights
-    at[135] = 5
+    -- hidden answers: no error
+    local S2 = {}
+    local is = _G.issecretvalue
+    _G.issecretvalue = function(v) return v == S2 end
+    local gi = _G.GetActionInfo
+    _G.GetActionInfo = function() return S2, S2 end
+    moment()
+    ok(pcall(cp.icons, 1) and pcall(cp.rows, 1) and pcall(cp.hero, 1) and pcall(cp.say, 1), "the bar hidden: no error")
+    _G.GetActionInfo, _G.issecretvalue = gi, is
+    for k, v in pairs({ "callNow", "fights", "draft", "callImbue" }) do cdb[v] = keepDb[v] end
+    cdb.imbueSeen, cdb.imbueNames = keepDb.seen, keepDb.names
+    _G.GetWeaponEnchantInfo, C.Knows, T.said = we, kn, nil
+    at[133], at[134], at[135], at[136] = 1, 3, 5, 7
+    at[141], at[142], at[143], at[144] = 2, 3, nil, 6
+    moment()
   end
   refuse, at[144] = true, 7 ok(b.ok() == false, "the game refuses: no cast of the wrong totems") refuse = false
   ok(b.ok() == true, "and the next click does it")

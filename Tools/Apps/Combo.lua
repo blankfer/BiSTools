@@ -148,29 +148,86 @@ DP.App.combo = function(tool, db)
     return by, order
   end
   local function cap(w) return w:sub(1, 1):upper() .. w:sub(2):lower() end
-  --[[ THE SET-UP THAT IS CHOSEN (Arn, 22 Nov: "combo DPS number huge of current selected set up, all the break down numbers when hover
-    over it , under the DPS use the totem api choose which Call of the icons" - "on top of the icons show the icons of the totems that
-    is in the current set up" - "even the water one" - "under the totem row have the 4 call buttons and it sets it and drops it"): the imbue on your weapon and the totems of the chosen Call. Its number is the
-    average of its fights; a Call's icon chooses it and drops it, a totem's icon changes that place. The fourth is Totemic Call. The imbue is
-    first on the row ("add the imbue to to top row"): a press puts it on. LAST and TRY put theirs on the row ("if i click the last it
-    should put that imbue and totems on the row"); a weapon imbued by hand is followed. ]]
+  --[[ THE ROW (Arn, 22 Nov, live): the imbue and the four totems you are working with, its dps huge over it, the Calls under it.
+    "if i click a call of the button it sends the set up to that icon" - "if everything agrees its purple, if i go and change the healing
+    totem the healing button is no longer purple and the call of the is no longer purple, now i can set it to another call of the button
+    with another color" - "elements red tint, ancestors blue, spirits purple".
+     - A Call has a colour. The row agrees with it = the Call and everything on the row glow in it.
+     - Change one (an icon opens what fits there, in place), or put TRY / TOP / LAST on the row: what is different glows no more.
+     - CHANGED, a Call's press saves the row into that Call - its totems in the game's bar, its imbue here - and drops it: all glows again.
+     - UNCHANGED, another Call's press brings that Call onto the row and drops it. (Nothing is ever written over by looking.)
+    What is changed is kept (db.draft = { imbue, t = { [place] = spell id or false } }) till it is saved; db.callImbue[Call] = its imbue.
+    A weapon imbued by hand is followed. The fourth button is Totemic Call. ]]
+  local GLOW = { "red", "rare", "accent" }                     -- (Elements, Ancestors, Spirits: the tint of their own icons)
+  local GLOW_WORD = { "red", "blue", "purple" }
+  local function calls() return NS.Totems and NS.Totems.Shaman() and NS.Totems.Can() and NS.Totems.Now() or nil end
+  local function onNow() return not (InCombatLockdown and InCombatLockdown()) and C.ImbueNow() or nil end
+  local function imbueOf(page)
+    local im = type(db().callImbue) == "table" and db().callImbue[page] or nil
+    return im or onNow() or (last() and last().imbue) or nil
+  end
+  --- What a Call holds: { imbue, t = { ids } }.
+  local function held(page)
+    local To, t = NS.Totems, {}
+    for slot = 1, 4 do t[slot] = To.Get(page, slot) or false end
+    return { imbue = imbueOf(page), t = t }
+  end
+  local function same(a, b)
+    if a.imbue ~= b.imbue then return false end
+    for slot = 1, 4 do if (a.t[slot] or false) ~= (b.t[slot] or false) then return false end end
+    return true
+  end
+  --- The row, the Call it is compared with, is it changed.
+  local function theRow()
+    local page = calls()
+    if not page then return nil end
+    local d = db().draft
+    if type(d) ~= "table" or type(d.t) ~= "table" then return held(page), page, false end
+    return d, page, true
+  end
+  --- Agrees with a Call again (the one it came from first)? Then it is that Call, and nothing is changed.
+  local function settle()
+    local d, page, changed = theRow()
+    if not changed then return end
+    if same(d, held(page)) then db().draft = nil return end
+    for _, p in ipairs(NS.Totems.Known()) do
+      if same(d, held(p)) then db().draft = nil NS.Totems.Choose(p) return end
+    end
+  end
+  local function touch(fn)
+    local r = theRow()
+    if not r then return end
+    local d = { imbue = r.imbue, t = { r.t[1], r.t[2], r.t[3], r.t[4] } }
+    fn(d)
+    db().draft = d
+    kept = {}
+    settle()
+  end
   local function setup()
     local To = NS.Totems
-    local page = To and To.Shaman() and To.Can() and To.Now() or nil
-    local on = not (InCombatLockdown and InCombatLockdown()) and C.ImbueNow() or nil
-    if on and on ~= db().imbueSeen then db().imbueSeen, db().imbueNow = on, nil end
-    local im = db().imbueNow or on
-    if not im and last() then im = last().imbue end
-    local set, names, at = {}, {}, {}
-    if page then
-      at = To.Names(page)
-      for slot = 1, 4 do local n = at[slot] if n and C.TOTEMS[n] and not set[n] then set[n] = true names[#names + 1] = n end end
+    local on = onNow()
+    if on and on ~= db().imbueSeen then                          -- (imbued by hand: the row follows)
+      local first = db().imbueSeen == nil
+      db().imbueSeen = on
+      local r = not first and theRow()
+      if r and r.imbue ~= on then touch(function(d) d.imbue = on end) end
+    end
+    local r, page, changed = theRow()
+    local set, names, at, im = {}, {}, {}, on or (last() and last().imbue)
+    if r then
+      im = r.imbue
+      for slot = 1, 4 do
+        local n = r.t[slot] and To.Name(r.t[slot]) or nil
+        at[slot] = n and C.Base(n) or nil
+        n = at[slot]
+        if n and C.TOTEMS[n] and not set[n] then set[n] = true names[#names + 1] = n end
+      end
     elseif last() then
       for _, n in ipairs(last().totems or {}) do set[n] = true names[#names + 1] = n end
     end
     local combo = C.Label(im, set)
     local k, n, g = place(combo)
-    return { page = page, imbue = im, on = on, names = names, at = at, combo = combo, k = k, of = n, g = g }
+    return { page = page, row = r, changed = changed, imbue = im, on = on, names = names, at = at, combo = combo, k = k, of = n, g = g }
   end
   local function breakdown(s)
     local out = {}
@@ -197,61 +254,76 @@ DP.App.combo = function(tool, db)
       under = s.g and (plural(s.g.n, "fight") .. (s.k and ", #" .. s.k .. " of " .. s.of or "")) or "never fought: go and fight",
       tip = long(s.imbue, s.names), lines = breakdown(s), peek = true, fn = function() opened = not opened end }
   end
-  --- Put a set-up on the row: its imbue, its totems.
+  --- Put a set-up on the row: its imbue, its totems; the water totem stays (no combo speaks of it).
   local function put(imbue, names)
-    db().imbueNow = imbue or nil
-    if NS.Totems then NS.Totems.Load(names) end
-    kept = {}
+    local To = NS.Totems
+    touch(function(d)
+      d.imbue = imbue or d.imbue
+      local by = C.CellNames(nil, names)
+      for slot, el in pairs({ [1] = "fire", [2] = "earth", [4] = "air" }) do d.t[slot] = by[el][1] and To.Find(slot, by[el][1]) or false end
+    end)
+  end
+  local function isPut(imbue, names)
+    local s = setup()
+    return s.page and C.Label(imbue, (function() local t = {} for _, n in ipairs(names or {}) do t[n] = true end return t end)()) == s.combo or false
   end
   local function setKey(imbue, names, tip)
-    local To = NS.Totems
-    if not (To and To.Shaman() and To.Can() and To.ComboPage()) then return nil end
+    if not calls() then return nil end
     return { word = "SET", peek = true, tip = tip, fn = function() put(imbue, names) end }
   end
-  --[[ TRY, and the TOP ONE (Arn, 22 Nov: "on the try next just say try: imbue and 4 totem icons can click them and have the 4 call of the
-    icons to set it" - "on the bottom of try have Tops dps and same have the imbue and totems and the 4 call of the icons"): two lines
-    of icons each - the set-up, a press casts that one; the Calls, a press puts the set-up into that Call and drops it. ]]
-  local function block(word, sub, ink, imbue, names, tip)
-    local To, s = NS.Totems, setup()
-    if not s.page then return nil end
-    local by = C.CellNames(imbue, names)
-    local function one(n, slot)
-      if not n then return slot and { word = To.SLOTS[slot], done = true, tip = To.SLOTS[slot] .. ": nothing" } or { word = "No imbue", done = true, tip = "No imbue" } end
-      return { pic = C.IconFor(n), word = C.COL_WORD[n] or C.IMBUE_SHORT[n] or To.Short(n), tip = n .. (slot and ". Click: drops it" or ". Click: puts it on your weapon"),
-        act = C.Knows(n) and { word = slot and "DROP" or "IMBUE", spell = n, peek = true } or nil }
+  local function line(word, right, ink, imbue, names, tip)
+    local on = isPut(imbue, names)
+    return { pic = C.IconFor(imbue) or 134400, text = word .. "  " .. whole(imbue, names), sub = right, tint = "ink", tip = tip, verb = on and "ON IT" or "SET", verbInk = on and "good" or ink, act = setKey(imbue, names) }
+  end
+  --- A Call's press, the last word before its cast: CHANGED = the row goes into it; unchanged = it comes onto the row.
+  local function press(page)
+    local To = NS.Totems
+    local d, _, changed = theRow()
+    if changed then
+      local bad = 0
+      for slot = 1, 4 do if not To.Set(page, slot, d.t[slot] or nil) then bad = bad + 1 end end
+      if bad > 0 then
+        To.said = bad .. " did not go into " .. To.CALLS[page].name .. ": click again"
+        NS.Print("totems: %s", To.said)
+        return false
+      end
+      db().callImbue = type(db().callImbue) == "table" and db().callImbue or {}
+      db().callImbue[page] = d.imbue
+      db().draft = nil
+      To.said = "Saved in " .. To.CALLS[page].name
+    else
+      To.said = nil
     end
-    local water = To.Get(s.page, 3)
-    local row = { one(imbue), one(by.fire[1], 1), one(by.earth[1], 2), one(s.at[3], 3), one(by.air[1], 4) }
-    local calls = {}
-    for i, page in ipairs(To.Known()) do
-      local c = To.CALLS[page]
-      calls[i] = { pic = C.IconFor(c.name) or To.Icon(c.id), word = cap(c.tab), lit = To.Holds(page, names) or nil, tip = c.name .. ". Click: these go into it, and all drop",
-        act = To.SetDrop(page, names, water, function() db().imbueNow = imbue or nil kept = {} end) }
-    end
-    if C.Knows(To.BRING) then calls[#calls + 1] = { pic = C.IconFor(To.BRING), word = "Bring", tip = To.BRING .. ": the ones that stand come to you", act = { word = "BRING", spell = To.BRING, peek = true } } end
-    return { text = word, sub = sub, ink = ink, tip = tip, icons = row }, { text = "", sub = "set in", ink = "dim", icons = calls, tip = "Puts it into that Call and drops it" }
+    To.Choose(page)
+    kept = {}
+    return true
   end
   local function icons()
     local s = setup()
     if not s.page then return nil end
     local To = NS.Totems
-    local row, calls = {}, {}
-    local isOn = s.imbue ~= nil and s.on == s.imbue
-    row[1] = { pic = C.IconFor(s.imbue), word = s.imbue and To.Short(s.imbue) or "No imbue", lit = choosing == 0 or (choosing == nil and isOn), done = s.imbue == nil,
-      tip = (s.imbue and (s.imbue .. (isOn and ": on your weapon" or ": not on your weapon")) or "No imbue") .. ". Click: choose one",
+    local row, list, ref = {}, {}, held(s.page)
+    local glow = GLOW[s.page] or "accent"
+    local there = s.imbue ~= nil and s.on == s.imbue
+    row[1] = { pic = C.IconFor(s.imbue), word = s.imbue and To.Short(s.imbue) or "No imbue", done = s.imbue == nil, ink = not there and "warn" or nil,
+      glow = s.imbue and s.imbue == ref.imbue and glow or nil, lit = choosing == 0 or nil,
+      tip = (s.imbue and (s.imbue .. (there and ": on your weapon" or ": not on your weapon yet")) or "No imbue") .. ". Click: choose one",
       act = { word = "choose", peek = true, fn = function() choosing = choosing ~= 0 and 0 or nil D.skip = 0 end } }
     for slot = 1, 4 do
-      local n = s.at[slot]
-      row[slot + 1] = { pic = n and (To.Icon(To.Get(s.page, slot)) or C.IconFor(n)) or nil, word = n and To.Short(n) or To.SLOTS[slot], done = n == nil, tip = To.SLOTS[slot] .. ": " .. (n or "nothing") .. ". Click: choose another", lit = choosing == slot or nil,
+      local n, id = s.at[slot], s.row.t[slot]
+      row[slot + 1] = { pic = n and (To.Icon(id) or C.IconFor(n)) or nil, word = n and To.Short(n) or To.SLOTS[slot], done = n == nil,
+        glow = (id or false) == ref.t[slot] and n and glow or nil, lit = choosing == slot or nil, tip = To.SLOTS[slot] .. ": " .. (n or "nothing") .. ". Click: choose another",
         act = { word = "choose", peek = true, fn = function() choosing = choosing ~= slot and slot or nil D.skip = 0 end } }
     end
     for i, page in ipairs(To.Known()) do
       local c = To.CALLS[page]
-      calls[i] = { pic = C.IconFor(c.name) or To.Icon(c.id), word = cap(c.tab), lit = page == s.page, tip = c.name .. ". Click: it is chosen, and drops all four",
-        act = { word = "DROP", spell = c.name, peek = true, ok = function() To.Choose(page) return true end } }
+      local is = not s.changed and page == s.page
+      list[i] = { pic = C.IconFor(c.name) or To.Icon(c.id), word = cap(c.tab), glow = is and (GLOW[page] or "accent") or nil,
+        tip = c.name .. (s.changed and ". Click: the row is saved in it, and drops" or is and ". The row is this one. Click: drops it" or ". Click: onto the row, and drops it"),
+        act = { word = "DROP", spell = c.name, peek = true, ok = function() return press(page) end } }
     end
-    if C.Knows(To.BRING) then calls[#calls + 1] = { pic = C.IconFor(To.BRING), word = "Bring", tip = To.BRING .. ": the ones that stand come to you", act = { word = "BRING", spell = To.BRING, peek = true } } end
-    return { row, calls }
+    if C.Knows(To.BRING) then list[#list + 1] = { pic = C.IconFor(To.BRING), word = "Bring", tip = To.BRING .. ": the ones that stand come to you", act = { word = "BRING", spell = To.BRING, peek = true } } end
+    return { row, list }
   end
   --- WHAT FITS THERE, IN PLACE (Arn, 22 Nov: "if i click imbue let me select a new imbue from there dont send me to another app. if i
   --- click a totem let me select another fire totem dont send me to another app"): the list under the row, instead of the rest.
@@ -259,58 +331,55 @@ DP.App.combo = function(tool, db)
     local s, To = setup(), NS.Totems
     if not (choosing and s.page) then choosing = nil return nil end
     local done = function() choosing = nil D.skip = 0 end
-    local out = { { mark = "<", text = choosing == 0 and "Imbue" or To.SLOTS[choosing] .. " totem", right = choosing > 0 and To.CALLS[s.page].name or nil, ink = "dim", act = { word = "back", peek = true, fn = done }, verb = "BACK" } }
+    local out = { { mark = "<", text = choosing == 0 and "Imbue" or To.SLOTS[choosing] .. " totem", act = { word = "back", peek = true, fn = done }, verb = "BACK" } }
     if choosing == 0 then
       for _, n in ipairs(C.TRY.imbue) do
         if C.Knows(n) then
-          out[#out + 1] = { pic = C.IconFor(n), text = n, right = n == s.on and "ON" or nil, ink = "good", tip = "Click: onto your weapon",
-            act = { word = "IMBUE", spell = n, peek = true, ok = function() db().imbueNow = n choosing = nil kept = {} return true end } }
+          out[#out + 1] = { pic = C.IconFor(n), text = n, right = n == s.on and "ON" or nil, ink = "good", tip = "Click: onto your weapon and the row",
+            act = { word = "IMBUE", spell = n, peek = true, ok = function() touch(function(d) d.imbue = n end) done() return true end } }
         end
       end
       return out
     end
-    local now = To.Get(s.page, choosing)
-    for _, id in ipairs(To.List(choosing)) do
-      out[#out + 1] = { pic = To.Icon(id), text = (C.Base(To.Name(id)) or "?"):gsub(" Totem$", ""), verb = id == now and "HERE" or "PUT", verbInk = id == now and "good" or nil,
-        act = { word = "put", peek = true, fn = function()
-          To.said = not To.Set(s.page, choosing, id) and "The game did not take it" or nil
-          kept = {}
-          done()
-        end } }
+    local at, now = choosing, s.row.t[choosing]
+    local function to(id) return { word = "put", peek = true, fn = function() touch(function(d) d.t[at] = id end) done() end } end
+    for _, id in ipairs(To.List(at)) do
+      out[#out + 1] = { pic = To.Icon(id), text = (C.Base(To.Name(id)) or "?"):gsub(" Totem$", ""), verb = id == now and "HERE" or "PUT", verbInk = id == now and "good" or nil, act = to(id) }
     end
-    out[#out + 1] = { mark = "-", text = "Nothing", verb = now and "PUT" or "HERE", act = { word = "put", peek = true, fn = function() To.Set(s.page, choosing, nil) kept = {} done() end } }
+    out[#out + 1] = { mark = "-", text = "Nothing", verb = now and "PUT" or "HERE", act = to(false) }
     return out
+  end
+  --- What the row is, in words (a colour is never the only sign).
+  local function rowSays()
+    local s = setup()
+    if not s.page then return nil end
+    if NS.Totems.said then return NS.Totems.said end
+    if s.changed then return "Changed. Press a Call: the row is saved in it, and drops" end
+    return "The row is " .. NS.Totems.CALLS[s.page].name .. " (" .. (GLOW_WORD[s.page] or "lit") .. ")"
   end
   local function nowRows()
     local pickList = chooseRows()
     if pickList then return pickList end
     local out, f = {}, last()
-    local lastRow
     local function add(row) out[#out + 1] = row end
-    if f then
-      lastRow = ({ pic = C.IconFor(f.imbue), mark = "-", text = "Last: " .. beside(f.imbue, f.totems), right = f.mixed and "MIXED" or "", ink = "gold",
-        tip = fightTip(f), verb = setKey() and "SET" or "OPEN", act = setKey(f.imbue, f.totems, "Its imbue and totems onto the row") or open(f.combo) })
-    end
     local c, total, untried = try()
-    local a, b
-    if c then a, b = block("TRY", c.n == 0 and "never fought" or plural(c.n, "fight"), "gold", c.imbue, c.totems, "Try next. " .. long(c.imbue, c.totems) .. ". " .. (untried or 0) .. " of " .. (total or 0) .. " combos never tried.") end
-    if a then add(a) add(b)
+    if calls() then                                              -- (one line each: the icons stand on the page once)
+      if c then add(line("TRY", c.n == 0 and "never fought" or plural(c.n, "fight"), "gold", c.imbue, c.totems, "Try next. " .. long(c.imbue, c.totems) .. ". " .. (untried or 0) .. " of " .. (total or 0) .. " combos never tried.")) end
       local top = rank()[1]
-      local x, y
-      if top then x, y = block("TOP " .. int(top.dps), plural(top.n, "fight"), "good", top.imbue, top.totems, "Your best. " .. long(top.imbue, top.totems) .. ", " .. int(top.dps) .. " dps") end
-      if x then add(x) add(y) end
-    elseif c then
-      -- (Arn, 22 Nov: "we can get rid of the imbue and drop" - one row: what to try, and one press that fills a Call with it and drops it)
-      add({ pic = C.IconFor(c.imbue), mark = ">", text = "Try: " .. beside(c.imbue, c.totems), sub = c.n == 0 and "never fought" or plural(c.n, "fight") .. " so far",         tip = "Try next. " .. long(c.imbue, c.totems) .. ". " .. (untried or 0) .. " of " .. (total or 0) .. " combos never tried." })
+      if top then add(line("TOP", int(top.dps) .. " dps, " .. plural(top.n, "fight"), "good", top.imbue, top.totems, "Your best. " .. long(top.imbue, top.totems))) end
+      if f then add(line("LAST", int(dps(f)) .. " dps, " .. (f.mob or "?") .. (f.mixed and ", mixed" or ""), "accent", f.imbue, f.totems, fightTip(f))) end
+      return out
+    end
+    if f then
+      add({ pic = C.IconFor(f.imbue), mark = "-", text = "Last: " .. beside(f.imbue, f.totems), right = f.mixed and "MIXED" or "", ink = "gold", tip = fightTip(f), verb = "OPEN", act = open(f.combo) })
+    end
+    if c then
+      add({ pic = C.IconFor(c.imbue), mark = ">", text = "Try: " .. beside(c.imbue, c.totems), sub = c.n == 0 and "never fought" or plural(c.n, "fight") .. " so far",
+        tip = "Try next. " .. long(c.imbue, c.totems) .. ". " .. (untried or 0) .. " of " .. (total or 0) .. " combos never tried." })
     elseif total then
-      local top = rank()[1]
-      local x, y
-      if top then x, y = block("TOP " .. int(top.dps), plural(top.n, "fight"), "good", top.imbue, top.totems, "Your best. " .. long(top.imbue, top.totems)) end
-      if x then add(x) add(y) end
       add({ mark = ">", text = "Every combo is tried", right = C.TRY_ENOUGH .. "+ each", ink = "good", tip = "Each has enough fights: the ranking holds" })
     end
-    if lastRow then table.insert(out, a and #out + 1 or 1, lastRow) end
-    if not a and not (InCombatLockdown and InCombatLockdown()) then       -- (the row on top says it)
+    if not (InCombatLockdown and InCombatLockdown()) then
       local im, up = C.ImbueNow(), C.ScanTotems({})
       local names = {}
       for n in pairs(up) do names[#names + 1] = n end
@@ -462,7 +531,7 @@ DP.App.combo = function(tool, db)
       end,
       say = function(tab)
         local f = last()
-        if tab == 1 and setup().page then return NS.Totems.said end
+        if tab == 1 and calls() then return rowSays() end
         if not f then return C.lastWhy end
         if tab == 1 then return (f.grp and C.Scope() == "solo" and "In a group: not counted. " or "") .. secs(f) .. (f.mob and ", " .. f.mob or "") end
         if tab == 2 and not inCombo(tab) then return "dps as if the mobs were your level (fights)" end
