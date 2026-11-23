@@ -10390,6 +10390,27 @@ do
   ok(page.rows(1)[1].done and page.rows(1)[1].pic == DP.TICK and page.rows(1)[1].tint == "good" and page.rows(1)[2].tint == "gold" and page.rows(1)[2].pic == BS.MARK_ICON .. 8 and DP.Boss().down == 1 and Dk.defs["BiSTools:bosses"].badge() == 7, "a kill: ticked, seven left")
   local st = DP.Steps()
   ok(#st == 8 and st[1].done() and not st[2].done() and st[2].phase == "BOSS", "the run as steps: the first is done")
+  -- WHICH COPY OF THE DUNGEON (Arn, 22 Nov: "had to restart the boss app, how did fojji determin it was a new dungeon")
+  do
+    local r0 = BS.run
+    r0.copy = nil
+    ok(BS.copyWatch, "inside: the copy is watched for")
+    BS.events.scripts.OnEvent(BS.events, "UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-3-4621-36-17-8004-0001ABCDEF", 8004)
+    ok(BS.run == r0 and r0.copy == "17" and not BS.copyWatch, "your first cast: this run's copy, learned; the watch stops")
+    BS.CopyWatch(true)                                     -- (a loading screen arms it again)
+    BS.events.scripts.OnEvent(BS.events, "UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-3-4621-36-17-8004-0002ABCDEF", 8004)
+    ok(BS.run == r0 and BS.run.down[D[36].bosses[1].id], "back in the same copy (a run back after a wipe): the same run, the dead stay dead")
+    BS.CopyWatch(true)
+    BS.events.scripts.OnEvent(BS.events, "UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-3-4621-389-99-8004-0003ABCDEF", 8004)
+    ok(BS.run == r0 and BS.copyWatch, "a cast of another place's id: not this dungeon, still watching")
+    local keepN, keepS = _G.GetNumLootItems, _G.GetLootSourceInfo
+    _G.GetNumLootItems = function() return 1 end
+    _G.GetLootSourceInfo = function() return "Creature-0-4621-36-23-644-0000ABC" end
+    BS.events.scripts.OnEvent(BS.events, "LOOT_READY")
+    ok(BS.run ~= r0 and BS.run.copy == "23" and next(BS.run.down) == nil and BS.said:find("fresh copy", 1, true), "a corpse of another copy: the dungeon was reset - a fresh run by itself", BS.said)
+    _G.GetNumLootItems, _G.GetLootSourceInfo = keepN, keepS
+    BS.run.down[D[36].bosses[1].id] = true                 -- (the checks after this one expect Rhahk'Zor down)
+  end
   local l = Dk.defs["BiSTools:bosses"].card.lines()
   ok(l[1] == "BOSSES" and l[3] == "Next: Sneed" and l[4] == "1 / 8" and #l.list == 3 and l.list[1][1] ~= "Sneed", "the live card, and who comes after when it is large", l[3])
   do
