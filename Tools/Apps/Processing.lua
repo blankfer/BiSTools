@@ -140,8 +140,16 @@ DP.App.processing = function(tool, db)
     for _, e in ipairs((P.Items(probe))) do
       if e.ignored and e.guid then
         seen[e.guid] = true
-        out[#out + 1] = { pic = e.icon or 134400, text = e.name, sub = e.ilvl and ("level " .. e.ilvl) or nil, bagItem = { e.bag, e.slot },
-          tip = "You keep it: never disenchanted from here.", side = ignore(e, "BACK", "Back into READY") }
+        -- the same look as READY (Arn: "give it the same treatment quality color and what set they belong to")
+        local g = slotOf(e.bag, e.slot)
+        local r = g and X.row(g) or { pic = e.icon or 134400, text = e.name, sub = e.ilvl and ("level " .. e.ilvl) or nil }
+        local sets = (g and g.sets) or e.sets
+        if type(sets) == "table" and #sets > 0 then r.sub = (r.sub and r.sub .. ", " or "") .. "set " .. table.concat(sets, ", ") end
+        r.right, r.ink, r.act = nil, nil, nil
+        r.bagItem = { e.bag, e.slot }
+        r.tip = "You keep it: never disenchanted from here." .. (type(sets) == "table" and #sets > 0 and (" In your set " .. table.concat(sets, ", ") .. ".") or "")
+        r.side = ignore(e, "BACK", "Back into READY")
+        out[#out + 1] = r
       end
     end
     for _, s in ipairs(skipped()) do                          -- (kept, but not in your bags now: sold, banked, mailed)

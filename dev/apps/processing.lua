@@ -95,6 +95,7 @@ return function(H)
   -- KEEP (Arn: "maybe put it in a hidden tab, not a set but not wanting to disenchant"): what you skipped, with its picture
   local kr = p.rows(3)
   ok(#kr == 1 and kr[1].text == "Cloak" and kr[1].pic == 132002 and kr[1].bagItem and kr[1].side.word == "BACK" and p.boxes(3)[1][2] == 1, "KEEP: the skipped Cloak, its picture, BACK", kr[1] and kr[1].text)
+  ok(kr[1].tint == "uncommon" and kr[1].sub and kr[1].sub:find("level 12", 1, true), "in its quality colour, with its level and slot, as in READY", kr[1].sub)
   H.Paint("processing", 3)
   press(kr[1].side)
   ok(next(db.ignore) == nil and row(1, "Cloak") and #p.rows(3) == 0 and p.text(3):find("Nothing kept", 1, true), "BACK: into READY again")
