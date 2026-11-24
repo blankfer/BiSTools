@@ -386,6 +386,10 @@ function W.RunMacro(text)
       if W.target and not W.target.dead then W.tmLog[#W.tmLog + 1] = { name = W.target.name, mark = tonumber(tmN) } W.target.mark = tonumber(tmN) end
     elseif pC == "@target,exists,nodead" then
       if W.target and not W.target.dead then W.pings[#W.pings + 1] = { name = W.target.name, kind = pK } end
+    elseif ln:find("^/cast %[harm,nodead%] ") then
+      if W.target and not W.target.dead and W.target.hostile ~= false then W.casts = W.casts or {} W.casts[#W.casts + 1] = { spell = ln:match("%] (.+)$"), at = W.target.name } end
+    elseif ln == "/startattack [harm,nodead]" then
+      if W.target and not W.target.dead and W.target.hostile ~= false then W.attacks = (W.attacks or 0) + 1 W.attacked = W.target.name end
     elseif tmC == "exists" and tmN then
       if W.target then W.tmLog[#W.tmLog + 1] = { name = W.target.name, mark = tonumber(tmN) } W.target.mark = tonumber(tmN) end
     elseif pC == "exists" or pC == "mod:shift,exists" then
@@ -2340,8 +2344,8 @@ do
   -- (+1 in tools, 22 Nov: the tools box, put away)
   -- (+1 in combo, 23 Nov: the totem card on screen)
   -- (+1 in disenchant, 23 Nov: the key to hold - Gargul uses Alt)
-  -- (+ questmob (0), 23 Nov: its section header, the on/off)
-  ok(#opt.rows == 12 + 3 + 5 + 7 + 1 + 8 + 2 + 4 + 7 + 4 + 4 + 5 + 1 + 1 + 1 + 1 + 3 + 2 + 4 + 2 + 6 + 3 + 2 + 1 + 1 + 3 + 1 + 1 + 1, "one row per section header and per option", #opt.rows)
+  -- (+ questmob (2), 23 Nov: tag it, the tag spell's menu - and its section header)
+  ok(#opt.rows == 12 + 3 + 5 + 7 + 1 + 8 + 2 + 4 + 7 + 4 + 4 + 5 + 1 + 1 + 1 + 1 + 3 + 2 + 4 + 2 + 6 + 3 + 2 + 1 + 1 + 3 + 1 + 1 + 3, "one row per section header and per option", #opt.rows)
   -- THE BiSTheme STANDARD, 1.43:1 (Arn, 14 Oct): its sections poured into columns, the window that shape
   ok(math.abs(opt.w / opt.h - 1.43) < 0.01 and (opt.columns or 1) >= 2, "options: 1.43:1, in columns", opt.w .. "x" .. opt.h)
   local function find(label) for _, r in ipairs(opt.rows) do if r.name and r.name.text == label then return r end end end
@@ -10626,6 +10630,12 @@ do
     local big = def.page.big(3)
     ok(big and big.word == "TARGET: Crushridge Mauler" and big.macro == QM.macro, "the big key: what your key does, pressable here", big and big.word)
     ok(def.page.big(1) == nil, "only on the QUESTS tab")
+    local ak = def.page.keys(3)[1]
+    ok(ak.word == "TAG: ATTACK" and QM.macro:find("startattack", 1, true), "the QUESTS tab: TAG: ATTACK (the default)", ak.word)
+    Dk.Press(def, ak)()                                           -- (no tag spell for this class: attack -> off)
+    ok(def.page.keys(3)[1].word == "TAG: OFF" and not QM.macro:find("startattack", 1, true), "pressed: TAG: OFF, the press only marks", def.page.keys(3)[1].word)
+    Dk.Press(def, def.page.keys(3)[1])()
+    ok(QM.Tag() == "attack" and def.page.keys(1)[1].word ~= "TAG: ATTACK", "again: attack; the other tabs keep their keys")
     Dk.Press(def, rows[3].act)()
     ok(QM.pin == "Rowdy Rose" and def.page.rows(3)[1].text == "Rowdy Rose" and QM.macro:find("^/cleartarget\n/targetexact %[noexists%] Rowdy Rose"),
        "a click on a row: it goes first, in the press too", QM.macro)
@@ -11138,9 +11148,44 @@ do
   local b = BiSToolsQuestMob
   ok(R:Enabled("questmob") and b and b.template == "SecureActionButtonTemplate", "on: one secure button")
   ok(QM.count == 2 and b.attrs.macrotext == "/cleartarget\n/targetexact [noexists] Kobold Vermin\n/cleartarget [dead]\n"
-     .. "/targetexact [noexists] Diseased Timber Wolf\n/cleartarget [dead]\n/tm [exists,nodead] !8\n/ping [@target,exists,nodead] attack",
-     "the press: every kill still needed, a corpse cleared after each, the skull and the ping on a living one", b.attrs.macrotext)
-  ok(not b.attrs.macrotext:find("startattack", 1, true), "no /startattack (Arn: \"no attack\")")
+     .. "/targetexact [noexists] Diseased Timber Wolf\n/cleartarget [dead]\n/tm [exists,nodead] !8\n/ping [@target,exists,nodead] attack\n/startattack [harm,nodead]",
+     "the press: every kill still needed, a corpse cleared after each, the skull, the ping and the attack on a living one", b.attrs.macrotext)
+  S("qm")
+  local qopt, qdb = R:Get("questmob").options[1], R:DBFor(R:Get("questmob"))
+  ok(qopt.get(qdb) == "attack", "the tag: attack by default")
+  qopt.set(qdb, "off")
+  ok(not b.attrs.macrotext:find("startattack", 1, true) and b.attrs.macrotext:find("attack$"), "tag off: no /startattack", b.attrs.macrotext)
+  -- THE SHAMAN'S TAG (Arn: "start attack or earth shock for shaman"; "let me bind the instant attack in the tools menu, maybe a drop down menu")
+  local keepUC, keepCS, keepIPS, keepMU = _G.UnitClass, _G.C_Spell, _G.IsPlayerSpell, _G.MenuUtil
+  _G.C_Spell = setmetatable({}, { __index = keepCS or {} })
+  local keepGSI = keepCS and keepCS.GetSpellInfo
+  local ids = { ["Earth Shock"] = 8042, ["Frost Shock"] = 8056 }
+  _G.UnitClass = function() return "Shaman", "SHAMAN" end
+  _G.C_Spell.GetSpellInfo = function(n) if ids[n] then return { spellID = ids[n] } end return keepGSI and keepGSI(n) end
+  _G.IsPlayerSpell = function(id) return id == 8042 or id == 8056 end
+  qopt.set(qdb, "spell")
+  ok(b.attrs.macrotext:find("/cast %[harm,nodead%] Earth Shock$") and QM.TagWord() == "EARTH SHOCK", "a shaman's tag: Earth Shock (the first known), last", b.attrs.macrotext)
+  W.plates, W.target, W.casts = { nameplate1 = { name = "Kobold Vermin" } }, nil, {}
+  W.RunMacro(b.attrs.macrotext)
+  ok(#W.casts == 1 and W.casts[1].spell == "Earth Shock" and W.casts[1].at == "Kobold Vermin", "a press: shocked, tagged")
+  local menu = {}
+  _G.MenuUtil = { CreateContextMenu = function(owner, gen)
+    local root = { CreateTitle = function(_, t) menu.title = t end, CreateRadio = function(_, t, isSel, set) menu[#menu + 1] = { t = t, sel = isSel, set = set } end }
+    gen(owner, root)
+  end }
+  ok(QM.SpellMenu() and menu.title == "Tag with" and menu[1].t == "Earth Shock" and menu[2].t == "Frost Shock" and menu[3].t == "Start attack" and menu[4].t == "Off"
+     and #menu == 4 and menu[1].sel(), "the menu: the instants you know (not Flame Shock), attack, off; Earth Shock ticked", #menu)
+  menu[2].set()
+  ok(b.attrs.macrotext:find("/cast %[harm,nodead%] Frost Shock$") and qdb.tagSpell == "Frost Shock", "picked Frost Shock: the press casts it", b.attrs.macrotext)
+  _G.MenuUtil = nil
+  ok(QM.SpellMenu() and QM.TagSpell() == "Earth Shock", "no menu in the client: a press steps to the next one")
+  _G.IsPlayerSpell = function() return false end
+  QM.Write()
+  ok(b.attrs.macrotext:find("/startattack %[harm,nodead%]$"), "no instant known (yet): attack instead")
+  _G.UnitClass, _G.C_Spell, _G.IsPlayerSpell, _G.MenuUtil = keepUC, keepCS, keepIPS, keepMU
+  W.plates, W.target, qdb.tagSpell = {}, nil, nil
+  qopt.set(qdb, "attack")
+  ok(b.attrs.macrotext:find("/startattack %[harm,nodead%]$"), "on again (the default: Arn, \"we do need the start attack ... to tag it right away\")")
   ok(not b.attrs.macrotext:find("Princess", 1, true), "a finished objective is not looked for")
   ok(not b.attrs.macrotext:find("VanCleef", 1, true), "a dungeon's quest is not looked for outside (its header is a dungeon)")
   ok(not b.attrs.macrotext:find("Lockbox", 1, true), "an item objective without QuestieDB: nobody to name")
@@ -11149,15 +11194,15 @@ do
 
   -- A PRESS: the nearest kobold is a corpse, a wolf stands - the corpse never stops it
   W.plates = { nameplate1 = { name = "Kobold Vermin", dead = true }, nameplate2 = { name = "Diseased Timber Wolf" } }
-  W.tmLog, W.pings = {}, {}
+  W.tmLog, W.pings, W.attacks, W.attacked = {}, {}, 0, nil
   W.RunMacro(b.attrs.macrotext)
   ok(W.target and W.target.name == "Diseased Timber Wolf" and #W.tmLog == 1 and W.tmLog[1].mark == 8 and #W.pings == 1
-     and W.pings[1].kind == "attack", "a press: the corpse cleared, the wolf targeted, skulled, pinged")
+     and W.pings[1].kind == "attack" and W.attacked == "Diseased Timber Wolf", "a press: the corpse cleared, the wolf targeted, skulled, pinged, attacked")
   -- only corpses: no skull, no ping, nobody targeted
   W.plates = { nameplate1 = { name = "Kobold Vermin", dead = true } }
-  W.tmLog, W.pings, W.target = {}, {}, nil
+  W.tmLog, W.pings, W.target, W.attacks = {}, {}, nil, 0
   W.RunMacro(b.attrs.macrotext)
-  ok(W.target == nil and #W.tmLog == 0 and #W.pings == 0, "only a corpse near: nothing marked, nothing pinged")
+  ok(W.target == nil and #W.tmLog == 0 and #W.pings == 0 and W.attacks == 0, "only a corpse near: nothing marked, pinged or attacked")
 
   -- THE NEAREST FIRST: a wolf's nameplate comes up - the wolf goes first at the next look
   W.plates = { nameplate1 = { name = "Diseased Timber Wolf" } }
@@ -11192,7 +11237,8 @@ do
     Item = { npcDrops = function(i) if i == 1001 then return { 501, 502 } end end },
     Npc = { name = function(id) return ({ [501] = "Defias Bandit", [502] = "Defias Thug" })[id] end, zoneID = function() return 0 end } }
   QM.Write()
-  ok(b.attrs.macrotext:find("Defias Bandit", 1, true) and b.attrs.macrotext:find("Defias Thug", 1, true), "an item objective: its creatures by QuestieDB", b.attrs.macrotext)
+  ok(QM.rows[#QM.rows].names[1] == "Defias Bandit" and QM.rows[#QM.rows].names[2] == "Defias Thug" and b.attrs.macrotext:find("Defias Bandit", 1, true),
+     "an item objective: its creatures by QuestieDB (as many as the press fits)", b.attrs.macrotext)
   _G.LibQuestieDB = nil
 
   -- LONG NAMES: as many as fit

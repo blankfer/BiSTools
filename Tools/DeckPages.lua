@@ -488,7 +488,7 @@ function DP.Register()
         if QM.mode ~= "quest" or not QM.rows or not QM.rows[1] or (QM.macro or "") == "" then return nil end
         local key = QM.KeyName()
         return { word = (key and (key .. ": ") or "TARGET: ") .. QM.rows[1].name, macro = QM.macro, peek = true,
-          tip = "The nearest of these, targeted, skulled and pinged. It never attacks." }
+          tip = "The nearest of these, targeted, skulled and pinged" .. (QM.Tag() == "off" and ". No tag." or (", tagged: " .. QM.TagWord():lower() .. ".")) }
       end,
       text = function(tab)
         local QM = NS.QuestMob
@@ -501,7 +501,17 @@ function DP.Register()
         end
         return #DP.FarmRows(1) == 0 and "Kill something: it shows up here. Your guide's targets do too." or nil
       end,
-      keys = function() return { DP.PopOut(function() NS.Farm.Toggle(DP.FarmDB(), true) end, "The farm window on your screen"), { word = "FORGET", peek = true, fn = function() NS.Farm.Clear(DP.FarmDB()) end } } end,
+      keys = function(tab)
+        local QM = NS.QuestMob
+        if tab == 3 and QM and on("questmob") then                -- (the QUESTS tab: the TAG - Arn: "a tag sub tool in the farm")
+          local t, spell = QM.Tag(), QM.TagSpell()
+          return { { word = "TAG: " .. QM.TagWord(), peek = true, ink = t == "off" and "dim" or "good",
+            tip = "How a press tags it so it is yours: OFF / ATTACK (start your attack)" .. (spell and (" / " .. spell) or "") .. ". Click: the next",
+            fn = function() QM.NextTag() end },
+            spell and { word = "SPELL", peek = true, tip = "Which instant tags it: a menu of the ones you know", fn = function() QM.SpellMenu() end } or nil }
+        end
+        return { DP.PopOut(function() NS.Farm.Toggle(DP.FarmDB(), true) end, "The farm window on your screen"), { word = "FORGET", peek = true, fn = function() NS.Farm.Clear(DP.FarmDB()) end } }
+      end,
     },
   }
   local rState, rTurnOn = gate("rides")

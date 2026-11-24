@@ -174,6 +174,10 @@ end
 function QM.Macro(rows)
   local head = "/cleartarget"
   local tail = "/tm [exists,nodead] !" .. QM.MARK .. "\n/ping [@target,exists,nodead] " .. QM.PING
+  -- TAG IT (Arn, 23 Nov, after "no attack": "i guess we do need the start attack cause if we want to tag it right away" -
+  -- "a tag sub tool in the farm ... start attack or earth shock for shaman"): QM.TagLine, last (a cooling spell stops a macro)
+  local tag = QM.TagLine()
+  if tag then tail = tail .. "\n" .. tag end
   local out, len, seen, n = { head }, #head + 1 + #tail, {}, 0
   for _, e in ipairs(rows or {}) do
     for _, name in ipairs(e.names) do
@@ -189,6 +193,93 @@ function QM.Macro(rows)
   if n == 0 then return "", 0 end
   out[#out + 1] = tail
   return table.concat(out, "\n"), n
+end
+
+--- THE TAG: what a press ends with, so the mob is yours at once. db.tag = "off" | "attack" (nil: the default) | "spell" = an
+--- instant at range: db.tagSpell (picked in the tools options from a menu - Arn: "let me bind the instant attack in the tools
+--- menu, maybe a drop down menu"), else your class's first one you know (QM.TAGS; the shaman's Earth Shock is Arn's ask).
+--- Each by name, so its highest rank. Only on a living enemy ([harm,nodead]).
+QM.TAGS = {
+  SHAMAN = { "Earth Shock", "Flame Shock", "Frost Shock" },
+  MAGE = { "Fire Blast" },
+  PRIEST = { "Shadow Word: Pain" },
+  DRUID = { "Moonfire", "Faerie Fire", "Insect Swarm" },
+  HUNTER = { "Arcane Shot", "Serpent Sting", "Concussive Shot", "Hunter's Mark" },
+  WARLOCK = { "Curse of Agony", "Corruption" },
+  PALADIN = { "Judgement" },
+}
+--- The instants of your class you know, in QM.TAGS's order.
+function QM.TagChoices()
+  local ok, _, class = pcall(UnitClass, "player")
+  local out, C = {}, NS.Combo
+  for _, name in ipairs(QM.TAGS[ok and plain(class) or ""] or {}) do
+    if not (C and C.Knows) or C.Knows(name) then out[#out + 1] = name end
+  end
+  return out
+end
+--- The tag spell: the one you picked (while you know it), else the first you know; nil = none.
+function QM.TagSpell()
+  local list = QM.TagChoices()
+  for _, n in ipairs(list) do if n == db().tagSpell then return n end end
+  return list[1]
+end
+function QM.Tag()
+  local t = db().tag
+  if t == "off" or t == "attack" then return t end
+  if t == "spell" then return QM.TagSpell() and "spell" or "attack" end
+  return db().attack == false and "off" or "attack"          -- (an older save's switch)
+end
+--- The press's last line, or nil.
+function QM.TagLine()
+  local t = QM.Tag()
+  if t == "attack" then return "/startattack [harm,nodead]" end
+  if t == "spell" then return "/cast [harm,nodead] " .. QM.TagSpell() end
+  return nil
+end
+--- The tag in a word: OFF / ATTACK / EARTH SHOCK.
+function QM.TagWord()
+  local t = QM.Tag()
+  if t == "spell" then return QM.TagSpell():upper() end
+  return t == "attack" and "ATTACK" or "OFF"
+end
+--- The next tag: off -> attack -> your spell (if you have one) -> off.
+function QM.NextTag()
+  local t = QM.Tag()
+  local nxt = t == "off" and "attack" or (t == "attack" and QM.TagSpell()) and "spell" or "off"
+  return QM.SetTag(nxt)
+end
+function QM.SetTag(v)
+  db().tag = v
+  db().attack = nil
+  QM.Write()
+  return QM.Tag()
+end
+--- Pick the tag spell (and tag with it).
+function QM.PickSpell(name)
+  db().tagSpell = name
+  return QM.SetTag("spell")
+end
+--- The menu (the game's own, MenuUtil): your instants to pick from; a client without it steps to the next one.
+function QM.SpellMenu(owner)
+  local list = QM.TagChoices()
+  if #list == 0 then NS.Print("quest mob: your class has no instant to tag with here - ATTACK does it") return false end
+  local M = MenuUtil
+  if not (M and M.CreateContextMenu) then
+    local at = 0
+    for i, n in ipairs(list) do if n == QM.TagSpell() then at = i end end
+    QM.PickSpell(list[at % #list + 1])
+    NS.Print("quest mob: tags with %s", QM.TagSpell())
+    return true
+  end
+  M.CreateContextMenu(owner or UIParent, function(_, root)
+    root:CreateTitle("Tag with")
+    for _, n in ipairs(list) do
+      root:CreateRadio(n, function() return QM.Tag() == "spell" and QM.TagSpell() == n end, function() QM.PickSpell(n) end)
+    end
+    root:CreateRadio("Start attack", function() return QM.Tag() == "attack" end, function() QM.SetTag("attack") end)
+    root:CreateRadio("Off", function() return QM.Tag() == "off" end, function() QM.SetTag("off") end)
+  end)
+  return true
 end
 
 -- ------------------------------------------------------------------ the button (secure: written out of a fight)
@@ -236,7 +327,7 @@ function QM.Tip(b)
     if i > 6 then GameTooltip:AddLine(("... and %d more"):format(#QM.rows - 6), 0.6, 0.6, 0.6) break end
     GameTooltip:AddDoubleLine(e.name .. (e.seen and "  (near)" or ""), ("%d/%d"):format(e.have, e.need), 1, 1, 1, 0.6, 0.6, 0.6)
   end
-  GameTooltip:AddLine("A press targets the nearest one alive, puts the skull on it and pings it. It never attacks.", 0.6, 0.6, 0.6, true)
+  GameTooltip:AddLine("A press targets the nearest one alive, puts the skull on it and pings it" .. (QM.Tag() == "off" and ". It does not attack." or (", and tags it: " .. QM.TagWord():lower() .. ".")), 0.6, 0.6, 0.6, true)
   local key = QM.KeyName()
   GameTooltip:AddLine(key and ("Key: " .. key) or "Bind it: Key Bindings > BiS>Keybinds", 0.6, 0.6, 0.6)
   GameTooltip:Show()
@@ -411,9 +502,17 @@ R:Register({
   name = "questmob",
   short = "qm",
   defaultOff = true,
-  desc = "next quest mob: one key targets the nearest creature your quests still need, puts the skull on it and pings it",
+  desc = "next quest mob: one key targets the nearest creature your quests still need, skulls it, pings it and starts your attack",
   usage = "/bist qm [key <KEY> | why]",
   defaults = {},
+  options = {
+    { kind = "seg", label = "tag it", values = { "off", "attack", "spell" },
+      help = "How a press tags the mob so it is yours: attack = start your attack; spell = an instant at range (pick which below; attack if you know none); off = only target, mark and ping. Living enemies only.",
+      get = function(d) QM.db = d return QM.Tag() end, set = function(d, v) QM.db = d QM.SetTag(v) end },
+    { kind = "button", label = "tag spell", button = "pick",
+      help = "Which instant tags it: a menu of the ones your class knows (shaman: Earth Shock, Flame Shock, Frost Shock; mage: Fire Blast; priest: Shadow Word: Pain; druid: Moonfire, Faerie Fire, Insect Swarm; hunter: Arcane Shot, Serpent Sting, Concussive Shot, Hunter's Mark; warlock: Curse of Agony, Corruption; paladin: Judgement).",
+      action = function(d) QM.db = d QM.SpellMenu() end },
+  },
   OnInit = function(_, d) QM.db = d end,
   OnLogin = function(_, d)
     QM.db = d
