@@ -202,6 +202,9 @@ function B.Buttons()
   -- BiS> bosses (Arn, 8 Nov: "boss finder in dungeons"): inside a dungeon or raid it knows (Bosses.lua)
   local BS = NS.Bosses
   if BS and BS.BoxButton then out[#out + 1] = { b = BS.BoxButton(), show = BS.ShowBox() } end
+  -- the next quest mob (Arn, 23 Nov: his levelling macro, "yes build it no attack"): while a quest needs a kill (QuestMob.lua)
+  local QMB = NS.QuestMob
+  if QMB and QMB.Button and R:Enabled("questmob") then out[#out + 1] = { b = QMB.Button(), show = QMB.ShowBox() } end
   return out
 end
 

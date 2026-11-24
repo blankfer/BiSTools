@@ -57,6 +57,7 @@ Tools\CodexDrive.lua
 Tools\BossData.lua
 Tools\Bosses.lua
 Tools\BossQuests.lua
+Tools\QuestMob.lua
 Tools\Alts.lua
 Tools\Combo.lua
 Tools\Windfury.lua

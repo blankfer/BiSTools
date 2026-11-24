@@ -351,6 +351,10 @@ end
 --                                 NO @unit = NO PING (Arn 8 Nov: "bis tools boss no ping on shift click" - the line was
 --                                 "/ping [mod:shift,exists] attack"; the family's working pings all name the unit)
 --   /targetlasttarget [noexists]  no target now: the last one back
+--   /cleartarget [dead]           a corpse targeted: it goes (23 Nov, the quest mob key)
+--   /tm [exists,nodead] !<n>, /ping [@target,exists,nodead] <kind>   only on a living target
+-- /targetexact takes the FIRST nameplate of that name, a corpse too - never kinder than the client: whether the client
+-- passes over a corpse is UNVERIFIED, so here it never does.
 W.tmLog, W.pings, W.macros = {}, {}, {}
 function W.RunMacro(text)
   if #text > 255 then error("a macro of " .. #text .. " letters (255 at most)", 3) end
@@ -376,6 +380,12 @@ function W.RunMacro(text)
           break
         end
       end
+    elseif ln == "/cleartarget [dead]" then
+      if W.target and W.target.dead then W.last = W.target W.target = nil end
+    elseif tmC == "exists,nodead" and tmN then
+      if W.target and not W.target.dead then W.tmLog[#W.tmLog + 1] = { name = W.target.name, mark = tonumber(tmN) } W.target.mark = tonumber(tmN) end
+    elseif pC == "@target,exists,nodead" then
+      if W.target and not W.target.dead then W.pings[#W.pings + 1] = { name = W.target.name, kind = pK } end
     elseif tmC == "exists" and tmN then
       if W.target then W.tmLog[#W.tmLog + 1] = { name = W.target.name, mark = tonumber(tmN) } W.target.mark = tonumber(tmN) end
     elseif pC == "exists" or pC == "mod:shift,exists" then
@@ -827,7 +837,7 @@ do
     if sv.enabled[key] ~= want then wrong[#wrong + 1] = key .. "=" .. tostring(sv.enabled[key]) end
     wrote = wrote + 1
   end
-  ok(sv.forever10 == true and wrote == 20 and #wrong == 0, "an existing save at the 1.0 load: every tool frozen as it was, written out", table.concat(wrong, " "))
+  ok(sv.forever10 == true and wrote == 21 and #wrong == 0, "an existing save at the 1.0 load: every tool frozen as it was, written out", table.concat(wrong, " "))
   -- a tool 0.20.2 never had is not "as it was" - it was nothing (Arn, 8 Nov: his cousin's pups came up on)
   ok(sv.enabled.codex == false, "the codex, new in 1.0, starts OFF on an existing save too", tostring(sv.enabled.codex))
   ok(R:DBFor(R:Get("farm")).shown == true and R:DBFor(R:Get("summon")).nag == true, "and the farm window and the summon nag as they were (on)")
@@ -2219,7 +2229,7 @@ do
   -- left click: the Hub, one row per tool
   mm.scripts.OnClick(mm, "LeftButton")
   local hub = BiSToolsHub
-  ok(hub and hub:IsShown() and #hub.rows == 20 and hub.rows[14].key == "codex" and hub.rows[15].key == "bosses" and hub.rows[16].key == "alts" and hub.rows[17].key == "combo" and hub.rows[18].key == "windfury", "left click opens the Hub with a row per registered tool")   -- +disenchant, +processing, 6 Nov; threat and pups retired 9 Nov; +windfury 18 Nov
+  ok(hub and hub:IsShown() and #hub.rows == 21 and hub.rows[14].key == "codex" and hub.rows[15].key == "bosses" and hub.rows[16].key == "questmob" and hub.rows[17].key == "alts" and hub.rows[18].key == "combo" and hub.rows[19].key == "windfury", "left click opens the Hub with a row per registered tool")   -- +disenchant, +processing, 6 Nov; threat and pups retired 9 Nov; +windfury 18 Nov; +questmob 23 Nov
   ok(hub.scale == 1.2, "the Tools list is 20% bigger (Arn: \"lets make this 20% bigger\")")
   ok(hub.rows[1].key == "farm" and hub.rows[2].key == "summon" and hub.rows[3].key == "recap" and hub.rows[4].key == "rivals"
      and hub.rows[5].key == "social" and hub.rows[6].key == "bg" and hub.rows[7].key == "map" and hub.rows[8].key == "party"
@@ -2228,10 +2238,10 @@ do
   -- RIVALS & PALS, their own tool (Arn, 14 Oct: "decouple from recap ... be its own thing")
   ok(hub.rows[4].name.text == "rivals & pals", "the rivals tool's row is titled rivals & pals")
   ok(hub.rows[1].name.text == "farm" and hub.rows[1].state.text:find("on", 1, true), "row: name + on")
-  ok(hub.con.slots.count and hub.con.slots.count.text == "12 of 20 on", "prompt slot counts the tools that are on (party, codex, bosses and alts - new in 1.0 - start off; rides, sounds, xp, disenchant and processing on)", hub.con.slots.count.text)
+  ok(hub.con.slots.count and hub.con.slots.count.text == "12 of 21 on", "prompt slot counts the tools that are on (party, codex, bosses and alts - new in 1.0 - start off; rides, sounds, xp, disenchant and processing on)", hub.con.slots.count.text)
   ok(hub.con:Width() <= H.W - 15 - 8, "hub prompt fits its header budget")
   ok(hub.closeBtn.point[4] == -3, "only an x in the header, at -3")
-  ok(hub.foot and hub.foot.label.text == "options" and hub.h == 16 + 20 * 16 + 4 + 16, "footer 'options' button; height = header + rows + footer")
+  ok(hub.foot and hub.foot.label.text == "options" and hub.h == 16 + 21 * 16 + 4 + 16, "footer 'options' button; height = header + rows + footer")
   -- row click opens the tool window; shift-click drags it to the middle
   BiSToolsFarm:Hide() F.db.pos = { "TOPLEFT", 400, -300, "TOPLEFT" }
   hub.rows[1].scripts.OnClick(hub.rows[1], "LeftButton")
@@ -2281,7 +2291,7 @@ do
   for _, r in ipairs(BiSToolsOptions and BiSToolsOptions.rows or {}) do end
   -- right click toggles the tool; opening an off tool switches it on first
   hub.rows[2].scripts.OnClick(hub.rows[2], "RightButton")
-  ok(not R:Enabled("summon") and hub.rows[2].state.text:find("off", 1, true) and hub.con.slots.count.text == "11 of 20 on", "right click: summon off, row and count follow", hub.con.slots.count.text)
+  ok(not R:Enabled("summon") and hub.rows[2].state.text:find("off", 1, true) and hub.con.slots.count.text == "11 of 21 on", "right click: summon off, row and count follow", hub.con.slots.count.text)
   ok(lib:Enabled(), "and the lib is untouched by it")
   hub.rows[2].scripts.OnClick(hub.rows[2], "LeftButton")
   ok(R:Enabled("summon") and BiSToolsSummon:IsShown() and db_summon().mode == "on", "click on an off tool: switched on and its window pinned open")
@@ -2330,7 +2340,8 @@ do
   -- (+1 in tools, 22 Nov: the tools box, put away)
   -- (+1 in combo, 23 Nov: the totem card on screen)
   -- (+1 in disenchant, 23 Nov: the key to hold - Gargul uses Alt)
-  ok(#opt.rows == 12 + 3 + 5 + 7 + 1 + 8 + 2 + 4 + 7 + 4 + 4 + 5 + 1 + 1 + 1 + 1 + 3 + 2 + 4 + 2 + 6 + 3 + 2 + 1 + 1 + 3 + 1 + 1, "one row per section header and per option", #opt.rows)
+  -- (+ questmob (1), 23 Nov: the tools box button - and its section header)
+  ok(#opt.rows == 12 + 3 + 5 + 7 + 1 + 8 + 2 + 4 + 7 + 4 + 4 + 5 + 1 + 1 + 1 + 1 + 3 + 2 + 4 + 2 + 6 + 3 + 2 + 1 + 1 + 3 + 1 + 1 + 2, "one row per section header and per option", #opt.rows)
   -- THE BiSTheme STANDARD, 1.43:1 (Arn, 14 Oct): its sections poured into columns, the window that shape
   ok(math.abs(opt.w / opt.h - 1.43) < 0.01 and (opt.columns or 1) >= 2, "options: 1.43:1, in columns", opt.w .. "x" .. opt.h)
   local function find(label) for _, r in ipairs(opt.rows) do if r.name and r.name.text == label then return r end end end
@@ -2417,7 +2428,7 @@ do
   local farmHdr = opt.rows[6]                          -- (the tools section: its header and five rows)
   ok(farmHdr.ctl and farmHdr.ctl.on == true, "farm section box shows on")
   farmHdr.ctl.scripts.OnClick(farmHdr.ctl)
-  ok(not R:Enabled("farm") and farmHdr.ctl.on == false and hub.con.slots.count.text == "11 of 20 on", "box off: farm off, hub count follows", hub.con.slots.count.text)
+  ok(not R:Enabled("farm") and farmHdr.ctl.on == false and hub.con.slots.count.text == "11 of 21 on", "box off: farm off, hub count follows", hub.con.slots.count.text)
   farmHdr.ctl.scripts.OnClick(farmHdr.ctl)
   ok(R:Enabled("farm"), "and back on")
   -- toggle: nag
@@ -2533,7 +2544,7 @@ do
     local spec = page.spec
     ok(spec.title == "Tools" and spec.api and spec.api.name == "BiSToolsAPI" and spec.open and spec.open.label == "the tools list",
        "titled Tools, the API named, a big button to the tools")
-    ok(spec.status() == H.Status() and spec.status():find("of 20 tools on", 1, true), "its status line: N of 19 tools on", spec.status())
+    ok(spec.status() == H.Status() and spec.status():find("of 21 tools on", 1, true), "its status line: N of 21 tools on", spec.status())
     -- THE DASHBOARD (Arn, 7 Nov live: "dont just shrink remake them all"): the page draws itself and never takes
     -- the options window in
     ok(spec.build and spec.refresh and spec.window == nil, "the page is a dashboard, not the options window in a box")
@@ -2542,7 +2553,7 @@ do
     local optParent = BiSToolsOptions.parent
     ok(optParent ~= page.frame.body and not BiSToolsOptions:IsShown(), "the options window stays where it lives, hidden")
     local d = page.frame.body.dash
-    ok(d and #d.rows == 21 and d.rows[1].entry.general, "the list: BiS Tools itself, then all 20 tools", d and #d.rows)
+    ok(d and #d.rows == 22 and d.rows[1].entry.general, "the list: BiS Tools itself, then all 21 tools", d and #d.rows)
     -- THE FAMILY RULE (Arn, 8 Nov: "its a theme so itll keep all the pages looking the same"): the page is the kit's
     -- BiSTheme.Dashboard, fed the Registry's own tables; the hand-built copy in Hub.lua is gone
     ok(d.model and d.model.list == "TOOLS" and d.list.head.text == "TOOLS" and type(d.Paint) == "function"
@@ -2658,7 +2669,7 @@ do
         if r.isSection and r.ctl and r.name and r.name.text == want then found[#found + 1] = key break end
       end
     end
-    ok(#found == 20, "all 20 tools have an on/off tick in the options window", #found)
+    ok(#found == 21, "all 21 tools have an on/off tick in the options window", #found)
     -- the minimap's right-click: the OWN options window, and again closes it (Arn, 7 Nov live); the open button: the Hub
     BiSToolsHub:Hide()
     BiSToolsOptions:Hide()
@@ -2730,8 +2741,8 @@ do
   for _, tool in R:Each() do if tool.__real then tool.OnLogin, tool.__real = tool.__real, nil end end
   ok(logins == 0, "at login no tool wakes: nothing hooks, nothing opens, nothing plays", logins)
   NS.Hub.ToggleHub(true)
-  ok(BiSToolsHub.con.slots.count.text == "0 of 20 on", "the Hub, the main page: 0 of 20 on", BiSToolsHub.con.slots.count.text)
-  ok(NS.Hub.Status() == "0 of 20 tools on", "the BiS> page's status line says it", NS.Hub.Status())
+  ok(BiSToolsHub.con.slots.count.text == "0 of 21 on", "the Hub, the main page: 0 of 21 on", BiSToolsHub.con.slots.count.text)
+  ok(NS.Hub.Status() == "0 of 21 tools on", "the BiS> page's status line says it", NS.Hub.Status())
   -- the user chooses: a switch writes TRUE (not nil) and off writes FALSE
   R:SetEnabled("social", true)
   ok(fresh.enabled.social == true and R:Enabled("social"), "switched on: stored as true")
@@ -11041,6 +11052,131 @@ do
     end
   end
   assert(loadfile("dev/apps/totems.lua"))()(H)
+end
+
+-- THE NEXT QUEST MOB KEY (23 Nov 2026, Arn pasted a levelling macro - "/cleartarget /tar MobYouAreLookingFor /cleartarget
+-- [dead] /tm [exists,nodead] !8 /ping [@target,exists,nodead] Ping /startattack" - and said "yes build it no attack"): the
+-- names come from the quest log, a press marks and pings, never attacks.
+do
+  print("BiS> next quest mob (23 Nov 2026)")
+  local QM = NS.QuestMob
+  local Cost = dofile("../_bisdev/dev/cost.lua")
+  local keep = { Q = _G.C_QuestLog, inst = _G.IsInInstance, plates = W.plates, target = W.target, last = W.last, ldb = _G.LibQuestieDB }
+  ok(QM and R:Get("questmob") and R:Get("qm") == R:Get("questmob"), "the questmob tool, short word qm")
+  ok(not R:Enabled("questmob"), "off until switched on in the tools list")
+  local log = {
+    { title = "Elwynn Forest", isHeader = true },
+    { title = "Kobold Camp Cleanup", questID = 7 },
+    { title = "Wolves Across the Border", questID = 33 },
+    { title = "Princess Must Die!", questID = 88 },
+    { title = "Deadmines", isHeader = true },
+    { title = "The Defias Brotherhood", questID = 166 },
+    { title = "Westfall", isHeader = true },
+    { title = "The Forgotten Heirloom", questID = 64 },
+  }
+  local objs = {
+    [7] = { { type = "monster", text = "0/10 Kobold Vermin slain", finished = false, numFulfilled = 0, numRequired = 10 } },
+    [33] = { { type = "monster", text = "2/8 Diseased Timber Wolf slain", finished = false, numFulfilled = 2, numRequired = 8 } },
+    [88] = { { type = "monster", text = "1/1 Princess slain", finished = true, numFulfilled = 1, numRequired = 1 } },
+    [166] = { { type = "monster", text = "0/1 Edwin VanCleef slain", finished = false, numFulfilled = 0, numRequired = 1 } },
+    [64] = { { type = "item", text = "0/1 Old Lockbox", finished = false, numFulfilled = 0, numRequired = 1 } },
+  }
+  _G.C_QuestLog = setmetatable({ GetNumQuestLogEntries = function() return #log end, GetInfo = function(i) return log[i] end,
+    GetQuestObjectives = function(q) return objs[q] end }, { __index = keep.Q })
+  _G.LibQuestieDB = nil
+  _G.IsInInstance = function() return false, "none" end
+  W.plates, W.target, W.last = {}, nil, nil
+
+  S("on qm")
+  local b = BiSToolsQuestMob
+  ok(R:Enabled("questmob") and b and b.template == "SecureActionButtonTemplate", "on: one secure button")
+  ok(QM.count == 2 and b.attrs.macrotext == "/cleartarget\n/targetexact [noexists] Kobold Vermin\n/cleartarget [dead]\n"
+     .. "/targetexact [noexists] Diseased Timber Wolf\n/cleartarget [dead]\n/tm [exists,nodead] !8\n/ping [@target,exists,nodead] attack",
+     "the press: every kill still needed, a corpse cleared after each, the skull and the ping on a living one", b.attrs.macrotext)
+  ok(not b.attrs.macrotext:find("startattack", 1, true), "no /startattack (Arn: \"no attack\")")
+  ok(not b.attrs.macrotext:find("Princess", 1, true), "a finished objective is not looked for")
+  ok(not b.attrs.macrotext:find("VanCleef", 1, true), "a dungeon's quest is not looked for outside (its header is a dungeon)")
+  ok(not b.attrs.macrotext:find("Lockbox", 1, true), "an item objective without QuestieDB: nobody to name")
+  local function shown() for _, e in ipairs(NS.Box.Buttons()) do if e.b == b then return e.show end end return nil end
+  ok(shown() == true, "the BiS> tools box shows it")
+
+  -- A PRESS: the nearest kobold is a corpse, a wolf stands - the corpse never stops it
+  W.plates = { nameplate1 = { name = "Kobold Vermin", dead = true }, nameplate2 = { name = "Diseased Timber Wolf" } }
+  W.tmLog, W.pings = {}, {}
+  W.RunMacro(b.attrs.macrotext)
+  ok(W.target and W.target.name == "Diseased Timber Wolf" and #W.tmLog == 1 and W.tmLog[1].mark == 8 and #W.pings == 1
+     and W.pings[1].kind == "attack", "a press: the corpse cleared, the wolf targeted, skulled, pinged")
+  -- only corpses: no skull, no ping, nobody targeted
+  W.plates = { nameplate1 = { name = "Kobold Vermin", dead = true } }
+  W.tmLog, W.pings, W.target = {}, {}, nil
+  W.RunMacro(b.attrs.macrotext)
+  ok(W.target == nil and #W.tmLog == 0 and #W.pings == 0, "only a corpse near: nothing marked, nothing pinged")
+
+  -- THE NEAREST FIRST: a wolf's nameplate comes up - the wolf goes first at the next look
+  W.plates = { nameplate1 = { name = "Diseased Timber Wolf" } }
+  local n, by = Cost.Count(function() QM.events.scripts.OnEvent(QM.events, "NAME_PLATE_UNIT_ADDED", "nameplate1") end)
+  print(("   cost: quest mob, one nameplate = %d calls (%s)"):format(n, Cost.Top(by, 3)))
+  ok(n <= 6, "a nameplate costs a name and a lookup", n)
+  W.runAfters(QM.WAIT + 0.1)
+  ok(b.attrs.macrotext:find("^/cleartarget\n/targetexact %[noexists%] Diseased Timber Wolf"), "a creature seen near goes first", b.attrs.macrotext)
+  local n2 = Cost.Count(function() W.plates.nameplate2 = { name = "Stonetusk Boar" } QM.events.scripts.OnEvent(QM.events, "NAME_PLATE_UNIT_ADDED", "nameplate2") end)
+  ok(#W.afters == 0 or not QM.pending, "a creature no quest needs: no look", n2)
+  -- after a minute it is not near any more; the quest you last made progress on goes first
+  W.runAfters(QM.NEAR_FOR + 1)
+  objs[7][1].text, objs[7][1].numFulfilled = "1/10 Kobold Vermin slain", 1
+  QM.events.scripts.OnEvent(QM.events, "QUEST_LOG_UPDATE")
+  W.runAfters(QM.WAIT + 0.1)
+  ok(b.attrs.macrotext:find("^/cleartarget\n/targetexact %[noexists%] Kobold Vermin"), "the quest you last made progress on goes first", b.attrs.macrotext)
+
+  -- IN A FIGHT: the macro waits (secure); after the fight it is written
+  W.combat = true
+  objs[7][1].finished, objs[7][1].numFulfilled = true, 10
+  QM.events.scripts.OnEvent(QM.events, "QUEST_LOG_UPDATE")
+  W.runAfters(QM.WAIT + 0.1)
+  ok(b.attrs.macrotext:find("Kobold", 1, true) and QM.dirty, "in a fight: nothing written")
+  ok(shown() == false, "in a fight: the box does not offer it")
+  W.combat = false
+  QM.events.scripts.OnEvent(QM.events, "PLAYER_REGEN_ENABLED")
+  W.runAfters(QM.WAIT + 0.1)
+  ok(not b.attrs.macrotext:find("Kobold", 1, true) and QM.count == 1, "after the fight: the finished kobolds are gone", b.attrs.macrotext)
+
+  -- QUESTIEDB names the creatures an item drops from
+  _G.LibQuestieDB = { RequireContract = function(n) return n == 4 end,
+    Quest = { objectives = function(q) if q == 64 then return { nil, nil, { { 1001 } } } end end },
+    Item = { npcDrops = function(i) if i == 1001 then return { 501, 502 } end end },
+    Npc = { name = function(id) return ({ [501] = "Defias Bandit", [502] = "Defias Thug" })[id] end, zoneID = function() return 0 end } }
+  QM.Write()
+  ok(b.attrs.macrotext:find("Defias Bandit", 1, true) and b.attrs.macrotext:find("Defias Thug", 1, true), "an item objective: its creatures by QuestieDB", b.attrs.macrotext)
+  _G.LibQuestieDB = nil
+
+  -- LONG NAMES: as many as fit
+  for i = 1, 8 do
+    log[#log + 1] = { title = "Long " .. i, questID = 900 + i }
+    objs[900 + i] = { { type = "monster", text = "0/5 A Very Long Creature Name Number " .. i .. " slain", finished = false, numFulfilled = 0, numRequired = 5 } }
+  end
+  QM.Write()
+  ok(#b.attrs.macrotext <= 255 and b.attrs.macrotext:find("!8\n/ping", 1, true), "many quests: the press fits 255 letters, the skull and ping kept", #b.attrs.macrotext)
+  W.RunMacro(b.attrs.macrotext)
+  for i = 1, 8 do log[#log] = nil end
+
+  -- INSIDE A DUNGEON: it stands aside (the bosses' QUESTS tab has those)
+  _G.IsInInstance = function() return true, "party" end
+  QM.Write()
+  ok(b.attrs.macrotext == "" and shown() == false, "inside a dungeon: no press, no box button")
+  _G.IsInInstance = function() return false, "none" end
+  QM.Write()
+
+  -- THE KEY
+  S("qm key f")
+  ok(W.binds[b] and W.binds[b].key == "F" and W.binds[b].btn == "BiSToolsQuestMob", "/bist qm key F binds it")
+  S("qm why")
+  S("qm")
+  S("off qm")
+  ok(not W.binds[b] or W.binds[b].key == nil, "off: the key let go")
+  ok(b.attrs.macrotext == "" and shown() == nil, "off: no press, not in the box")
+  ok(not QM.events.events.QUEST_LOG_UPDATE and not QM.events.events.NAME_PLATE_UNIT_ADDED, "off: nothing heard")
+  R:DBFor(R:Get("questmob")).key = nil
+  _G.C_QuestLog, _G.IsInInstance, W.plates, W.target, W.last, _G.LibQuestieDB = keep.Q, keep.inst, keep.plates, keep.target, keep.last, keep.ldb
 end
 
 local allowed = { BiSTools = true, BiSToolsDB = true, BiSToolsAlts = true, SLASH_BISTOOLS1 = true, SLASH_BISTOOLS2 = true,
