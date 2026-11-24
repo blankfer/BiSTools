@@ -45,7 +45,7 @@ QM.GLOW = 0.35
 -- THE GAME'S KEY BINDINGS (Arn, 23 Nov: "can you add a keybind here pls" - "call the addon section BiS>Keybinds"):
 -- Bindings.xml clicks the button by name, so it is made when the file loads, before the client reads the bindings.
 QM.BINDING = "CLICK BiSToolsQuestMob:LeftButton"
-_G["BINDING_NAME_" .. QM.BINDING] = "Next target: boss, quest mob, rival"
+_G["BINDING_NAME_" .. QM.BINDING] = "Target boss/quest/rival"     -- (Arn, 23 Nov: the longer name was cut off in the list)
 QM.BASE = { "PLAYER_ENTERING_WORLD", "ZONE_CHANGED_NEW_AREA", "QUEST_LOG_UPDATE", "PLAYER_REGEN_ENABLED" }
 
 local function K() return NS.Farm end
@@ -143,7 +143,8 @@ function QM.Rows()
   return rows
 end
 
---- The order a press tries them: seen near (newest first), then the quest you last made progress on, then the log.
+--- The order a press tries them: the one you put first on the deck's Farm page (QM.pin), seen near (newest first), then the
+--- quest you last made progress on, then the log.
 function QM.Order(rows)
   local t = now()
   local function near(e)
@@ -156,6 +157,8 @@ function QM.Order(rows)
   end
   for i, e in ipairs(rows) do e.at, e.seen = i, near(e) end
   table.sort(rows, function(a, b)
+    local pa, pb = a.name == QM.pin, b.name == QM.pin
+    if pa ~= pb then return pa end
     if (a.seen ~= nil) ~= (b.seen ~= nil) then return a.seen ~= nil end
     if a.seen and b.seen and a.seen ~= b.seen then return a.seen > b.seen end
     local la, lb = a.quest == QM.lastQuest, b.quest == QM.lastQuest
@@ -284,6 +287,14 @@ function QM.Progress(rows)
     if QM.counts and QM.counts[q] and c > QM.counts[q] then QM.lastQuest = q end
   end
   QM.counts = counts
+end
+
+--- The deck's Farm page, QUESTS tab: a click on a row puts it first in the press; on the one already first, lets it go.
+function QM.Pin(name)
+  if fighting() then return false end
+  QM.pin = (QM.pin ~= name) and name or nil
+  QM.Write()
+  return QM.pin
 end
 
 -- ------------------------------------------------------------------ the key

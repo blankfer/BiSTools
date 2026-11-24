@@ -10601,6 +10601,53 @@ do
     if not keepA then F.Stop() end
     S("off farm")
   end
+  -- THE FARM PAGE'S QUESTS TAB (Arn, 23 Nov, sketch A: "A build it")
+  do
+    local QM, def = NS.QuestMob, Dk.defs["BiSTools:farm"]
+    local keepQ, keepI = _G.C_QuestLog, _G.IsInInstance
+    _G.IsInInstance = function() return false, "none" end
+    local log = { { title = "Arathi Highlands", isHeader = true }, { title = "The Crown of Will", questID = 1 }, { title = "Sigil of Strom", questID = 2 },
+      { title = "Peonies", questID = 3 } }
+    local objs = { [1] = { { type = "monster", text = "0/14 Crushridge Mauler slain", finished = false, numFulfilled = 0, numRequired = 14 } },
+      [2] = { { type = "monster", text = "0/1 Syndicate Prowler slain", finished = false, numFulfilled = 0, numRequired = 1 } },
+      [3] = { { type = "monster", text = "1/4 Rowdy Rose slain", finished = false, numFulfilled = 1, numRequired = 4 } } }
+    _G.C_QuestLog = setmetatable({ GetNumQuestLogEntries = function() return #log end, GetInfo = function(i) return log[i] end,
+      GetQuestObjectives = function(q) return objs[q] end }, { __index = keepQ })
+    local was = R:Enabled("questmob")
+    R:SetEnabled("questmob", false)
+    ok(def.page.tabs()[3] == "QUESTS 0" and def.page.rows(3)[1].right == "TURN ON", "the QUESTS tab: off, it offers TURN ON")
+    Dk.Press(def, def.page.rows(3)[1].act)()
+    ok(R:Enabled("questmob") and def.page.tabs()[3] == "QUESTS 3", "one press turns it on: three quest mobs", def.page.tabs()[3])
+    local rows = def.page.rows(3)
+    ok(rows[1].text == "Crushridge Mauler" and rows[1].sub == "The Crown of Will" and rows[1].right == "0/14" and rows[1].tint == "gold"
+       and rows[2].tint == "accent", "rows: the name, its quest, the count; the first in gold, the others in the press lit", rows[1].tint)
+    local bx = def.page.boxes(3)
+    ok(bx[#bx][1] == "QUESTS" and bx[#bx][2] == 3, "the third box counts them on this tab")
+    local big = def.page.big(3)
+    ok(big and big.word == "TARGET: Crushridge Mauler" and big.macro == QM.macro, "the big key: what your key does, pressable here", big and big.word)
+    ok(def.page.big(1) == nil, "only on the QUESTS tab")
+    Dk.Press(def, rows[3].act)()
+    ok(QM.pin == "Rowdy Rose" and def.page.rows(3)[1].text == "Rowdy Rose" and QM.macro:find("^/cleartarget\n/targetexact %[noexists%] Rowdy Rose"),
+       "a click on a row: it goes first, in the press too", QM.macro)
+    Dk.Press(def, def.page.rows(3)[1].act)()
+    ok(QM.pin == nil and def.page.rows(3)[1].text == "Crushridge Mauler", "clicked again: let go")
+    for i = 1, 8 do
+      log[#log + 1] = { title = "Long " .. i, questID = 50 + i }
+      objs[50 + i] = { { type = "monster", text = "0/5 A Very Long Creature Name Number " .. i .. " slain", finished = false, numFulfilled = 0, numRequired = 5 } }
+    end
+    QM.Write()
+    rows = def.page.rows(3)
+    ok(#rows == 11 and rows[11].tint == "ink2" and rows[11].tip:find("waits", 1, true), "more than the press fits: the rest wait, dim", rows[11].tint)
+    _G.IsInInstance = function() return true, "party" end
+    QM.Write()
+    local say = def.page.text(3) or ""
+    ok((QM.mode == "boss" and say:find("Bosses' FIND", 1, true)) or (QM.mode == "none" and say:find("nothing to do", 1, true)),
+       "in a dungeon: it says what the key does there", say)
+    R:SetEnabled("questmob", was)
+    _G.C_QuestLog, _G.IsInInstance = keepQ, keepI
+    QM.pin = nil
+    QM.Write()
+  end
   -- EVERY TOOL IS AN APP (Arn, 22 Nov): a page of its own, or one made of its options
   do
     local missing, rowsSeen = {}, 0
@@ -11194,7 +11241,7 @@ do
   ok(QM.mode == "quest", "out in the world: the quest mob again")
 
   -- THE KEY
-  ok(_G["BINDING_NAME_CLICK BiSToolsQuestMob:LeftButton"] == "Next target: boss, quest mob, rival", "the game's Key Bindings list it under AddOns")
+  ok(_G["BINDING_NAME_CLICK BiSToolsQuestMob:LeftButton"] == "Target boss/quest/rival", "the game's Key Bindings list it, short enough not to be cut off")
   local bx = io.open("Bindings.xml", "r") local xml = bx:read("*a") bx:close()
   ok(xml:find('<Binding name="CLICK BiSToolsQuestMob:LeftButton" category="BiS&gt;Keybinds">', 1, true), "Bindings.xml clicks the button by name")
   local _, nAddons = xml:gsub('category="ADDONS"', "")

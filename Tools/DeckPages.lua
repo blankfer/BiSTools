@@ -167,9 +167,36 @@ function DP.SpotLines(c)
   for i = 1, math.min(3, #c.spots) do out[i] = { "Spot " .. tostring(c.spots[i].z.mark or i), c.spots[i].words } end
   return out
 end
+--- THE QUESTS TAB (Arn, 23 Nov, sketch A of https://claude.ai/artifact/8LEySToLRTS5WE7LLFjoQ6 - "A build it"): what the next-target
+--- key goes for out in the world, in its order. The ones that fit in one press are lit, the first in gold; NEAR = its nameplate
+--- seen in the last minute; a click puts one first (QuestMob.lua's QM.Pin), again lets it go.
+function DP.QuestRows()
+  local QM, out = NS.QuestMob, {}
+  if not QM then return out end
+  if not on("questmob") then
+    out[1] = { text = "Next quest mob is off", sub = "one key: the nearest creature your quests need, skulled", right = "TURN ON", ink = "accent",
+      act = { word = "turn on", fn = function() R:SetEnabled("questmob", true) end } }
+    return out
+  end
+  local fit, seen = 0, {}
+  for _, e in ipairs(QM.rows or {}) do                   -- (which names the press holds: the same walk as QM.Macro)
+    for _, n in ipairs(e.names) do if (QM.macro or ""):find("[noexists] " .. n .. "\n", 1, true) then seen[e] = true end end
+  end
+  for i, e in ipairs(QM.rows or {}) do
+    local lit = seen[e] and true or false
+    if lit then fit = fit + 1 end
+    out[i] = { mark = tostring(i), text = e.name, sub = e.title, right = (e.seen and "NEAR " or "") .. e.have .. "/" .. e.need,
+      ink = e.seen and "gold" or "ink2", tint = (lit and fit == 1) and "gold" or lit and "accent" or "ink2",
+      tip = (e.name == QM.pin and "First in line. Click: let it go" or "Click: put it first in line") .. (lit and "" or " (it waits: the press fits only so many names)"),
+      act = { word = "first", fn = function() QM.Pin(e.name) end } }
+  end
+  return out
+end
+
 function DP.FarmRows(tab)
   local F, db = NS.Farm, DP.FarmDB()
   local out = {}
+  if tab == 3 then return DP.QuestRows() end
   if not (F and db) then return out end
   if tab == 2 then
     local c = DP.Farm()
@@ -438,18 +465,42 @@ function DP.Register()
       tour = { { text = "Pick a mob: it becomes a live card on home.", note = "Just looking changes nothing." }, { text = "Drag that card onto your screen if you want it there. Its x puts it back." } },
       title = function() return "Farm" end,
       kicker = function() local c = DP.Farm() return c and "farming" or "pick a mob" end,
-      boxes = function()
+      boxes = function(tab)
         local c, db = DP.Farm(), DP.FarmDB()
+        local QM = NS.QuestMob
+        local quests = tab == 3 and { "QUESTS", QM and QM.rows and #QM.rows or 0, "gold" } or nil   -- (sketch A: the third box)
         if not c then
           local n = NS.Farm and db and #NS.Farm.Entries(db) or 0
-          if n == 0 then return {} end
-          return { { "MOBS", n, "accent" }, { "IN A ROW", db.last and db.last.count or 0, "gold" }, { "TO SUGGEST", DP.FARM_SUGGEST, "ink2" } }
+          if n == 0 then return quests and { quests } or {} end
+          return { { "MOBS", n, "accent" }, { "IN A ROW", db.last and db.last.count or 0, "gold" }, quests or { "TO SUGGEST", DP.FARM_SUGGEST, "ink2" } }
         end
-        return { { "KILLS", db.last and db.last.name == c.mob and db.last.count or "-", "ink" }, { "UP NOW", c.up, "good" }, { "NEXT", c.next and clock(c.next) or "-", "gold" } }
+        return { { "KILLS", db.last and db.last.name == c.mob and db.last.count or "-", "ink" }, { "UP NOW", c.up, "good" }, quests or { "NEXT", c.next and clock(c.next) or "-", "gold" } }
       end,
-      tabs = function() local c = DP.Farm() return { "MOBS", "SPOTS " .. (c and #c.spots or 0) } end,
+      tabs = function()
+        local c, QM = DP.Farm(), NS.QuestMob
+        return { "MOBS", "SPOTS " .. (c and #c.spots or 0), "QUESTS " .. (QM and on("questmob") and QM.rows and #QM.rows or 0) }
+      end,
       rows = DP.FarmRows,
-      text = function() return #DP.FarmRows(1) == 0 and "Kill something: it shows up here. Your guide's targets do too." or nil end,
+      -- the QUESTS tab's big key: what your key does, clickable here too (a secure press; the deck's buttons go away in a fight)
+      big = function(tab)
+        local QM = NS.QuestMob
+        if tab ~= 3 or not (QM and on("questmob")) then return nil end
+        if QM.mode ~= "quest" or not QM.rows or not QM.rows[1] or (QM.macro or "") == "" then return nil end
+        local key = QM.KeyName()
+        return { word = (key and (key .. ": ") or "TARGET: ") .. QM.rows[1].name, macro = QM.macro, peek = true,
+          tip = "The nearest of these, targeted, skulled and pinged. It never attacks." }
+      end,
+      text = function(tab)
+        local QM = NS.QuestMob
+        if tab == 3 then
+          if not (QM and on("questmob")) then return nil end
+          if QM.mode == "boss" then return "In a dungeon: your key finds the bosses here (Bosses' FIND)." end
+          if QM.mode == "rival" then return "In a battleground: your key targets your rivals." end
+          if QM.mode == "none" then return "Here your key has nothing to do." end
+          return (#(QM.rows or {}) == 0) and "No kills left in your quest log." or nil
+        end
+        return #DP.FarmRows(1) == 0 and "Kill something: it shows up here. Your guide's targets do too." or nil
+      end,
       keys = function() return { DP.PopOut(function() NS.Farm.Toggle(DP.FarmDB(), true) end, "The farm window on your screen"), { word = "FORGET", peek = true, fn = function() NS.Farm.Clear(DP.FarmDB()) end } } end,
     },
   }
