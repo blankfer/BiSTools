@@ -2340,8 +2340,8 @@ do
   -- (+1 in tools, 22 Nov: the tools box, put away)
   -- (+1 in combo, 23 Nov: the totem card on screen)
   -- (+1 in disenchant, 23 Nov: the key to hold - Gargul uses Alt)
-  -- (+ questmob (1), 23 Nov: the tools box button - and its section header)
-  ok(#opt.rows == 12 + 3 + 5 + 7 + 1 + 8 + 2 + 4 + 7 + 4 + 4 + 5 + 1 + 1 + 1 + 1 + 3 + 2 + 4 + 2 + 6 + 3 + 2 + 1 + 1 + 3 + 1 + 1 + 2, "one row per section header and per option", #opt.rows)
+  -- (+ questmob (0), 23 Nov: its section header, the on/off)
+  ok(#opt.rows == 12 + 3 + 5 + 7 + 1 + 8 + 2 + 4 + 7 + 4 + 4 + 5 + 1 + 1 + 1 + 1 + 3 + 2 + 4 + 2 + 6 + 3 + 2 + 1 + 1 + 3 + 1 + 1 + 1, "one row per section header and per option", #opt.rows)
   -- THE BiSTheme STANDARD, 1.43:1 (Arn, 14 Oct): its sections poured into columns, the window that shape
   ok(math.abs(opt.w / opt.h - 1.43) < 0.01 and (opt.columns or 1) >= 2, "options: 1.43:1, in columns", opt.w .. "x" .. opt.h)
   local function find(label) for _, r in ipairs(opt.rows) do if r.name and r.name.text == label then return r end end end
@@ -11098,7 +11098,7 @@ do
   ok(not b.attrs.macrotext:find("VanCleef", 1, true), "a dungeon's quest is not looked for outside (its header is a dungeon)")
   ok(not b.attrs.macrotext:find("Lockbox", 1, true), "an item objective without QuestieDB: nobody to name")
   local function shown() for _, e in ipairs(NS.Box.Buttons()) do if e.b == b then return e.show end end return nil end
-  ok(shown() == true, "the BiS> tools box shows it")
+  ok(shown() == nil, "never in the BiS> tools box (Arn: \"dont use this box anymore\")")
 
   -- A PRESS: the nearest kobold is a corpse, a wolf stands - the corpse never stops it
   W.plates = { nameplate1 = { name = "Kobold Vermin", dead = true }, nameplate2 = { name = "Diseased Timber Wolf" } }
@@ -11134,7 +11134,6 @@ do
   QM.events.scripts.OnEvent(QM.events, "QUEST_LOG_UPDATE")
   W.runAfters(QM.WAIT + 0.1)
   ok(b.attrs.macrotext:find("Kobold", 1, true) and QM.dirty, "in a fight: nothing written")
-  ok(shown() == false, "in a fight: the box does not offer it")
   W.combat = false
   QM.events.scripts.OnEvent(QM.events, "PLAYER_REGEN_ENABLED")
   W.runAfters(QM.WAIT + 0.1)
@@ -11162,7 +11161,7 @@ do
   -- INSIDE A DUNGEON: it stands aside (the bosses' QUESTS tab has those)
   _G.IsInInstance = function() return true, "party" end
   QM.Write()
-  ok(b.attrs.macrotext == "" and shown() == false and QM.mode == "none", "inside a dungeon BiS> bosses does not run: no press, no box button")
+  ok(b.attrs.macrotext == "" and QM.mode == "none", "inside a dungeon BiS> bosses does not run: no press, no box button")
   -- ONE KEY, THREE JOBS (Arn, 23 Nov: "in dungeon it does boss, out in world quest, in pvp rival")
   local BF, RC = NS.Bosses, NS.Recap
   local en = NS.DB().enabled
@@ -11170,8 +11169,8 @@ do
   en.bosses, BF.map, BF.findFor = true, 349, { name = "Noxxion" }
   BF.FindKey():SetAttribute("macrotext", "/cleartarget\n/targetexact Noxxion")
   QM.Write()
-  ok(QM.mode == "boss" and b.attrs.macrotext == "/cleartarget\n/targetexact Noxxion" and shown() == false,
-     "in a dungeon: the key presses the boss FIND (its own macro), no ? in the box", b.attrs.macrotext)
+  ok(QM.mode == "boss" and b.attrs.macrotext == "/cleartarget\n/targetexact Noxxion",
+     "in a dungeon: the key presses the boss FIND (its own macro)", b.attrs.macrotext)
   local found = 0
   BF.AfterFind = function() found = found + 1 end
   b.scripts.PostClick(b)
@@ -11197,7 +11196,10 @@ do
   -- THE KEY
   ok(_G["BINDING_NAME_CLICK BiSToolsQuestMob:LeftButton"] == "Next target: boss, quest mob, rival", "the game's Key Bindings list it under AddOns")
   local bx = io.open("Bindings.xml", "r") local xml = bx:read("*a") bx:close()
-  ok(xml:find('<Binding name="CLICK BiSToolsQuestMob:LeftButton" category="ADDONS">', 1, true), "Bindings.xml clicks the button by name")
+  ok(xml:find('<Binding name="CLICK BiSToolsQuestMob:LeftButton" category="BiS&gt;Keybinds">', 1, true), "Bindings.xml clicks the button by name")
+  local _, nAddons = xml:gsub('category="ADDONS"', "")
+  local _, nOurs = xml:gsub('category="BiS&gt;Keybinds"', "")
+  ok(nAddons == 0 and nOurs == 3, "every key of ours in its own section, BiS>Keybinds (Arn, 23 Nov)", nOurs)
   S("qm key f")
   ok(W.binds[b] and W.binds[b].key == "F" and W.binds[b].btn == "BiSToolsQuestMob", "/bist qm key F binds it")
   S("qm why")

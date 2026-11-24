@@ -6,8 +6,9 @@
 -- creature; an item objective names its creatures only when the QuestieDB addon is installed, read through its own door
 -- LibQuestieDB, the way BossQuests.lua does). No /startattack: a press marks and pings, it never pulls.
 --
--- ONE SECURE MACRO BUTTON (BiSToolsQuestMob): a binding presses it (`/bist qm key <KEY>`), and the BiS> tools box shows it
--- while a quest still needs a kill. Its macro, written out of a fight only (targeting, marking and pinging are protected):
+-- ONE SECURE MACRO BUTTON (BiSToolsQuestMob), never shown: a key presses it - the game's Key Bindings (the BiS>Keybinds
+-- section, Bindings.xml) or `/bist qm key <KEY>`. Not in the BiS> tools box (Arn, 23 Nov: "dont use this box anymore").
+-- What it will go for next is on the deck's Farm page. Its macro, written out of a fight only (targeting, marking and pinging are protected):
 --   /cleartarget
 --   /targetexact [noexists] <name>     one pair per creature still needed, the nearest first:
 --   /cleartarget [dead]                a corpse never stops the search
@@ -41,7 +42,7 @@ QM.NEAR_FOR = 60
 QM.NAMES = 4              -- creatures one item objective may name (QuestieDB)
 QM.ICON = "Interface\\GossipFrame\\AvailableQuestIcon"
 QM.GLOW = 0.35
--- THE GAME'S KEY BINDINGS (Arn, 23 Nov: "can you add a keybind here pls", the AddOns list beside Overlay map and The deck):
+-- THE GAME'S KEY BINDINGS (Arn, 23 Nov: "can you add a keybind here pls" - "call the addon section BiS>Keybinds"):
 -- Bindings.xml clicks the button by name, so it is made when the file loads, before the client reads the bindings.
 QM.BINDING = "CLICK BiSToolsQuestMob:LeftButton"
 _G["BINDING_NAME_" .. QM.BINDING] = "Next target: boss, quest mob, rival"
@@ -234,14 +235,8 @@ function QM.Tip(b)
   end
   GameTooltip:AddLine("A press targets the nearest one alive, puts the skull on it and pings it. It never attacks.", 0.6, 0.6, 0.6, true)
   local key = QM.KeyName()
-  GameTooltip:AddLine(key and ("Key: " .. key) or "Bind it: Key Bindings > AddOns > Next quest mob", 0.6, 0.6, 0.6)
+  GameTooltip:AddLine(key and ("Key: " .. key) or "Bind it: Key Bindings > BiS>Keybinds", 0.6, 0.6, 0.6)
   GameTooltip:Show()
-end
-
---- The BiS> tools box shows it while a quest needs a kill, out of a dungeon and out of a fight (the boss and rival
---- jobs have their own buttons there).
-function QM.ShowBox()
-  return (R:Enabled("questmob") and db().button ~= false and QM.mode == "quest" and QM.macro ~= nil and QM.macro ~= "" and not fighting()) and true or false
 end
 
 --- Which job the key does here: "boss" / "rival" / "quest" / "none" (a dungeon BiS> bosses does not know, or it is off).
@@ -275,11 +270,9 @@ function QM.Write()
   for _, e in ipairs(QM.rows) do for _, n in ipairs(e.names) do QM.want[n] = true end end
   local m, n
   if on then m, n = QM.Macro(QM.rows) else m, n = QM.Borrowed(mode) end
-  local was = QM.ShowBox()
   QM.mode, QM.macro, QM.count = mode, m, n
   QM.Button():SetAttribute("macrotext", m)
   QM.Plates(on and next(QM.want) ~= nil)
-  if was ~= QM.ShowBox() and NS.Box and NS.Box.Refresh then NS.Box.Refresh() end
   return true
 end
 
@@ -304,7 +297,7 @@ function QM.ApplyKey()
   return true
 end
 
---- The key that presses it: yours from /bist qm key, else the game's Key Bindings (AddOns > Next quest mob).
+--- The key that presses it: yours from /bist qm key, else the game's Key Bindings (BiS>Keybinds).
 function QM.KeyName()
   if db().key then return db().key end
   return GetBindingKey and words(ask(GetBindingKey, QM.BINDING)) or nil
@@ -379,7 +372,7 @@ end)
 function QM.Status()
   local rows = QM.rows or {}
   NS.Print("quest mob: %s, key %s, %d creature%s in the press", R:Enabled("questmob") and "on" or "off",
-    tostring(QM.KeyName() or "none - Key Bindings > AddOns > Next quest mob"), QM.count or 0, (QM.count == 1) and "" or "s")
+    tostring(QM.KeyName() or "none - Key Bindings > BiS>Keybinds"), QM.count or 0, (QM.count == 1) and "" or "s")
   local job = { boss = "here it does BiS> bosses' FIND", rival = "here it targets your rivals", none = "here it does nothing (turn on bosses / rivals)" }
   if job[QM.mode] then NS.Print("  %s", job[QM.mode]) end
   for i, e in ipairs(rows) do
@@ -410,11 +403,6 @@ R:Register({
   desc = "next quest mob: one key targets the nearest creature your quests still need, puts the skull on it and pings it",
   usage = "/bist qm [key <KEY> | why]",
   defaults = {},
-  options = {
-    { kind = "toggle", label = "tools box button", help = "A ? button in the BiS> tools box while a quest still needs a kill (out of dungeons). A click does what the key does: the nearest creature your quests need, targeted, skulled and pinged. It never attacks. /bist qm key <KEY> binds it.",
-      get = function(d) return d.button ~= false end,
-      set = function(d, v) d.button = v and true or false QM.db = d QM.Write() end },
-  },
   OnInit = function(_, d) QM.db = d end,
   OnLogin = function(_, d)
     QM.db = d
