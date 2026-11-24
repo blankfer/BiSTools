@@ -44,7 +44,7 @@ return function(H)
   -- KNOWN
   db.known = { ["Swig Xd"] = { healer = 3, killer = 0, last = 100 }, ["Bad Man"] = { healer = 0, killer = 1, last = 200 } }
   r = p.rows(2)
-  ok(#r == 2 and r[1].text == "Bad Man  1 kill" and r[2].text == "Swig Xd  3 heals" and p.boxes(2)[2][2] == 1 and p.boxes(2)[3][2] == 1, "everybody remembered, last seen first", r[1].text .. " | " .. r[2].text)
+  ok(#r == 2 and r[1].text == "Bad Man" and r[1].sub:find("^1 kill") and r[2].text == "Swig Xd" and r[2].sub:find("^3 heals") and p.boxes(2)[2][2] == 1 and p.boxes(2)[3][2] == 1, "everybody remembered, last seen first", r[1].text .. " | " .. r[2].text)
   p.find(2).set("swig")
   ok(#p.rows(2) == 1 and p.find(1) == nil and p.find(2).get() == "swig", "found by name")
   p.find(2).set("zzz")

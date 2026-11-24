@@ -3639,6 +3639,24 @@ do
   RC.frame.scripts.OnEvent(RC.frame, "PLAYER_DEAD")
   local w = RC.win
   ok(w:IsShown(), "dying opens the death recap")
+  -- HEADER FIRST (Arn, 23 Nov: "start it as only the header and if hover over expand ... full screen make it smaller")
+  ok(w.folded and w.h == RC.HEADER and not w.faces.shown and not w.stop.shown and w.scale == RC.SCALE and RC.SCALE < 1,
+     "a death opens only the header, the window smaller", w.h)
+  ok(tostring(w.con.slots and w.con.slots.name and w.con.slots.name.text or w.con:Text()):find("killed by Molten Elemental", 1, true), "the header says who killed you")
+  do
+  local keepMO = W.mouseOver
+  W.mouseOver = w
+  w.scripts.OnUpdate(w, 0.11)
+  ok(not w.folded and w.h == RC.H and w.faces.shown and w.stop.shown, "the mouse over it: all of it", w.h)
+  W.mouseOver = nil
+  w.scripts.OnUpdate(w, 0.11)
+  ok(not w.folded, "just left: still open")
+  for _ = 1, 4 do w.scripts.OnUpdate(w, 0.11) end
+  ok(w.folded and w.h == RC.HEADER, "a moment after the mouse leaves: the header again")
+  W.mouseOver = w
+  w.scripts.OnUpdate(w, 0.11)
+  W.mouseOver = keepMO
+  end
   ok(w.mid.name.text == "Molten Elemental" and w.mid.role.text == "killer" and w.mid.dmg.text == "128 (42%)",
      "the middle card: killer, Molten Elemental, 128 (42%)", w.mid.dmg.text)
   ok(w.left.dmg.text == "106 (35%)" and w.right.dmg.text == "72 (24%)", "the assists either side, with their shares")

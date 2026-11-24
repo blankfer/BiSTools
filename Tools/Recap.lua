@@ -279,6 +279,11 @@ end
 -- prompt. Plain frames only - nothing secure - so it may open in a fight.
 -- 1.43:1, the BiSTheme standard (Arn, 14 Oct: "make it the best way it'll fit in the imax 70mm aspect")
 RC.W, RC.H, RC.HEADER, RC.PAD = 460, 322, 16, 6
+-- HEADER FIRST (Arn, 23 Nov: "bis recap start it as only the header and if hover over expand to the full screen but full screen
+-- make it smaller"): opened by a death it is only its header bar (who killed you in it); the mouse over it opens the rest, and
+-- RC.FOLD_AFTER s after the mouse leaves it folds back. Opened by hand (/bist recap, the deck) it stays open. The whole window
+-- at RC.SCALE.
+RC.SCALE, RC.FOLD_AFTER = 0.8, 0.4
 RC.CARD_H, RC.STRIP_H, RC.ROW_H, RC.ROWS = 240, 28, 12, 10
 -- the face in each card, and the icon when there is no body to show (26 Oct: faces first, the wall behind "details")
 RC.MODEL_H, RC.ICON = 182, 56
@@ -2144,6 +2149,7 @@ function RC.Build(db)
   end)
   F.tex(f, "BACKGROUND", "frame", 0.96)
   F.border(f, "edge", 0.6)
+  f:SetScale(RC.SCALE)
 
   local head = CreateFrame("Frame", nil, f)
   head:SetPoint("TOPLEFT") head:SetPoint("TOPRIGHT")
@@ -2156,7 +2162,11 @@ function RC.Build(db)
   local acc = 0
   f:SetScript("OnUpdate", function(_, dt)
     acc = acc + (dt or 0)
-    if acc >= 0.1 then acc = 0 if f.con then f.con:Paint() end end
+    if acc >= 0.1 then
+      acc = 0
+      if f.con then f.con:Paint() end
+      RC.Hover(f, 0.1)
+    end
   end)
   f.closeBtn = F.HeaderButton(head, -3, "x", "Close", "/bist recap opens your last death again.",
     function() RC.Toggle(db, false) end, "warn")
@@ -2308,6 +2318,45 @@ local function paintBar(r, name, class, amount, total, colour)
 end
 
 --- Faces or details (db.detail), and the switch's word for the other one.
+--- Fold to the header (on) or open it all. The window keeps its top edge where it is.
+RC.FOLDS = { "faces", "detail", "foot", "detailBtn", "stop", "rivalsBtn" }
+function RC.Fold(on)
+  local f = RC.win
+  if not f then return false end
+  local left = f.GetLeft and f:GetLeft()
+  local top = f.GetTop and f:GetTop()
+  f.folded = on and true or false
+  for _, k in ipairs(RC.FOLDS) do if f[k] then f[k]:SetShown(not on) end end
+  f:SetHeight(on and RC.HEADER or RC.H)
+  if not on then RC.PaintView(RC.db) end
+  if type(left) == "number" and type(top) == "number" then
+    f:ClearAllPoints()
+    f:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", left, top)
+  end
+  RC.PaintHead()
+  return f.folded
+end
+--- The header's words: folded, who killed you is in it.
+function RC.PaintHead()
+  local f = RC.win
+  if not (f and f.con) then return end
+  local k = RC.last and RC.last.killer
+  f.con:Set("name", (f.folded and k and k.title) and ("killed by " .. tostring(k.title) .. " - hover") or "death recap", f.folded and "warn" or "accent")
+end
+--- The mouse over a folded window opens it; RC.FOLD_AFTER s after it leaves, folded again (only one a death opened).
+function RC.Hover(f, dt)
+  if not f.peek then return end
+  local over = f:IsMouseOver()
+  if f.folded and over then RC.Fold(false) f.away = 0
+  elseif not f.folded then
+    if over then f.away = 0
+    else
+      f.away = (f.away or 0) + (dt or 0)
+      if f.away >= RC.FOLD_AFTER then RC.Fold(true) end
+    end
+  end
+end
+
 function RC.PaintView(db)
   local f = RC.win
   if not f then return end
@@ -2966,7 +3015,7 @@ function RC.PaintStop(db)
   if s then s.label:SetText(db.popup == false and "show when I die" or "stop showing this") end
 end
 
-function RC.Toggle(db, want)
+function RC.Toggle(db, want, folded)
   RC.Build(db)
   if want == nil then want = not RC.win:IsShown() end
   if want then
@@ -2986,6 +3035,8 @@ function RC.Toggle(db, want)
     end
     RC.Paint(RC.last)
     RC.PaintStop(db)
+    RC.win.peek = folded and true or nil          -- (a death: the header only, the mouse opens it; by hand: all of it)
+    RC.Fold(folded and true or false)
     if not RC.win:IsShown() then RC.Dodge(RC.win) end
     RC.win:Show()
   else
@@ -3297,7 +3348,7 @@ function RC.OnEvent(_, event, unit, a2)
     local k = RC.last and RC.last.killer
     local rival = k and k.player and RC.Rivals(db)[k.title]
     if rival then RC.KilledBy(db, rival, k.title) end
-    if RC.last and db.popup ~= false then RC.Toggle(db, true) end
+    if RC.last and db.popup ~= false then RC.Toggle(db, true, true) end
   elseif event == "PLAYER_UNGHOST" or event == "PLAYER_ALIVE" then
     if RC.win and RC.win:IsShown() then
       local ok, dead = pcall(function() return UnitIsDeadOrGhost and UnitIsDeadOrGhost("player") end)
