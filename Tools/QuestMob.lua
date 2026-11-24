@@ -20,6 +20,12 @@
 -- WHERE: everywhere but inside a dungeon or raid (BiS> bosses' QUESTS tab has those; a living creature's name is secret
 -- inside). The log's dungeon quests (a header named like a dungeon) are left out outside too - their creatures are in it.
 --
+-- ONE KEY, THREE JOBS (Arn, 23 Nov: "in dungeon it does boss, out in world quest, in pvp rival"), QM.Mode():
+--   in a dungeon or raid BiS> bosses knows   the boss FIND press (BF's own macro copied; our PostClick runs BF.AfterFind)
+--   in a battleground or arena               the rival press (RC.TargetMacro: your gold rivals)
+--   anywhere else                            the next quest mob
+-- Each copy is fresh: BF.Write and RC.ApplyButton are followed by QM.Write (wrapped below).
+--
 -- WHAT IT COSTS: nothing while off. On: QUEST_LOG_UPDATE (one look QM.WAIT after a burst), the zone events and the fight's
 -- two; nameplates only while the log needs a kill (one name asked, one table lookup).
 local _, NS = ...
@@ -35,6 +41,10 @@ QM.NEAR_FOR = 60
 QM.NAMES = 4              -- creatures one item objective may name (QuestieDB)
 QM.ICON = "Interface\\GossipFrame\\AvailableQuestIcon"
 QM.GLOW = 0.35
+-- THE GAME'S KEY BINDINGS (Arn, 23 Nov: "can you add a keybind here pls", the AddOns list beside Overlay map and The deck):
+-- Bindings.xml clicks the button by name, so it is made when the file loads, before the client reads the bindings.
+QM.BINDING = "CLICK BiSToolsQuestMob:LeftButton"
+_G["BINDING_NAME_" .. QM.BINDING] = "Next target: boss, quest mob, rival"
 QM.BASE = { "PLAYER_ENTERING_WORLD", "ZONE_CHANGED_NEW_AREA", "QUEST_LOG_UPDATE", "PLAYER_REGEN_ENABLED" }
 
 local function K() return NS.Farm end
@@ -196,6 +206,10 @@ function QM.Button()
   b.icon:SetPoint("TOPLEFT", 2, -2)
   b.icon:SetPoint("BOTTOMRIGHT", -2, 2)
   b.icon:SetTexture(QM.ICON)
+  b:SetScript("PostClick", function()
+    if not R:Enabled("questmob") then NS.Print("quest mob is off: /bist on qm") return end
+    if QM.mode == "boss" and NS.Bosses and NS.Bosses.AfterFind then NS.Bosses.AfterFind() end
+  end)
   b:SetScript("OnEnter", function(self) QM.Tip(self) end)
   b:SetScript("OnLeave", function(self)
     if self.wash then self.wash:SetAlpha(0) end
@@ -219,29 +233,50 @@ function QM.Tip(b)
     GameTooltip:AddDoubleLine(e.name .. (e.seen and "  (near)" or ""), ("%d/%d"):format(e.have, e.need), 1, 1, 1, 0.6, 0.6, 0.6)
   end
   GameTooltip:AddLine("A press targets the nearest one alive, puts the skull on it and pings it. It never attacks.", 0.6, 0.6, 0.6, true)
-  local key = db().key
-  GameTooltip:AddLine(key and ("Key: " .. key) or "/bist qm key <KEY> binds it", 0.6, 0.6, 0.6)
+  local key = QM.KeyName()
+  GameTooltip:AddLine(key and ("Key: " .. key) or "Bind it: Key Bindings > AddOns > Next quest mob", 0.6, 0.6, 0.6)
   GameTooltip:Show()
 end
 
---- The BiS> tools box shows it while a quest needs a kill, out of a dungeon and out of a fight.
+--- The BiS> tools box shows it while a quest needs a kill, out of a dungeon and out of a fight (the boss and rival
+--- jobs have their own buttons there).
 function QM.ShowBox()
-  return (R:Enabled("questmob") and db().button ~= false and QM.macro ~= nil and QM.macro ~= "" and not QM.Inside() and not fighting()) and true or false
+  return (R:Enabled("questmob") and db().button ~= false and QM.mode == "quest" and QM.macro ~= nil and QM.macro ~= "" and not fighting()) and true or false
+end
+
+--- Which job the key does here: "boss" / "rival" / "quest" / "none" (a dungeon BiS> bosses does not know, or it is off).
+function QM.Mode()
+  local BF, RC = NS.Bosses, NS.Recap
+  if RC and RC.InPvP and RC.InPvP() then return R:Enabled("rivals") and "rival" or "none" end
+  if QM.Inside() then return (BF and BF.map and R:Enabled("bosses")) and "boss" or "none" end
+  return "quest"
+end
+
+--- The press for a job that is not the quest mob: the boss FIND's own macro, or your rivals'.
+function QM.Borrowed(mode)
+  if mode == "boss" then
+    local k = NS.Bosses.FindKey()
+    return tostring(k:GetAttribute("macrotext") or ""), NS.Bosses.findFor and 1 or 0
+  end
+  if mode == "rival" then return NS.Recap.TargetMacro(R:DBFor(R:Get("recap"))) end
+  return "", 0
 end
 
 --- The log read, the order made, the macro written - now, or after the fight.
 function QM.Write()
   if fighting() then QM.dirty = true return false end
   QM.dirty = nil
-  local on = R:Enabled("questmob") and not QM.Inside()
+  local mode = R:Enabled("questmob") and QM.Mode() or "none"
+  local on = mode == "quest"
   local rows = on and QM.Rows() or {}
   QM.Progress(rows)
   QM.rows = QM.Order(rows)
   QM.want = {}
   for _, e in ipairs(QM.rows) do for _, n in ipairs(e.names) do QM.want[n] = true end end
-  local m, n = QM.Macro(QM.rows)
+  local m, n
+  if on then m, n = QM.Macro(QM.rows) else m, n = QM.Borrowed(mode) end
   local was = QM.ShowBox()
-  QM.macro, QM.count = m, n
+  QM.mode, QM.macro, QM.count = mode, m, n
   QM.Button():SetAttribute("macrotext", m)
   QM.Plates(on and next(QM.want) ~= nil)
   if was ~= QM.ShowBox() and NS.Box and NS.Box.Refresh then NS.Box.Refresh() end
@@ -267,6 +302,12 @@ function QM.ApplyKey()
   ClearOverrideBindings(b)
   if db().key and R:Enabled("questmob") then SetOverrideBindingClick(b, true, db().key, "BiSToolsQuestMob") end
   return true
+end
+
+--- The key that presses it: yours from /bist qm key, else the game's Key Bindings (AddOns > Next quest mob).
+function QM.KeyName()
+  if db().key then return db().key end
+  return GetBindingKey and words(ask(GetBindingKey, QM.BINDING)) or nil
 end
 
 function QM.Key(word)
@@ -338,13 +379,29 @@ end)
 function QM.Status()
   local rows = QM.rows or {}
   NS.Print("quest mob: %s, key %s, %d creature%s in the press", R:Enabled("questmob") and "on" or "off",
-    tostring(db().key or "none - /bist qm key <KEY>"), QM.count or 0, (QM.count == 1) and "" or "s")
-  if QM.Inside() then NS.Print("  inside a dungeon: BiS> bosses' QUESTS tab has these") end
+    tostring(QM.KeyName() or "none - Key Bindings > AddOns > Next quest mob"), QM.count or 0, (QM.count == 1) and "" or "s")
+  local job = { boss = "here it does BiS> bosses' FIND", rival = "here it targets your rivals", none = "here it does nothing (turn on bosses / rivals)" }
+  if job[QM.mode] then NS.Print("  %s", job[QM.mode]) end
   for i, e in ipairs(rows) do
     if i > 8 then break end
     NS.Print("  %d. %s  %d/%d%s  (%s)", i, e.name, e.have, e.need, e.seen and "  near" or "", tostring(e.title or ""))
   end
 end
+
+QM.Button()                                    -- (now: the game's binding clicks it by name)
+
+-- the borrowed presses stay fresh: after the boss finder or the rival button writes, so does the key
+local function after(t, key)
+  local fn = t and t[key]
+  if type(fn) ~= "function" then return end
+  t[key] = function(...)
+    local a, b = fn(...)
+    if R:Enabled("questmob") and not fighting() and (QM.mode ~= "quest" or QM.Mode() ~= "quest") then QM.Write() end
+    return a, b
+  end
+end
+after(NS.Bosses, "Write")
+after(NS.Recap, "ApplyButton")
 
 R:Register({
   name = "questmob",

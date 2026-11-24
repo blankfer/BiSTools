@@ -5,4 +5,6 @@
 	<Binding name="BISTOOLS_DECK" category="ADDONS">
 		BiSTools_ToggleDeck()
 	</Binding>
+	<Binding name="CLICK BiSToolsQuestMob:LeftButton" category="ADDONS">
+	</Binding>
 </Bindings>

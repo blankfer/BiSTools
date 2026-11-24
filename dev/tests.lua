@@ -11162,11 +11162,42 @@ do
   -- INSIDE A DUNGEON: it stands aside (the bosses' QUESTS tab has those)
   _G.IsInInstance = function() return true, "party" end
   QM.Write()
-  ok(b.attrs.macrotext == "" and shown() == false, "inside a dungeon: no press, no box button")
+  ok(b.attrs.macrotext == "" and shown() == false and QM.mode == "none", "inside a dungeon BiS> bosses does not run: no press, no box button")
+  -- ONE KEY, THREE JOBS (Arn, 23 Nov: "in dungeon it does boss, out in world quest, in pvp rival")
+  local BF, RC = NS.Bosses, NS.Recap
+  local en = NS.DB().enabled
+  local kb = { map = BF.map, bosses = en.bosses, rivals = en.rivals, after = BF.AfterFind, tm = RC.TargetMacro, findFor = BF.findFor }
+  en.bosses, BF.map, BF.findFor = true, 349, { name = "Noxxion" }
+  BF.FindKey():SetAttribute("macrotext", "/cleartarget\n/targetexact Noxxion")
+  QM.Write()
+  ok(QM.mode == "boss" and b.attrs.macrotext == "/cleartarget\n/targetexact Noxxion" and shown() == false,
+     "in a dungeon: the key presses the boss FIND (its own macro), no ? in the box", b.attrs.macrotext)
+  local found = 0
+  BF.AfterFind = function() found = found + 1 end
+  b.scripts.PostClick(b)
+  ok(found == 1, "a press there moves the boss finder on, as its own FIND does")
+  BF.AfterFind = kb.after
+  BF.FindKey():SetAttribute("macrotext", "/cleartarget\n/targetexact Tinkerer Gizlock")
+  local wroteOk = pcall(BF.Write)
+  ok(wroteOk and b.attrs.macrotext == BF.FindKey():GetAttribute("macrotext") and not b.attrs.macrotext:find("Gizlock", 1, true),
+     "the boss finder writes: the key follows at once", b.attrs.macrotext)
+  _G.IsInInstance = function() return true, "pvp" end
+  en.rivals = true
+  RC.TargetMacro = function() return "/target Gankalot", 1 end
+  QM.Write()
+  ok(QM.mode == "rival" and b.attrs.macrotext == "/target Gankalot", "in a battleground: the key targets your rivals", b.attrs.macrotext)
+  en.rivals = false
+  QM.Write()
+  ok(QM.mode == "none" and b.attrs.macrotext == "", "rivals off: nothing there")
+  en.bosses, en.rivals, BF.map, RC.TargetMacro, BF.findFor = kb.bosses, kb.rivals, kb.map, kb.tm, kb.findFor
   _G.IsInInstance = function() return false, "none" end
   QM.Write()
+  ok(QM.mode == "quest", "out in the world: the quest mob again")
 
   -- THE KEY
+  ok(_G["BINDING_NAME_CLICK BiSToolsQuestMob:LeftButton"] == "Next target: boss, quest mob, rival", "the game's Key Bindings list it under AddOns")
+  local bx = io.open("Bindings.xml", "r") local xml = bx:read("*a") bx:close()
+  ok(xml:find('<Binding name="CLICK BiSToolsQuestMob:LeftButton" category="ADDONS">', 1, true), "Bindings.xml clicks the button by name")
   S("qm key f")
   ok(W.binds[b] and W.binds[b].key == "F" and W.binds[b].btn == "BiSToolsQuestMob", "/bist qm key F binds it")
   S("qm why")
@@ -11190,7 +11221,8 @@ local allowed = { BiSTools = true, BiSToolsDB = true, BiSToolsAlts = true, SLASH
   BiSToolsAPI = true, -- API.lua, for other addons (16 Oct: BiS Guild's invites)
   -- the overlay map's key binding: Bindings.xml calls a global, and the client reads these two names
   BiSTools_ToggleOverlayMap = true, BINDING_HEADER_BISTOOLS = true, BINDING_NAME_BISTOOLS_OVERLAYMAP = true,
-  BiSDeckAPI = true, BiSTools_ToggleDeck = true, BINDING_NAME_BISTOOLS_DECK = true }
+  BiSDeckAPI = true, BiSTools_ToggleDeck = true, BINDING_NAME_BISTOOLS_DECK = true,
+  ["BINDING_NAME_CLICK BiSToolsQuestMob:LeftButton"] = true }   -- (the quest mob's line in the game's Key Bindings)
 for k in pairs(_G) do
   if not before[k] and not allowed[k] and not frames[k] then error("leaked global: " .. k) end
 end
