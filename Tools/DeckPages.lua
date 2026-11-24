@@ -221,7 +221,8 @@ end
 
 -- A PAGE FOR EVERY TOOL (Arn, 22 Nov: "we need to make all the tools into apps"): a tool without a page of its own gets one made of
 -- what it already told the options window - its switch, its options, its window. Off, it is in the Apps page with TURN ON.
-DP.OWN = { bosses = true, rides = true, farm = true, deck = true }
+DP.OWN = { bosses = true, rides = true, farm = true, deck = true,
+  questmob = true }     -- (Arn, 23 Nov: "this tool should go in farm" - the quest mob lives on the Farm page's QUESTS tab, no app of its own)
 --- One option as a row. `tool` = whose settings.
 function DP.OptionRow(tool, opt)
   local db = R:DBFor(tool)
@@ -508,7 +509,9 @@ function DP.Register()
           return { { word = "TAG: " .. QM.TagWord(), peek = true, ink = t == "off" and "dim" or "good",
             tip = "How a press tags it so it is yours: OFF / ATTACK (start your attack)" .. (spell and (" / " .. spell) or "") .. ". Click: the next",
             fn = function() QM.NextTag() end },
-            spell and { word = "SPELL", peek = true, tip = "Which instant tags it: a menu of the ones you know", fn = function() QM.SpellMenu() end } or nil }
+            spell and { word = "SPELL", peek = true, tip = "Which instant tags it: a menu of the ones you know", fn = function() QM.SpellMenu() end }
+              or { word = "OFF", peek = true, tip = "Turn the quest mob key off", fn = function() R:SetEnabled("questmob", false) end },
+            spell and { word = "OFF", peek = true, tip = "Turn the quest mob key off", fn = function() R:SetEnabled("questmob", false) end } or nil }
         end
         return { DP.PopOut(function() NS.Farm.Toggle(DP.FarmDB(), true) end, "The farm window on your screen"), { word = "FORGET", peek = true, fn = function() NS.Farm.Clear(DP.FarmDB()) end } }
       end,

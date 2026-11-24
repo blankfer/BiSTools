@@ -10654,6 +10654,12 @@ do
     ok(def.page.keys(3)[1].word == "TAG: OFF" and not QM.macro:find("startattack", 1, true), "pressed: TAG: OFF, the press only marks", def.page.keys(3)[1].word)
     Dk.Press(def, def.page.keys(3)[1])()
     ok(QM.Tag() == "attack" and def.page.keys(1)[1].word ~= "TAG: ATTACK", "again: attack; the other tabs keep their keys")
+    ok(Dk.defs["BiSTools:tool-questmob"] == nil, "no Questmob app of its own: it lives in Farm (Arn: \"this tool should go in farm\")")
+    local offKey = def.page.keys(3)[#def.page.keys(3)]
+    ok(offKey.word == "OFF", "the QUESTS tab can turn it off", offKey.word)
+    Dk.Press(def, offKey)()
+    ok(not R:Enabled("questmob") and def.page.rows(3)[1].right == "TURN ON", "off: TURN ON again")
+    Dk.Press(def, def.page.rows(3)[1].act)()
     Dk.Press(def, rows[3].act)()
     ok(QM.pin == "Rowdy Rose" and def.page.rows(3)[1].text == "Rowdy Rose" and QM.macro:find("^/cleartarget\n/targetexact %[noexists%] Rowdy Rose"),
        "a click on a row: it goes first, in the press too", QM.macro)
@@ -10681,6 +10687,7 @@ do
     local missing, rowsSeen = {}, 0
     for key, tool in R:Each() do
       local def = Dk.defs["BiSTools:tool-" .. key] or (DP.OWN[key] and (key == "deck" or Dk.defs["BiSTools:" .. key]))
+        or (key == "questmob" and Dk.defs["BiSTools:farm"])         -- (in Farm: its QUESTS tab, 23 Nov)
       if not def then missing[#missing + 1] = key end
       if type(def) == "table" and Dk.defs["BiSTools:tool-" .. key] then
         ok(def.quietOff and def.about and #def.about > 10 and (def.state() == "on") == R:Enabled(key), key .. ": an icon, and it follows the tool's switch")
