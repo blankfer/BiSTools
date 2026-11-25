@@ -1,5 +1,12 @@
-## Next
+## 1.8.0
 
+- **Every tool is an app on the BiS deck.** Open the deck and each tool has its icon; a click opens it right there. Apps open straight to themselves - no cards to click through first.
+- **New: the next quest mob, on one key.** It targets the nearest creature your quests still need, puts a skull on it and pings it, then starts your attack (or casts an instant spell you pick, or does nothing more). Set the key in the game's Key Bindings under AddOns. In a dungeon the same key is BiS> Bosses' FIND; in a battleground it goes for your rivals. The Farm page has a QUESTS tab with what it goes for, in order.
+- **The death recap opens small:** who killed you on top, the rest when you move the mouse over it.
+- **Battlegrounds: our MVPs reach BiS Healing,** so its deck can show them.
+- **Shift-click works** on deck buttons and the totem card.
+- **Windows stay under your mouse when you drag them.** On some screens a window could jump across the screen at the grab; the game no longer keeps its own copy of where you put a window, so the spot you choose is the only one.
+- **Fixed:** app icons on the deck were sometimes drawn zoomed in or cut off.
 - **BiS> Bosses is a phone.** The boss finder is tall and narrow now: the boss in 3D on top with its name, how many are down, in sight and marked in boxes, the list under it, and FIND as the biggest button. A dead boss gets a green tick. It opens right of your character until you drag it.
 - **BiS> Bosses: quest targets.** A QUESTS tab lists who your quests need in this dungeon - and outside its entrance, in the same zone (Maraudon's khans, Razorfen Downs' camps and Ambassador Malcin). Click a row to target and mark them; the quest itself ticks the row off. Who in your party is on the quest too shows as initials. Kill quests work alone; with Questie installed, item quests know who carries the item.
 - **BiS> Bosses: FOUND works inside.** Inside a dungeon the game hides creatures' names from addons, so a press always said "not in sight". It now knows when it hit without reading a name.
@@ -9,7 +16,7 @@
 - **Processing: smelt your ore.** Ore in your bags shows under SMELT at the top of READY: click to smelt it all, Shift-click for one bar. Stand at a forge. The first click may open Mining for you; then click again.
 - **Disenchant glow: the key is yours.** With Gargul installed (it uses Alt) the bags light with Ctrl instead; or pick Alt, Ctrl or Shift in its settings.
 - **Processing: click an item to disenchant it** (Shift-click for soulbound gear or gear in one of your sets), and hover it for the game's own item tooltip with what you wear beside it. Soulbound gear sits at the bottom of the list. SKIP moves an item to the new KEEP tab: never disenchanted, out of the list; BACK or ALL BACK there brings it back.
-- **Totems move up to their newest rank.** After a level (or anything that changes your spells) every Call's totem and BiS>totems' row move up to the newest rank of the same totem, and say so in chat. In a fight it waits for the end.
+- **Totems move up to their newest rank** (with the combo tool on). After a level (or anything that changes your spells) every Call's totem and BiS>totems' row move up to the newest rank of the same totem, and say so in chat. In a fight it waits for the end.
 - **BiS>totems: pick from a pop-out.** Click a totem on the row and the others of its kind pop out over it, the way the game's totem bar does; the imbue too. One click puts it on the row. **Recall** sits next to Bring.
 - **Social: world buffs are left out.** Warchief's Blessing, Rallying Cry, Songflower, the Dire Maul tributes, Spirit of Zandalar and the Darkmoon fortunes come from the game, not a person: no more "Someone - NO NAME" rows for them.
 
