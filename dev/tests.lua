@@ -10513,7 +10513,7 @@ do
   for _, f in ipairs(W.frames or {}) do if f.template and tostring(f.template):find("Secure") then secureBefore = secureBefore + 1 end end
   local okShow, why = pcall(function() S("on deck") end)
   ok(okShow and Dk.frame and Dk.frame:IsShown(), "/bist on deck: it comes up", tostring(why))
-  ok(Dk.page == "BiSDeck:welcome", "the first time: the welcome", Dk.page)
+  ok(Dk.page == "home", "the first time: home - no welcome walk-through (Arn, 24 Nov: \"get rid the on board\")", Dk.page)
   -- THE PHONE TAKES IT (Arn, 22 Nov: the old boss phone popped out beside the deck - "that should not happen anymore";
   -- "it has the button old phone on the bottom that turns it on")
   do
@@ -10531,8 +10531,7 @@ do
     BS.Toggle(false)
     Dk.page = "BiSDeck:welcome"
   end
-  ok(Dk.defs["BiSTools:bosses"].page.tour and Dk.Tour(Dk.defs["BiSTools:bosses"]) ~= nil, "the bosses page has its first-time words")
-  Dk.Store().toured["BiSTools:bosses"] = true
+  ok(Dk.Tour(Dk.defs["BiSTools:bosses"]) == nil, "no first-time card on an app (Arn: \"i hate when you click an app you gotta click the yellow buttons\")")
   for _, pg in ipairs({ "home", "BiSTools:bosses", "BiSTools:run", "BiSTools:rides", "switches", "BiSDeck:apps", "BiSDeck:welcome" }) do
     for _, shape in ipairs({ "portrait", "landscape" }) do
       local okP, whyP = pcall(function() Dk.page = pg Dk.Flip(shape) end)
