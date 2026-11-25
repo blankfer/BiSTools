@@ -414,6 +414,14 @@ return function(H)
   -- NEWEST RANKS (Arn, 23 Nov: "i just leveled and the totems did not update to the newest ranks")
   do
     local kn4 = C.Knows
+    local Rg = H.NS.Registry
+    local keepEn = Rg.Enabled
+    local comboOn = false
+    Rg.Enabled = function(self, k) if k == "combo" then return comboOn end return keepEn(self, k) end
+    FITS[1] = { 1, 2, 8 }
+    ok(T.Upgrade() == 0 and at[133] == 1, "the combo tool off: the game's totem bar is never touched (25 Nov, the release bug hunt)")
+    FITS[1] = { 1, 2 }
+    comboOn = true
     C.Knows = function(n) return n == "Call of the Elements" or n == "Call of the Spirits" end
     NAME[8] = "Flametongue Totem III"
     at[133], at[141] = 1, 1                                  -- (Flametongue II in both Calls)
@@ -443,7 +451,7 @@ return function(H)
     local cost, by = Cost.Count(function() T.Upgrade() end)
     print(("   cost: totems to the newest rank, one look (after a level / a spell change) = %d calls (%s)"):format(cost, Cost.Top(by, 3)))
     ok(cost < 300, "one look stays light", cost)
-    H.NS.Print, C.Knows = keepP, kn4
+    H.NS.Print, C.Knows, Rg.Enabled = keepP, kn4, keepEn
     FITS[1] = { 1, 2 } NAME[8] = nil
     at[133], at[141] = 1, 2
   end

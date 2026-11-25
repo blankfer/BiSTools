@@ -2811,7 +2811,14 @@ R:Register({
   end,
   IsOpen = function() return C.IsOpen() end,
   OnClose = function() C.Toggle(false) end,
-  OnDisable = function() C.cur = nil if C.frame then C.frame:Hide() db().open = false end if C.card then C.card:Hide() end end,
+  OnDisable = function()
+    C.cur = nil
+    if C.frame then C.frame:Hide() db().open = false end
+    if C.card then C.card:Hide() end
+    -- the totem card goes too (25 Nov 2026, the release bug hunt: switched off, its buttons stayed on screen and cast); its
+    -- paint hides it now that it is not wanted - after the fight, if in one (secure buttons)
+    if NS.TotemCard and NS.TotemCard.Soon then NS.TotemCard.Soon() end
+  end,
   OnSlash = function(_, d, args)
     C.db = d
     local cmd = tostring(args or ""):match("^(%S*)") or ""

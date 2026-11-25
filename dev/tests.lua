@@ -6449,6 +6449,14 @@ do
       local mine
       for _, x in ipairs(m.mvps) do if x.name == "Ourhealer" then mine = x end end
       ok(BiSToolsAPI.version >= 8 and m and mine and mine.what == "healer" and #m.healers >= 1 and m.healers[1].rank == 1, "BGMarks: our MVPs and their healers, a copy", m and #m.mvps)
+      do                                                  -- (25 Nov, the release bug hunt: the plain path keys by GUID too)
+        BG.healers["Player-1-00000ABC"] = 1
+        local m2 = BiSToolsAPI.BGMarks()
+        local guid = false
+        for _, x in ipairs(m2.healers) do if x.name:find("^Player%-") then guid = true end end
+        ok(not guid, "a healer kept by its GUID is never handed out as a name")
+        BG.healers["Player-1-00000ABC"] = nil
+      end
       m.mvps[1] = nil
       ok(BG.mvps.Ourhealer, "editing the copy changes nothing")
     end
@@ -10535,10 +10543,10 @@ do
     old.fn()
     ok(BS.frame and BS.frame:IsShown() and Dk.page == "home", "and opens it by hand; the phone steps back home, free for another app", Dk.page)
     BS.Toggle(false)
-    Dk.page = "BiSDeck:welcome"
+    Dk.page = "home"
   end
   ok(Dk.Tour(Dk.defs["BiSTools:bosses"]) == nil, "no first-time card on an app (Arn: \"i hate when you click an app you gotta click the yellow buttons\")")
-  for _, pg in ipairs({ "home", "BiSTools:bosses", "BiSTools:run", "BiSTools:rides", "switches", "BiSDeck:apps", "BiSDeck:welcome" }) do
+  for _, pg in ipairs({ "home", "BiSTools:bosses", "BiSTools:run", "BiSTools:rides", "switches", "BiSDeck:apps" }) do
     for _, shape in ipairs({ "portrait", "landscape" }) do
       local okP, whyP = pcall(function() Dk.page = pg Dk.Flip(shape) end)
       ok(okP, "draws " .. pg .. " " .. shape, tostring(whyP))
@@ -10568,8 +10576,8 @@ do
   ok(Dk.Theme().key == "drive", "/bist deck theme night drive")
   S("deck theme dark")
   ok(Dk.Theme().key == "dark" and Dk.Store().theme == nil, "/bist deck theme dark: back")
-  S("deck welcome")
-  ok(Dk.page == "BiSDeck:welcome", "/bist deck welcome: again")
+  -- (25 Nov: "/bist deck welcome" is gone with the welcome)
+  ok(Dk.defs["BiSDeck:welcome"] == nil and Dk.page ~= "BiSDeck:welcome", "no welcome page left to open (Arn: \"remove the button\")")
   -- a tool that is off: its icon is gray, its page has one button
   ok(Dk.State(Dk.defs["BiSTools:bosses"]) == "on", "bosses on: lit")
   S("off bosses")
@@ -11260,6 +11268,23 @@ do
   QM.events.scripts.OnEvent(QM.events, "PLAYER_REGEN_ENABLED")
   W.runAfters(QM.WAIT + 0.1)
   ok(not b.attrs.macrotext:find("Kobold", 1, true) and QM.count == 1, "after the fight: the finished kobolds are gone", b.attrs.macrotext)
+  -- SWITCHED OFF IN A FIGHT (25 Nov, the release bug hunt): the macro could not be emptied in the lockdown, and the fight's end
+  -- was no longer heard - the key kept targeting until a /reload. Driven through the real switch and the real fight's end.
+  do
+    local before = b.attrs.macrotext
+    W.combat = true
+    R:SetEnabled("questmob", false)
+    ok(b.attrs.macrotext == before and QM.dirty, "switched off in a fight: the macro waits (secure)")
+    W.combat = false
+    local heard = QM.events.events and QM.events.events.PLAYER_REGEN_ENABLED
+    QM.events.scripts.OnEvent(QM.events, "PLAYER_REGEN_ENABLED")
+    W.runAfters(QM.WAIT + 0.1)
+    ok(heard and not QM.dirty and not (b.attrs.macrotext or ""):find("/targetexact", 1, true),
+       "the fight's end is still heard, and the macro is emptied - the key does nothing any more", tostring(b.attrs.macrotext))
+    ok(not (QM.events.events and QM.events.events.PLAYER_REGEN_ENABLED), "and then it stops listening")
+    R:SetEnabled("questmob", true)
+    W.runAfters(QM.WAIT + 0.1)
+  end
 
   -- QUESTIEDB names the creatures an item drops from
   _G.LibQuestieDB = { RequireContract = function(n) return n == 4 end,

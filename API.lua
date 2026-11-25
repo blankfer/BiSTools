@@ -272,8 +272,8 @@ function API.BGMarks()
   if not B then return nil, "not ready" end
   if R and R.Enabled and not R:Enabled("bg") then return nil, "bg tool off" end
   local out = { inBG = (B.InBG and B.InBG()) and true or false, mvps = {}, healers = {} }
-  for name, what in pairs(B.mvps or {}) do if type(name) == "string" then out.mvps[#out.mvps + 1] = { name = name, what = what } end end
-  for name, rank in pairs(B.healers or {}) do if type(name) == "string" then out.healers[#out.healers + 1] = { name = name, rank = rank } end end
+  for name, what in pairs(B.mvps or {}) do if type(name) == "string" and not name:find("^Player%-") then out.mvps[#out.mvps + 1] = { name = name, what = what } end end
+  for name, rank in pairs(B.healers or {}) do if type(name) == "string" and not name:find("^Player%-") then out.healers[#out.healers + 1] = { name = name, rank = rank } end end
   table.sort(out.healers, function(a, b) return (a.rank or 9) < (b.rank or 9) end)
   local k = B.killer
   out.killer = type(k) == "table" and k.name or (type(k) == "string" and k) or nil

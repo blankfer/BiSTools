@@ -416,7 +416,7 @@ function QM.Key(word)
   end
   db().key = word
   QM.ApplyKey()
-  NS.Print("quest mob: %s targets the next creature your quests need (skull + ping, never attacks)", word)
+  NS.Print("quest mob: %s targets the next creature your quests need (skull + ping, then the tag you picked - start attack unless changed)", word)
   return word
 end
 
@@ -462,7 +462,10 @@ ev:SetScript("OnEvent", function(_, e, unit)
   end
   if e == "PLAYER_REGEN_ENABLED" then
     if QM.keyDirty then QM.ApplyKey() end
-    if QM.dirty then QM.Soon() end
+    if QM.dirty then
+      if R:Enabled("questmob") then QM.Soon() else QM.Write() end   -- (switched off in the fight: the macro emptied now)
+    end
+    if not R:Enabled("questmob") and not (QM.dirty or QM.keyDirty) then pcall(ev.UnregisterEvent, ev, "PLAYER_REGEN_ENABLED") end
     return
   end
   if fighting() then QM.dirty = true return end
@@ -523,6 +526,9 @@ R:Register({
     QM.Listen(false)
     QM.Write()
     QM.ApplyKey()
+    -- SWITCHED OFF IN A FIGHT (25 Nov 2026, the release bug hunt): the macro and the key cannot be emptied in the lockdown, and
+    -- Listen(false) had taken the fight's end away too - the key kept targeting until a /reload. Kept until they are done.
+    if QM.dirty or QM.keyDirty then pcall(ev.RegisterEvent, ev, "PLAYER_REGEN_ENABLED") end
   end,
   OnSlash = function(_, d, args)
     QM.db = d

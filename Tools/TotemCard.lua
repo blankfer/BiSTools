@@ -128,6 +128,7 @@ function TC.Wheel(b, delta)
   d.barRank[name] = at < #list and list[at].rank or nil
   note(("%s: rank %s of %d"):format(name, tostring(list[at].rank or at), #list))
   TC.dress(b, it, b:GetWidth())
+  TC.Soon()                                         -- (every button of that totem takes the rank, not only this one)
   if b:GetScript("OnEnter") and GameTooltip and GameTooltip.IsOwned and GameTooltip:IsOwned(b) then b:GetScript("OnEnter")(b) end
 end
 
@@ -331,7 +332,7 @@ function TC.EndDrag()
   local f = TC.frame
   if not (f and f.moving) then return end
   f.moving = nil
-  f:StopMovingOrSizing()
+  NS.LetGo(f)
   local a, _, b, x, y = f:GetPoint()
   db().barPos = { a, nil, b, x, y }
 end

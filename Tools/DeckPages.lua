@@ -559,7 +559,7 @@ DP.Register()
 R:Register({
   name = "deck",
   desc = "the one BiS deck, tall or wide: live cards, pages, steps (first try: look, do not lean on it yet)",
-  usage = "/bist deck  |  /bist deck wide|tall|pad|welcome|theme <name>|pin <profile>|unpin",
+  usage = "/bist deck  |  /bist deck wide|tall|pad|theme <name>|pin <profile>|unpin",
   defaultOff = true,
   defaults = {},
   OnLogin = function() DP.Tools() end,
@@ -577,7 +577,6 @@ R:Register({
     elseif cmd == "pad" then
       -- the pad holds the deck only while asked to (B gives it back): it stands open all evening
       if not D.Focus(not D.focused) then NS.Print("deck: no gamepad kit, or a fight") end
-    elseif cmd == "welcome" then D.Show() if D.Replay then D.Replay() end
     elseif cmd == "theme" then
       local names = {}
       for _, t in ipairs(D.THEMES) do

@@ -123,6 +123,9 @@ end
   waits for its end. One look a moment after the burst; nothing ticks. ]]
 T.UP_WAIT = 1.5
 function T.Upgrade()
+  -- ONLY WITH THE COMBO TOOL ON (25 Nov 2026, the release bug hunt): it rewrites the game's totem bar - never for a shaman who
+  -- never switched the tool on (it is off on a new install)
+  if not (R and R.Enabled and R:Enabled("combo")) then return 0 end
   if not (T.Shaman() and T.Can()) then return 0 end
   if fighting() then T.upLate = true return 0 end
   T.upLate = nil
