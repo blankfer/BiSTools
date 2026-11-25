@@ -61,6 +61,18 @@ end
 --- and from then on its own fade ran as OUR code. So BiS Tools draws its call-outs (a rival nearby, a summon) in a
 --- MessageFrame of its own, laid ON the raid warning's spot with the same big, fading look. Blizzard's frame is only
 --- anchored to, never written into. rgb: { r, g, b } (default: the raid warning's orange).
+--- LET GO OF A DRAG, AND KEEP THE GAME OUT OF IT (25 Nov 2026, BiS Healing's deck on Arn's 3440 x 1440 screen: grabbed, it
+--- flew across the screen). StartMoving marks a named frame "placed by the player"; the game then keeps that spot in its own
+--- layout file and lays it back at the next login, relative to nothing - over our own saved spot - and the next StartMoving
+--- misread that anchor. So every drag in BiS Tools ends here: the drag stopped, the game's own memory of the spot off. Our
+--- saved spot is the only one. Takes a frame (works as an OnDragStop / OnHide script too).
+function NS.LetGo(f)
+  if type(f) ~= "table" then return false end
+  if f.StopMovingOrSizing then pcall(f.StopMovingOrSizing, f) end
+  if f.SetUserPlaced then pcall(f.SetUserPlaced, f, false) end
+  return true
+end
+
 NS.ALERT = { size = 26, visible = 5, fade = 2, y = -260 }
 function NS.Alert(text, rgb)
   if text == nil then return false end

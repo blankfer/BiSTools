@@ -161,7 +161,7 @@ function O.Build()
   tab:RegisterForClicks("RightButtonUp")
   tab:SetScript("OnClick", function(_, button) if button == "RightButton" then O.Menu() end end)
   tab:SetScript("OnDragStop", function(self)
-    self:StopMovingOrSizing()
+    NS.LetGo(self)
     self.dragging = nil
     O.Lit(false)
     O.SavePos(O.db)

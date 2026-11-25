@@ -833,7 +833,7 @@ function C.Place(combo)
 end
 
 -- ---------------------------------------------------------------- the card
-local function endDrag(f) if f and f.moving then f.moving = nil f:StopMovingOrSizing() end end
+local function endDrag(f) if f and f.moving then f.moving = nil NS.LetGo(f) end end
 function C.BuildCard()
   if C.card then return C.card end
   local K = F()
@@ -1116,7 +1116,7 @@ end
 function C.EndSizing(f)
   if not f.sizing then return end
   f.sizing = nil
-  f:StopMovingOrSizing()
+  NS.LetGo(f)
   local d = db()
   d.w = math.max(C.W_MIN, math.min(C.W_MAX, math.floor((f:GetWidth() or C.W) + 0.5)))
   d.h = math.max(C.H_MIN, math.min(C.H_MAX, math.floor((f:GetHeight() or C.H) + 0.5)))
@@ -2106,7 +2106,7 @@ function C.Float()
   local function stop()
     if not g.moving then return end
     g.moving = nil
-    g:StopMovingOrSizing()
+    NS.LetGo(g)
     local ok, pt, _, rp, x, y = pcall(g.GetPoint, g)
     if ok and pt then db().tapePos = { pt, rp, x, y } end
   end
@@ -2359,7 +2359,7 @@ function C.Tape()
   local function stop(self)
     if not self.moving then return end
     self.moving = nil
-    self:StopMovingOrSizing()
+    NS.LetGo(self)
     local ok, pt, _, rp, x, y = pcall(self.GetPoint, self)
     if ok and pt then db().tapePos = { pt, rp, x, y } end
   end
@@ -2501,7 +2501,7 @@ end
 function C.TapeEndSize(t)
   if not t.sizing then return end
   t.sizing = nil
-  t:StopMovingOrSizing()
+  NS.LetGo(t)
   local d = db()
   d.tapeW, d.tapeH = math.floor((t:GetWidth() or C.TAPE.w) + 0.5), math.floor((t:GetHeight() or 100) + 0.5)
   local ok, pt, _, rp, x, y = pcall(t.GetPoint, t)

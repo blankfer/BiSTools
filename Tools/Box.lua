@@ -438,7 +438,7 @@ function B.EndDrag()
   local f = B.frame
   if not (f and B.moving) then return false end
   B.moving = false
-  f:StopMovingOrSizing()
+  NS.LetGo(f)
   local point, _, rel, x, y = f:GetPoint(1)
   B.DB().pos = { point or "CENTER", x or 0, y or 0, rel or point or "CENTER" }
   B.DB().dock = "free"

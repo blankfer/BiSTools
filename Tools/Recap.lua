@@ -2143,7 +2143,7 @@ function RC.Build(db)
   f:RegisterForDrag("LeftButton")
   f:SetScript("OnDragStart", function(self) self:StartMoving() end)
   f:SetScript("OnDragStop", function(self)
-    self:StopMovingOrSizing()
+    NS.LetGo(self)
     local point, _, rel, x, y = self:GetPoint(1)
     db.pos = { point or "CENTER", x or 0, y or 0, rel or point or "CENTER" }
   end)
@@ -2502,7 +2502,7 @@ function RC.BuildRivals(db)
   d:RegisterForDrag("LeftButton")
   d:SetScript("OnDragStart", function(self) self:StartMoving() end)
   d:SetScript("OnDragStop", function(self)
-    self:StopMovingOrSizing()
+    NS.LetGo(self)
     local point, _, rel, x, y = self:GetPoint(1)
     db.rpos = { point or "CENTER", x or 0, y or 0, rel or point or "CENTER" }
   end)
@@ -3138,7 +3138,7 @@ function RC.BuildGriefCard(db)
   local function stop(self)
     if not self.moving then return end
     self.moving = nil
-    self:StopMovingOrSizing()
+    NS.LetGo(self)
     local ok, pt, _, rp, x, y = pcall(self.GetPoint, self)
     if ok and pt then RC.DB().griefPos = { pt, rp, x, y } end
   end
