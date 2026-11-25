@@ -424,7 +424,7 @@ end
 function P.EndDrag(self)
   if not (self and self.dragging) then return false end
   self.dragging = nil
-  pcall(self.StopMovingOrSizing, self)
+  NS.LetGo(self)
   return true
 end
 

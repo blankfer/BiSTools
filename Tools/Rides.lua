@@ -128,7 +128,7 @@ function RD.Build()
     if not InCombatLockdown() then self:StartMoving() end
   end)
   f:SetScript("OnDragStop", function(self)
-    self:StopMovingOrSizing()
+    NS.LetGo(self)
     local p, _, rp, x, y = self:GetPoint()
     if RD.db then RD.db.pos = { p, rp, x, y } end
   end)

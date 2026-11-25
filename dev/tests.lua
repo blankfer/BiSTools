@@ -601,7 +601,12 @@ _G.CreateFrame = function(kind, name, parent, template)
   function f:StartMoving()
     if W.combat and self:IsProtected() then error("StartMoving on a protected frame in combat", 2) end
     self.moving = true
+    -- AS THE CLIENT DOES: a frame moved by StartMoving is "placed by the player", and the game keeps its spot in its own
+    -- layout file and lays it back at login, relative to nothing (25 Nov 2026: BiS Healing's deck, layout-local.txt)
+    self.userPlaced = true
   end
+  function f:SetUserPlaced(v) self.userPlaced = v and true or nil end
+  function f:IsUserPlaced() return self.userPlaced == true end
   function f:StopMovingOrSizing()
     if self.moving and W.combat and self:IsProtected() then
       W.strandedDrag = (W.strandedDrag or 0) + 1                   -- refused: still on the cursor
@@ -1468,6 +1473,7 @@ do
     ok(not sf.moving and not W.strandedDrag, what .. ": the pull ENDS the drag, not left on the cursor",
        tostring(W.strandedDrag))
     ok(SM.db and SM.db.pos, what .. ": and where it was dropped is kept")
+    ok(not sf:IsUserPlaced(), what .. ": and the game keeps no spot of its own (NS.LetGo) - ours is the only one")
   end
   drag(sf, "the window")
   drag(SM.title.parent, "its header")
