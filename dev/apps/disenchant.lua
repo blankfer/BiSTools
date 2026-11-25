@@ -41,7 +41,7 @@ return function(H)
   local function find(tab, words) for _, r in ipairs(p.rows(tab)) do if r.text == words then return r end end end
   moment()
 
-  ok(#p.tabs() == 4 and p.tabs()[1] == "READY" and p.tabs()[2] == "SETS" and p.tabs()[3] == "HAUL", "READY, SETS, HAUL and the settings")
+  ok(#p.tabs() == 5 and p.tabs()[1] == "READY" and p.tabs()[2] == "SETS" and p.tabs()[3] == "KEEP" and p.tabs()[4] == "HAUL", "READY, SETS, KEEP, HAUL and the settings")
   local all = p.rows(1)
   ok(#all == 3 and all[1].text == "Green Sword" and all[1].pic == 131001 and all[1].right == "" and all[1].tint == "uncommon" and all[3].right == "ENCHANTED" and all[3].tint == "epic",
     "READY: the gear in no set, with its pictures, in its quality, the lowest first; no grey, no herb", #all)

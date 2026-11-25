@@ -1,8 +1,10 @@
 <Bindings>
-	<Binding name="BISTOOLS_OVERLAYMAP" header="BISTOOLS" category="ADDONS">
+	<Binding name="BISTOOLS_OVERLAYMAP" header="BISTOOLS" category="BiS&gt;Keybinds">
 		BiSTools_ToggleOverlayMap()
 	</Binding>
-	<Binding name="BISTOOLS_DECK" category="ADDONS">
+	<Binding name="BISTOOLS_DECK" category="BiS&gt;Keybinds">
 		BiSTools_ToggleDeck()
+	</Binding>
+	<Binding name="CLICK BiSToolsQuestMob:LeftButton" category="BiS&gt;Keybinds">
 	</Binding>
 </Bindings>

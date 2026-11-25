@@ -110,7 +110,7 @@ function DP.DisenchantParts()
   end
   local function row(e)
     local right, ink = status(e)
-    return { pic = e.icon, text = e.text, tint = TINT[e.quality], sub = under(e), right = right, ink = ink,
+    return { pic = e.icon, text = e.text, tint = TINT[e.quality], sub = under(e), right = right, ink = ink, bagItem = { e.bag, e.slot },
       act = { word = "open", peek = true, fn = function() pick = { bag = e.bag, slot = e.slot, guid = e.guid, text = e.text } D.skip = 0 end },
       tip = (COLOUR[e.quality] or "Gear") .. ", bag " .. (e.bag + 1) .. " slot " .. e.slot .. "." .. (e.sets and " In your set " .. names(e) .. "." or "")
         .. (e.kind == "bound" and " Soulbound: you may still want it." or "") .. (e.enchanted and " Somebody enchanted it: look twice." or "") }

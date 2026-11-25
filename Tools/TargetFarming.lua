@@ -419,7 +419,7 @@ function F.Build(db)
   f:RegisterForDrag("LeftButton")
   f:SetScript("OnDragStart", function(self) self:StartMoving() end)
   f:SetScript("OnDragStop", function(self)
-    self:StopMovingOrSizing()
+    NS.LetGo(self)
     local point, _, rel, x, y = self:GetPoint(1)
     db.pos = { point or "CENTER", x or 0, y or 0, rel or point or "CENTER" }
   end)

@@ -246,7 +246,7 @@ function W.Build()
     local m = self.moving
     if not m then return end
     self.moving = nil
-    m:StopMovingOrSizing()
+    NS.LetGo(m)
     local ok, pt, _, rp, x, y = pcall(m.GetPoint, m)
     if not (ok and pt) then return end
     if m == self then db().pos = { pt, rp, x, y }

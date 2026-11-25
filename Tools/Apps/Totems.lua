@@ -20,6 +20,7 @@ T.CALLS = {
   { id = 66844, name = "Call of the Spirits", tab = "SPIRITS" },
 }
 T.BRING = "Totemic Call"
+T.RECALL = "Totemic Recall"                               -- (Arn, 23 Nov: "next to bring we do the recall"; 36936 on Forever)
 T.SLOTS = { "Fire", "Earth", "Water", "Air" }
 
 local function plain(v) if v == nil or (issecretvalue and issecretvalue(v)) then return nil end return v end
@@ -90,12 +91,21 @@ function T.Set(page, slot, id)
   pcall(SetMultiCastSpell, T.Action(page, slot), id or 0)
   return T.Get(page, slot) == id
 end
---- The id of a totem by its plain name among the ones that fit (the highest rank the client offers).
+--- A rank's number ("Rank 3" -> 3), or nil when the game does not say.
+function T.Rank(id)
+  local sub = id and C_Spell and C_Spell.GetSpellSubtext and ask(C_Spell.GetSpellSubtext, id)
+  return type(sub) == "string" and tonumber(sub:match("(%d+)")) or nil
+end
+--- The id of a totem by its plain name among the ones that fit: the highest rank the client offers (by its "Rank N"; the game
+--- not saying = the last one it lists, as before).
 function T.Find(slot, name)
-  local C, best = NS.Combo, nil
+  local C, best, top = NS.Combo, nil, nil
   for _, id in ipairs(T.List(slot)) do
     local n = T.Name(id)
-    if n == name or (n and C and C.Base and C.Base(n) == name) then best = id end
+    if n == name or (n and C and C.Base and C.Base(n) == name) then
+      local r = T.Rank(id)
+      if not best or not r or not top or r >= top then best, top = id, r or top end
+    end
   end
   return best
 end
@@ -106,3 +116,52 @@ function T.Short(name)
   local n = tostring(name or ""):gsub(" Totem$", ""):gsub(" Weapon$", "")
   return T.SHORT[n] or (#n > 12 and n:match("^%S+")) or n
 end
+
+--[[ NEWEST RANKS (Arn, 23 Nov: "i just leveled and the totems did not update to the newest ranks"): the game's totem bar keeps
+  the rank it was given. After a level, or anything that changes your spells, every Call's totem and the phone's row move up to
+  the newest rank of the same totem the bar offers (T.Find: its plain name, the highest it gives). Out of a fight only - a fight
+  waits for its end. One look a moment after the burst; nothing ticks. ]]
+T.UP_WAIT = 1.5
+function T.Upgrade()
+  -- ONLY WITH THE COMBO TOOL ON (25 Nov 2026, the release bug hunt): it rewrites the game's totem bar - never for a shaman who
+  -- never switched the tool on (it is off on a new install)
+  if not (R and R.Enabled and R:Enabled("combo")) then return 0 end
+  if not (T.Shaman() and T.Can()) then return 0 end
+  if fighting() then T.upLate = true return 0 end
+  T.upLate = nil
+  local C, n = NS.Combo, 0
+  local function newest(slot, id)
+    local name = id and T.Name(id)
+    local base = name and C and C.Base and C.Base(name) or name
+    local best = base and T.Find(slot, base)
+    return best and best ~= id and best or nil
+  end
+  for _, page in ipairs(T.Known()) do
+    for slot = 1, 4 do
+      local best = newest(slot, T.Get(page, slot))
+      if best and T.Set(page, slot, best) then n = n + 1 end
+    end
+  end
+  local d = db().draft                                         -- (the phone's row, if it is changed and not saved yet)
+  if type(d) == "table" and type(d.t) == "table" then
+    for slot = 1, 4 do local best = d.t[slot] and newest(slot, d.t[slot]) if best then d.t[slot] = best n = n + 1 end end
+  end
+  if n > 0 and NS.Print then NS.Print("totems: %d moved up to their newest rank", n) end
+  if n > 0 and C and C.CardSoon then C.CardSoon() end
+  T.upN = n
+  return n
+end
+function T.UpSoon(wait)
+  if T.upPending then return end
+  T.upPending = true
+  local function go() T.upPending = nil T.Upgrade() end
+  if C_Timer and C_Timer.After then C_Timer.After(wait or T.UP_WAIT, go) else go() end
+end
+local up = CreateFrame("Frame")
+T.upEvents = up
+for _, e in ipairs({ "PLAYER_LOGIN", "PLAYER_LEVEL_UP", "SPELLS_CHANGED", "PLAYER_REGEN_ENABLED" }) do pcall(up.RegisterEvent, up, e) end
+up:SetScript("OnEvent", function(_, e)
+  if e == "PLAYER_REGEN_ENABLED" then if T.upLate then T.UpSoon() end return end
+  if not T.Shaman() then return end
+  T.UpSoon(e == "PLAYER_LEVEL_UP" and 3 or nil)                -- (a level: the new ranks come a moment after it)
+end)

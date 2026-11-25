@@ -124,8 +124,10 @@ DP.App.bg = function(tool, db)
           local rec = e.rec
           local h, k = rec.healer or 0, rec.killer or 0
           local why = (h > 0 and times(h, "heal") or "") .. (h > 0 and k > 0 and ", " or "") .. (k > 0 and times(k, "kill") or "")
-          out[i] = { mark = k > 0 and "x" or "+", text = e.name .. (why ~= "" and "  " .. why or ""), tint = k > 0 and "warn" or "good",
-            sub = rec.last and date and ("last seen " .. date("%d %b", rec.last)) or nil, right = k > 0 and "KILLER" or "HEALER", ink = k > 0 and "warn" or "good",
+          -- (Arn, 23 Nov: "these are too cut off" - the name alone on its line; the counts and the day under it)
+          local seen = rec.last and date and ("seen " .. date("%d %b", rec.last)) or nil
+          out[i] = { mark = k > 0 and "x" or "+", text = e.name, tint = k > 0 and "warn" or "good",
+            sub = (why ~= "" and seen) and (why .. " - " .. seen) or (why ~= "" and why) or seen, right = k > 0 and "KILLER" or "HEALER", ink = k > 0 and "warn" or "good",
             tip = e.name .. ": a top healer in " .. times(h, "battleground") .. ", the top killer in " .. times(k, "battleground")
               .. (rec.last and date and (", last seen " .. date("%d %b", rec.last)) or ""),
             side = twice("forget:" .. e.name, "FORGET", "Press twice: not remembered any more", function() press("forget " .. e.name) end) }

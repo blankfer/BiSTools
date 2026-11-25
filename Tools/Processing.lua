@@ -424,7 +424,7 @@ end
 function P.EndDrag(self)
   if not (self and self.dragging) then return false end
   self.dragging = nil
-  pcall(self.StopMovingOrSizing, self)
+  NS.LetGo(self)
   return true
 end
 
@@ -1125,6 +1125,7 @@ R:Register({
     P.db = db
     args = tostring(args or "")
     if args == "ignored clear" then db.ignore = {} P.Recount() P.Paint() return NS.Print("processing: nothing ignored now") end
+    if args == "smelt" and NS.Smelt then return NS.Smelt.Why() end
     if args == "rods clear" then db.blocked = {} P.Recount() P.Paint() return NS.Print("processing: the rod notes are forgotten") end
     P.Toggle()
   end,

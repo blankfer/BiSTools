@@ -701,7 +701,7 @@ function SM.EndDrag(db)
   local f = SM.frame
   if not (f and SM.dragging) then return false end
   SM.dragging = nil
-  f:StopMovingOrSizing()
+  NS.LetGo(f)
   db = db or SM.db
   local point, _, rel, x, y = f:GetPoint(1)
   if db then db.pos = { point or "CENTER", x or 0, y or 0, rel or point or "CENTER" } end

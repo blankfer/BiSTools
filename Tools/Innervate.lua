@@ -184,7 +184,7 @@ end
 local function stop(f)
   if not f.moving then return end
   f.moving = nil
-  pcall(f.StopMovingOrSizing, f)
+  NS.LetGo(f)
   local ok, p, _, rp, x, y = pcall(f.GetPoint, f, 1)
   if ok and plain(p) and plain(x) then db().pos = { p, rp, x, y } end
 end

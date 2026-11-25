@@ -1201,7 +1201,7 @@ end
 function BF.EndDrag(f)
   if not (f and f.dragging) then return false end
   f.dragging = nil
-  pcall(f.StopMovingOrSizing, f)
+  NS.LetGo(f)
   local ok, p, _, rp, x, y = pcall(f.GetPoint, f)
   local function plain(v) return (v ~= nil and not (issecretvalue and issecretvalue(v))) and v or nil end
   p, rp, x, y = plain(p), plain(rp), plain(x), plain(y)

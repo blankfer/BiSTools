@@ -12,7 +12,7 @@ DP.App.combo = function(tool, db)
   local FRESH, MANY = 120, C.KEEP                            -- seconds a fight's card stays; as many fights as the tool keeps
   local pick                                                 -- the combo whose page is open in BEST
   local opened                                               -- NOW: the breakdown's boxes are open
-  local choosing                                             -- NOW: what is being changed on the row: 0 = the imbue, 1-4 = a totem's place
+  local flyImbue, flyTotems                                  -- NOW: the row's pop-outs (the imbue's, a totem's place)
   local kept = {}                                            -- what this very moment's paint already worked out
 
   local function int(n) return tostring(math.floor((tonumber(n) or 0) + 0.5)) end
@@ -202,6 +202,7 @@ DP.App.combo = function(tool, db)
     db().draft = d
     kept = {}
     settle()
+    if C.CardSoon then C.CardSoon() end
   end
   local function setup()
     local To = NS.Totems
@@ -278,6 +279,7 @@ DP.App.combo = function(tool, db)
     end
     To.Choose(page)
     kept = {}
+    if C.CardSoon then C.CardSoon() end
     return true
   end
   --[[ THE BEST, AND THE ONE TO TRY (Arn, 22 Nov: "the next row first one shows the best dps set up, imbue with the totems in that data, and
@@ -326,6 +328,32 @@ DP.App.combo = function(tool, db)
     add({ text = word, sub = sub, ink = ink, tip = tip, icons = row })
     add({ text = "", sub = "save in", ink = "dim", icons = saves, low = true, tip = "Saves it in that Call; nothing is cast" })
   end
+  --- WHAT FITS THERE, POPPED OUT OVER IT (Arn, 22 Nov: "if i click a totem let me select another fire totem dont send me to another
+  --- app"; 23 Nov, the game's own totem bar: "make it pop out like this to select another one in the first row" - "imbue too"): the
+  --- kit's pop-out (BiSTheme Deck minor 2, `fly`), a column of icons over the one clicked; a press puts that one on the row.
+  function flyImbue(s)
+    local out = {}
+    for _, n in ipairs(C.TRY.imbue) do
+      if C.Knows(n) then
+        out[#out + 1] = { pic = C.IconFor(n), word = NS.Totems.Short(n), lit = n == s.imbue or nil, glow = n == s.on and "good" or nil,
+          tip = n .. (n == s.on and ": on your weapon" or "") .. ". Click: onto your weapon and the row",
+          act = { word = "IMBUE", spell = n, peek = true, ok = function() touch(function(d) d.imbue = n end) return true end } }
+      end
+    end
+    return out
+  end
+  function flyTotems(s, at)
+    local To, out, now = NS.Totems, {}, s.row.t[at]
+    for _, id in ipairs(To.List(at)) do
+      local name = C.Base(To.Name(id)) or "?"
+      out[#out + 1] = { pic = To.Icon(id), word = To.Short(name), lit = id == now or nil, tip = name .. (id == now and ": on the row" or ". Click: onto the row"),
+        cast = C.Knows(name) and name or nil,                -- (the totem card drops it too; the phone only puts it on the row)
+        act = { word = "put", peek = true, fn = function() touch(function(d) d.t[at] = id end) end } }
+    end
+    out[#out + 1] = { word = "None", done = true, lit = not now or nil, tip = "No " .. To.SLOTS[at]:lower() .. " totem on the row",
+      act = { word = "put", peek = true, fn = function() touch(function(d) d.t[at] = false end) end } }
+    return out
+  end
   local function icons()
     local s = setup()
     if not s.page then return nil end
@@ -334,14 +362,14 @@ DP.App.combo = function(tool, db)
     local glow = GLOW[s.page] or "accent"
     local there = s.imbue ~= nil and s.on == s.imbue
     row[1] = { pic = C.IconFor(s.imbue), word = s.imbue and To.Short(s.imbue) or "No imbue", done = s.imbue == nil, ink = not there and "warn" or nil,
-      glow = s.imbue and s.imbue == ref.imbue and glow or nil, lit = choosing == 0 or nil,
+      glow = s.imbue and s.imbue == ref.imbue and glow or nil,
       tip = (s.imbue and (s.imbue .. (there and ": on your weapon" or ": not on your weapon yet")) or "No imbue") .. ". Click: choose one",
-      act = { word = "choose", peek = true, fn = function() choosing = choosing ~= 0 and 0 or nil D.skip = 0 end } }
+      flyKey = "imbue", fly = flyImbue(s), cast = s.imbue and C.Knows(s.imbue) and s.imbue or nil }
     for slot = 1, 4 do
       local n, id = s.at[slot], s.row.t[slot]
       row[slot + 1] = { pic = n and (To.Icon(id) or C.IconFor(n)) or nil, word = n and To.Short(n) or To.SLOTS[slot], done = n == nil,
-        glow = (id or false) == ref.t[slot] and n and glow or nil, lit = choosing == slot or nil, tip = To.SLOTS[slot] .. ": " .. (n or "nothing") .. ". Click: choose another",
-        act = { word = "choose", peek = true, fn = function() choosing = choosing ~= slot and slot or nil D.skip = 0 end } }
+        glow = (id or false) == ref.t[slot] and n and glow or nil, tip = To.SLOTS[slot] .. ": " .. (n or "nothing") .. ". Click: choose another",
+        flyKey = "slot" .. slot, fly = flyTotems(s, slot), cast = n and C.Knows(n) and n or nil }
     end
     for i, page in ipairs(To.Known()) do
       local c = To.CALLS[page]
@@ -351,31 +379,8 @@ DP.App.combo = function(tool, db)
         act = { word = "DROP", spell = c.name, peek = true, ok = function() return press(page) end } }
     end
     if C.Knows(To.BRING) then list[#list + 1] = { pic = C.IconFor(To.BRING), word = "Bring", tip = To.BRING .. ": the ones that stand come to you", act = { word = "BRING", spell = To.BRING, peek = true } } end
+    if C.Knows(To.RECALL) then list[#list + 1] = { pic = C.IconFor(To.RECALL), word = "Recall", tip = To.RECALL .. ": takes your totems back, and some of their mana", act = { word = "RECALL", spell = To.RECALL, peek = true } } end
     return { row, list }
-  end
-  --- WHAT FITS THERE, IN PLACE (Arn, 22 Nov: "if i click imbue let me select a new imbue from there dont send me to another app. if i
-  --- click a totem let me select another fire totem dont send me to another app"): the list under the row, instead of the rest.
-  local function chooseRows()
-    local s, To = setup(), NS.Totems
-    if not (choosing and s.page) then choosing = nil return nil end
-    local done = function() choosing = nil D.skip = 0 end
-    local out = { { mark = "<", text = choosing == 0 and "Imbue" or To.SLOTS[choosing] .. " totem", act = { word = "back", peek = true, fn = done }, verb = "BACK" } }
-    if choosing == 0 then
-      for _, n in ipairs(C.TRY.imbue) do
-        if C.Knows(n) then
-          out[#out + 1] = { pic = C.IconFor(n), text = n, right = n == s.on and "ON" or nil, ink = "good", tip = "Click: onto your weapon and the row",
-            act = { word = "IMBUE", spell = n, peek = true, ok = function() touch(function(d) d.imbue = n end) done() return true end } }
-        end
-      end
-      return out
-    end
-    local at, now = choosing, s.row.t[choosing]
-    local function to(id) return { word = "put", peek = true, fn = function() touch(function(d) d.t[at] = id end) done() end } end
-    for _, id in ipairs(To.List(at)) do
-      out[#out + 1] = { pic = To.Icon(id), text = (C.Base(To.Name(id)) or "?"):gsub(" Totem$", ""), verb = id == now and "HERE" or "PUT", verbInk = id == now and "good" or nil, act = to(id) }
-    end
-    out[#out + 1] = { mark = "-", text = "Nothing", verb = now and "PUT" or "HERE", act = to(false) }
-    return out
   end
   --- THE LAST ROW (Arn, 22 Nov: "the last row should be like update healing deck click and it sets my healing deck row out of combat so i
   --- can drop during combat"): the row's four totems onto BiS Healing's deck, and its CALL button on the row's Call.
@@ -403,8 +408,6 @@ DP.App.combo = function(tool, db)
     return "The row is " .. NS.Totems.CALLS[s.page].name .. " (" .. (GLOW_WORD[s.page] or "lit") .. ")"
   end
   local function nowRows()
-    local pickList = chooseRows()
-    if pickList then return pickList end
     local out, f = {}, last()
     local function add(row) out[#out + 1] = row end
     local c, total, untried = try()
@@ -522,9 +525,13 @@ DP.App.combo = function(tool, db)
   C.Close = function(...)
     local rec = close(...)
     if rec and D then D.Dirty() end                          -- (a flag: nothing is drawn while nothing is shown)
+    if rec and C.CardSoon then C.CardSoon() end              -- (the totem card's small dps line, after each fight)
     return rec
   end
 
+  -- THE ROW, FOR THE TOTEM CARD (Arn, 23 Nov: "it can just get the info from the phone"): Tools/TotemCard.lua draws these.
+  C.Phone = { icons = icons, number = number, deck = deckRow }
+  if C.CardSoon then C.CardSoon() end
   return {
     name = "Totems", art = "Interface\\Icons\\Spell_Nature_EarthBindTotem",
     card = {

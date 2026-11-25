@@ -833,7 +833,7 @@ function C.Place(combo)
 end
 
 -- ---------------------------------------------------------------- the card
-local function endDrag(f) if f and f.moving then f.moving = nil f:StopMovingOrSizing() end end
+local function endDrag(f) if f and f.moving then f.moving = nil NS.LetGo(f) end end
 function C.BuildCard()
   if C.card then return C.card end
   local K = F()
@@ -1116,7 +1116,7 @@ end
 function C.EndSizing(f)
   if not f.sizing then return end
   f.sizing = nil
-  f:StopMovingOrSizing()
+  NS.LetGo(f)
   local d = db()
   d.w = math.max(C.W_MIN, math.min(C.W_MAX, math.floor((f:GetWidth() or C.W) + 0.5)))
   d.h = math.max(C.H_MIN, math.min(C.H_MAX, math.floor((f:GetHeight() or C.H) + 0.5)))
@@ -2106,7 +2106,7 @@ function C.Float()
   local function stop()
     if not g.moving then return end
     g.moving = nil
-    g:StopMovingOrSizing()
+    NS.LetGo(g)
     local ok, pt, _, rp, x, y = pcall(g.GetPoint, g)
     if ok and pt then db().tapePos = { pt, rp, x, y } end
   end
@@ -2359,7 +2359,7 @@ function C.Tape()
   local function stop(self)
     if not self.moving then return end
     self.moving = nil
-    self:StopMovingOrSizing()
+    NS.LetGo(self)
     local ok, pt, _, rp, x, y = pcall(self.GetPoint, self)
     if ok and pt then db().tapePos = { pt, rp, x, y } end
   end
@@ -2501,7 +2501,7 @@ end
 function C.TapeEndSize(t)
   if not t.sizing then return end
   t.sizing = nil
-  t:StopMovingOrSizing()
+  NS.LetGo(t)
   local d = db()
   d.tapeW, d.tapeH = math.floor((t:GetWidth() or C.TAPE.w) + 0.5), math.floor((t:GetHeight() or 100) + 0.5)
   local ok, pt, _, rp, x, y = pcall(t.GetPoint, t)
@@ -2763,7 +2763,7 @@ R:Register({
   name = "combo",
   short = "cmb",
   desc = "after each fight: your weapon imbue + totems and the damage they did; which combo is best",
-  usage = "/bist combo  (short: cmb)  |  /bist combo probe",
+  usage = "/bist combo  (short: cmb)  |  /bist combo bar [on|off|size N|reset|why]  |  /bist combo probe",
   slashWhenOff = true,
   defaultOff = true,
   defaults = { fights = {}, card = true, min = C.MIN },
@@ -2785,6 +2785,9 @@ R:Register({
       help = "Solo and group fights are never in one ranking. auto = your group fights while you are in a group, your solo ones otherwise. solo / group = always those, all = both.",
       get = function(d) return (d.scope == "group" or d.scope == "all" or d.scope == "solo") and d.scope or "auto" end,
       set = function(d, v) d.scope = v ~= "auto" and v or nil C.scopeAt = nil if C.IsOpen() then C.Paint() end end },
+    { kind = "toggle", label = "totem card on screen",
+      help = "BiS>totems' top two rows, small, on your screen: the imbue and four totems, the Calls, Bring and Recall. A click drops it; Shift over a totem = the others pop out, a click there drops that one. The small tab at its left is the set-up's dps, after each fight - and what you drag it by.",
+      get = function(d) return d.bar == true end, set = function(d, v) d.bar = v and true or false if NS.TotemCard then NS.TotemCard.Paint() end end },
     { kind = "button", label = "the combo list", button = "open",
       help = "Every imbue + totem combo you fought with, ranked by damage per second, with how many fights each is based on.",
       action = function(d) C.db = d C.Toggle(true) end },
@@ -2808,11 +2811,19 @@ R:Register({
   end,
   IsOpen = function() return C.IsOpen() end,
   OnClose = function() C.Toggle(false) end,
-  OnDisable = function() C.cur = nil if C.frame then C.frame:Hide() db().open = false end if C.card then C.card:Hide() end end,
+  OnDisable = function()
+    C.cur = nil
+    if C.frame then C.frame:Hide() db().open = false end
+    if C.card then C.card:Hide() end
+    -- the totem card goes too (25 Nov 2026, the release bug hunt: switched off, its buttons stayed on screen and cast); its
+    -- paint hides it now that it is not wanted - after the fight, if in one (secure buttons)
+    if NS.TotemCard and NS.TotemCard.Soon then NS.TotemCard.Soon() end
+  end,
   OnSlash = function(_, d, args)
     C.db = d
     local cmd = tostring(args or ""):match("^(%S*)") or ""
     if cmd == "probe" then C.Probe() return end
+    if cmd == "bar" and NS.TotemCard then NS.TotemCard.Slash(tostring(args or ""):match("^%S+%s*(.-)$")) return end
     if cmd == "wf" then C.WFProbe() return end
     if cmd == "live" then C.LiveArm() return end
     if cmd == "reach" then C.ReachProbe() return end

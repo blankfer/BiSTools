@@ -79,7 +79,9 @@ DP.App.sounds = function(_, db)
   end
   --- Everything the rows hang on, as words: they are made again only when this moved (there are thousands).
   local function mark(tab)
-    local d, t = db(), { tab, words, tostring(X.last), hot(armed) and armed or "" }
+    -- the list itself too: a page drawn before the list was read again (the first visit, now that no card stands in
+    -- front of it) must not keep the old rows
+    local d, t = db(), { tab, words, tostring(X.last), hot(armed) and armed or "", tostring(X.All()) }
     for id in pairs(d.favs or {}) do t[#t + 1] = id end
     for _, p in ipairs(d.files or {}) do t[#t + 1] = p end
     return table.concat(t, "|")

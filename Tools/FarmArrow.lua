@@ -78,7 +78,7 @@ function A.Build(db)
   f:RegisterForDrag("LeftButton")
   f:SetScript("OnDragStart", function(self) self:StartMoving() end)
   f:SetScript("OnDragStop", function(self)
-    self:StopMovingOrSizing()
+    NS.LetGo(self)
     local point, _, _, x, y = self:GetPoint()
     db.arrowPos = { point or "CENTER", math.floor((x or 0) + 0.5), math.floor((y or 0) + 0.5) }
   end)
