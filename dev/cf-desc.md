@@ -1,4 +1,4 @@
-# BiS Tools — CurseForge page text (1.7.3)
+# BiS Tools — CurseForge page text (1.8.0)
 
 Paste everything below the line into the project description
 (CurseForge → BiS Tools, project 1686340 → Edit → Description), in the Markdown editor.
@@ -9,6 +9,11 @@ and lists stay flat.
 
 **Deliberately NOT on the page: summon** (Forever has no summoning stones, the tool does not load
 there). The threat beta and the pup finder were retired on 9 Nov. The page is for Forever.
+
+Changed for 1.8.0 (25 Nov, patched live by the page API): a new section **The deck: every tool an app** before XP
+buffs, and **The next quest mob, on one key** after Farm; Disenchanting gains smelting, click-to-disenchant, KEEP and the
+Gargul glow key; the recap opens small; world buffs left out of the thank-you; BiS> bosses is a phone with a QUESTS tab;
+the combo gains BiS>totems' pop-out, the totem card and newest ranks; three new table rows; the opener's bold line.
 
 Changed for 1.7.3 (18 Nov): two lines made true after the fixes - ASK lights only for BiS Tools players (1.7.2), and
 "only your own swings" holds in a group, the meter taking off what wasn't yours (1.7.3).
@@ -39,9 +44,17 @@ a new install, each with its own tick - the "you hear it" and crest lines say so
 
 # BiS Tools
 
-**Your XP buffs in one stop, your disenchanting in one window, every boss in a dungeon marked, a picture book of every creature, what killed you, who to watch for (and the griefers on your own side), which imbue and totems hit hardest, whether a shaman's Windfury is on you, and what to farm. For WoW Forever.**
+**Every tool an app on one deck: your XP buffs in one stop, your disenchanting and smelting in one window, the next quest mob on one key, every boss in a dungeon marked, a picture book of every creature, what killed you, who to watch for (and the griefers on your own side), which imbue and totems hit hardest, your totems on a small card, whether a shaman's Windfury is on you, and what to farm. For WoW Forever.**
 
 You're dead, and you never saw it coming. BiS Tools opens the game's own record of the hits that killed you: who landed the last one, who helped, with what, and how fast. Click a player on that screen and they're your rival. The next time they walk into view, you'll know.
+
+## The deck: every tool an app
+
+Left-click the minimap button and press **TRY THE DECK** at the top (or type `/bist deck`). One tall window, like a phone, with every tool as an icon. A click opens that tool right there: its list, its numbers, its buttons, and its settings on the last tab. No cards to click through first.
+
+- **Live cards** come up on it when a tool has something for you now.
+- **Tall or wide:** `/bist deck wide` or `/bist deck tall`. Give it a key in the game's Key Bindings ("The deck").
+- **From then on the minimap button opens it.** In a fight nothing on it can be clicked. It starts off, and every tool's own window is still there.
 
 ## XP buffs, while you level
 
@@ -53,19 +66,20 @@ Stop to eat, and BiS Tools has the whole stop ready. When an XP buff needs you, 
 - **One stop for both.** Eat on the bag and you get both buffs at once. So when it's time to eat and Well-Rested would run low before your next meal, the bag comes too, and the other way round.
 - **Out of combat only, nothing at level 60.** No timer ticking: it looks when your buffs, bags or rested XP change. `/bist xp` says where everything stands.
 
-## Disenchanting, like a cockpit
+## Disenchanting and smelting, like a cockpit
 
 `/bist proc` (or the button in the BiS> tools box, in town, or on your profession window) opens one page with every piece of gear you can disenchant. Built like a flight display: simple, high contrast, everything on it has a job.
 
 - **A skill tape** down the left: your enchanting skill boxed, a red-and-black pole above it for what you can't reach yet, a mark for each skill your items need, a gold bracket where the game asked for a rod.
-- **One row per item**, its name in its quality's colour, a Disenchant button on the right. A plain click for gear that isn't soulbound; soulbound takes Shift-click.
-- **Never the wrong item.** Each row is one exact item. Just before the click it checks the item is still in that slot; if your bags moved, nothing is destroyed and the list refreshes. Enchanted gear says ENCHANTED, and two items of one name where one differs get a SAME NAME warning. Right-click hides an item you carry on purpose. Alt-click is never touched, so roll-out addons keep it.
+- **One row per item**, its name in its quality's colour. Click it to disenchant it; soulbound gear, or gear in one of your sets, takes Shift-click and sits at the bottom of the list. Hover it for the game's own tooltip, with what you wear beside it.
+- **Never the wrong item.** Each row is one exact item. Just before the click it checks the item is still in that slot; if your bags moved, nothing is destroyed and the list refreshes. Enchanted gear says ENCHANTED, and two items of one name where one differs get a SAME NAME warning. SKIP moves an item you carry on purpose to the KEEP tab: never disenchanted, out of the list; BACK brings it back. Alt-click is never touched, so roll-out addons keep it.
 - **What you got:** this session's dust and essences in a strip, and **the hoard** (ALL TIME): everything you've ever disenchanted piled up in a little cave with you on top. Empty, you sit on the floor; at the top you flex on your mountain.
-- **The glow:** hold Alt over your bags (any bag addon) and gear you can disenchant glows purple, soulbound gear red.
+- **Smelt your ore.** Ore in your bags shows under SMELT at the top: click to smelt it all, Shift-click for one bar. Stand at a forge.
+- **The glow:** hold Alt over your bags (any bag addon) and gear you can disenchant glows purple, soulbound gear red. With Gargul installed (it uses Alt) it's Ctrl instead, or pick Alt, Ctrl or Shift in the settings.
 
 ## Death recap
 
-When you die, a small window opens on the faces of whoever did it.
+When you die, a small window opens on the faces of whoever did it: who killed you on top, the rest when you move the mouse over it.
 
 - **The killer in the middle, the two biggest helpers either side, in 3D.** A player still nearby shows as themselves, gear and all. Under each: what they hit you with (the killer: the killing blow, "Fireball 312 +40"), their damage and their share.
 - **Details, one click away:** your health falling across those seconds (gold where a hit was a crit), physical or magic, and the last ten hits newest first, with a total: "306 damage in 6.0 seconds".
@@ -113,7 +127,7 @@ Tick "guildmates" in the options and, out in the world on your own, a guildmate 
 
 ## A thank-you for buffs
 
-A stranger buffs you on the road and you're mid-pull, or just didn't notice. Switch on `/bist social on` and BiS Tools does it for you: a random friendly emote at them, a thank or a hug or a bow. Two to five minutes between emotes, never the same person twice in ten, never in a fight, and your group left alone. It's off until you turn it on.
+A stranger buffs you on the road and you're mid-pull, or just didn't notice. Switch on `/bist social on` and BiS Tools does it for you: a random friendly emote at them, a thank or a hug or a bow. Two to five minutes between emotes, never the same person twice in ten, never in a fight, and your group left alone. World buffs (Warchief's Blessing, Songflower, the Dire Maul tributes and the like) come from the game, not a person, and are left out. It's off until you turn it on.
 
 ## BiS> bosses: every boss in the place, marked
 
@@ -121,7 +135,9 @@ Walk into a dungeon or raid and its boss list comes up, in the game's own order,
 
 - **Click a boss** to target it and mark it. Shift-click pings it for your party too. If the boss isn't nearby, nothing changes and you keep your target.
 - **MARK ALL** marks every boss it can find. **FIND** goes one at a time, the ones in sight first: targeted, marked and pinged. `/bist bosses key F7` puts FIND on a key.
-- **A cockpit to watch it on:** a needle that climbs as bosses go down, a strip with one light per boss (green down, gold in sight, purple marked), and the boss in 3D over a synthwave sunset.
+- **A phone.** Tall and narrow: the boss in 3D over a synthwave sunset with its name, how many are down, in sight and marked in boxes, the list under it, and FIND as the biggest button. A dead boss gets a green tick.
+- **Quest targets.** A QUESTS tab lists who your quests need in this dungeon, and outside its entrance in the same zone (Maraudon's khans, Razorfen Downs' camps and Ambassador Malcin). Click a row to target and mark them; the quest itself ticks the row off. Who in your party is on the quest too shows as initials. Kill quests work alone; with Questie installed, item quests know who carries the item.
+- **Inside, where the game hides creatures' names,** a press still knows when it found its boss.
 - **It stays put.** A boss is ticked off when its fight ends and the mark passes to the next. In a fight the window fades almost away and clicks go straight through it. Escape leaves it alone (you press Escape all run); die, release or hearth out and it's back when you walk in.
 - **Every dungeon and raid on Forever:** 43 places, 335 bosses, from the game's own data. Fights of several, like The Seven, are listed and ticked off but never targeted.
 
@@ -144,6 +160,13 @@ Type a mob's name, kill one, or right-click it and pick **BiS: track in farm**.
 - **Spawn timers.** Where you killed it, and when it's back. On the minimap, on the world map, and as a big arrow pointing at the next one up.
 - **RestedXP's targets.** If you run RestedXP, the mobs your guide step wants show in the farm window and wear the purple crosshair too.
 
+## The next quest mob, on one key
+
+Switch on **questmob** (`/bist on qm`) and give it a key in the game's Key Bindings ("Target boss/quest/rival") or with `/bist qm key F`. One press targets the nearest creature your quests still need, puts a skull on it and pings it, then starts your attack - or casts an instant spell you pick, or does nothing more.
+
+- **One key everywhere.** In a dungeon it's BiS> bosses' FIND; in a battleground it goes for your rivals.
+- **The deck's Farm page has a QUESTS tab** with what it goes for, in order. `/bist qm why` says what it saw.
+
 ## Imbue + totem combo
 
 Which weapon imbue and which totems actually hit hardest? Turn on `/bist combo` and fight.
@@ -155,6 +178,9 @@ Which weapon imbue and which totems actually hit hardest? Turn on `/bist combo` 
 - **TRY NEXT** shows the combo you have the fewest fights with, out of the imbues and totems you know - click its icons and go. With BiS Healing, **SET DECK** puts its imbue on your weapon and its totems in your deck's totem boxes in one click; right-click any combo in the list to send that one.
 - **Only your own swings count.** Another player hitting your target - your party's melee too - doesn't show up as your procs, and with no Windfury up nothing counts as Windfury. After each fight the game's damage meter has the last word: procs it says weren't yours come off that fight.
 - **The receipt tape:** while you fight, a small strip of paper prints each proc as icons - Windfury +2, Flametongue +1 - with the fight's clock, a cut when you swap totems, and the total at the end. Scroll back through the fight, drag it bigger, or switch it off. Prefer a calm screen? **Clean proc text** floats each swing's procs up in big letters instead (WINDFURY +2, FT +1), with a small gauge that fills while your next proc is due - Windfury, or Frostbrand or Flametongue when there's no Windfury.
+- **BiS>totems on the deck:** click a totem on the row and the others of its kind pop out over it, the way the game's totem bar does (the imbue too); one click puts it on the row. Recall sits next to Bring.
+- **The totem card** (`/bist combo bar`): the imbue and four totems, the Calls, Bring and Recall, small, on your screen over your bars. A click drops it. Hold Shift over a totem and the others of its kind pop out, in a fight too; a click there drops that one. Roll the mouse wheel over a totem for a lower rank you know (cheaper on mana) and back up for the newest. A small tab at the left shows the set-up's dps after each fight and is what you drag it by; with BiS Healing, a tab at the right sends the four totems to its deck.
+- **Newest ranks by themselves.** After a level, every Call's totem and the row move up to the newest rank of the same totem, and say so in chat. In a fight it waits for the end.
 - **Your numbers come from the game's own damage meter**, read once each fight is over. It starts off; SET on the list has its switches, and the list resizes by its corner.
 
 ## Windfury lamp
@@ -208,9 +234,12 @@ The farm's skull, the rival target button, the XP buff buttons, and in battlegro
 | `/bist recap style scope` | the crosshair: rails, L, aim, box, scope, drop, chevron, tee, none |
 | `/bist bg mark` · `why` · `clear` | battlegrounds: read the board now · what it saw · forget everyone |
 | `/bist social on` · `off` · `group` · `why` | the thank-you emote for buffs |
+| `/bist deck` · `/bist deck wide` · `tall` | the deck · wide or tall |
+| `/bist on qm` · `/bist qm key F` · `/bist qm why` | the next quest mob · on a key · what it saw |
 | `/bist bosses` · `/bist bosses key F7` | the boss finder · FIND on a key |
 | `/bist codex` · `/bist codex full` · `/bist codex <name>` | the Codex · after dark · look one up |
 | `/bist combo` · `/bist combo why` | the combo list (turns it on) · why a fight wasn't kept |
+| `/bist combo bar` | the totem card |
 | `/bist combo clean` · `/bist combo receipt` | proc text in big floating letters · the paper tape |
 | `/bist wf test` · `/bist wf key F` | the Windfury lamp out of a fight · ASK on a key |
 | `/bist farm` | the farm window |
