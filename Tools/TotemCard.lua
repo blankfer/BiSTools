@@ -27,6 +27,11 @@
 -- the snippets stand aside (they ask [combat]) and the plain code below does it, as before. The pop-out closes at PLAYER_REGEN_DISABLED (the lockdown has not started yet), a drag ends
 -- there too. Painted on events only - a fight saved, a row changed, the bars, the weapon, the group - never on a timer; the pop-out
 -- watches the mouse with an OnUpdate only while it is open. Off until switched on (`/bist combo bar`, or the phone's SETTINGS).
+-- LET GO OF SHIFT = PICK IT (26 Nov 2026, Arn: "when i let go of shift it selects and not drop it but if i hold shift and click i
+-- drop"): with the pop-out open and the mouse on one of its icons, letting go of Shift puts that one on the row - nothing cast -
+-- and closes it; a click while Shift is held still drops it. Out of a fight the plain code (MODIFIER_STATE_CHANGED, the icon the
+-- mouse is on: TC.flyHover); in one the header's Shift snippet on "up" re-aims the row's icon and tells the plain code which one
+-- (CallMethod -> TC.FightPick: its picture now, the phone after the fight - the same road as a click's pick).
 local _, NS = ...
 local T, R = NS.T, NS.Registry
 local C = NS.Combo
@@ -196,10 +201,12 @@ local function button(parent, name)
       GameTooltip:Show()
     end
     if self.top then TC.hover = self if IsShiftKeyDown and IsShiftKeyDown() then TC.OpenFly(self) end end
+    if self.inFly then TC.flyHover = self end               -- (letting go of Shift here picks this one)
   end)
   b:SetScript("OnLeave", function(self)
     if GameTooltip then GameTooltip:Hide() end
     if TC.hover == self then TC.hover = nil end
+    if TC.flyHover == self then TC.flyHover = nil end
   end)
   return b
 end
@@ -210,7 +217,7 @@ function TC.Tip(b)
   local it = b.item or {}
   local t = tostring(it.tip or it.word or "")
   t = t:gsub("%. Click: choose another$", ""):gsub("%. Click: choose one$", ""):gsub("%. Click: onto the row$", "")
-  if b.inFly then return t .. (TC.Cast(it) and ". Click: drops it, onto the row" or "") end
+  if b.inFly then return t .. (TC.Cast(it) and ". Click: drops it, onto the row. Let go of Shift: onto the row only" or ". Let go of Shift: onto the row") end
   if b.top then return t .. (TC.Cast(it) and ". Click: drops it" or "") end
   return t
 end
@@ -369,12 +376,32 @@ TC.SNIP_PICKED = [[
   local c = self:GetFrameRef("fly")
   if c then c:Hide() end
 ]]
---- Shift pressed with the mouse already on a top icon, in a fight (a state driver on [mod:shift], on the header).
+--- Shift pressed with the mouse already on a top icon, in a fight (a state driver on [mod:shift], on the header). Shift let go with
+--- the mouse on an open pop-out's icon: that one onto the row's icon (nothing cast), the column away, the plain code told.
 TC.SNIP_SHIFT = FIGHT .. [[
-  if newstate ~= "down" or not fight then return end
+  if not fight then return end
+  if newstate == "down" then
+    for i = 1, 8 do
+      local b, c = self:GetFrameRef("top" .. i), self:GetFrameRef("fly" .. i)
+      if b and c and b:IsVisible() and b:IsUnderMouse(true) then c:Show() end
+    end
+    return
+  end
   for i = 1, 8 do
-    local b, c = self:GetFrameRef("top" .. i), self:GetFrameRef("fly" .. i)
-    if b and c and b:IsVisible() and b:IsUnderMouse(true) then c:Show() end
+    local s, c = self:GetFrameRef("top" .. i), self:GetFrameRef("fly" .. i)
+    if s and c and c:IsShown() then
+      for j = 1, 16 do
+        local b = self:GetFrameRef("f" .. i .. "_" .. j)
+        if b and b:IsVisible() and b:IsUnderMouse(true) then
+          local spell = b:GetAttribute("*spell1")
+          s:SetAttribute("*type1", spell and "spell" or nil)
+          s:SetAttribute("*spell1", spell)
+          c:Hide()
+          self:CallMethod("FightPick", i, j)
+          return
+        end
+      end
+    end
   end
 ]]
 
@@ -387,6 +414,7 @@ function TC.Secure()
   if not (okH and h) then TC.secure = "no secure header on this client" return end
   if not (SecureHandlerWrapScript and SecureHandlerSetFrameRef) then TC.secure = "no secure snippets on this client" return end
   TC.header = h
+  h.FightPick = function(_, i, j) TC.FightPick(i, j) end     -- (the Shift snippet's word to the plain code: CallMethod)
   h:SetAttribute("_onstate-shift", TC.SNIP_SHIFT)
   if RegisterStateDriver then pcall(RegisterStateDriver, h, "shift", "[mod:shift] down; up") end
   TC.secure = "ready"
@@ -426,6 +454,7 @@ function TC.Column(f, i, from, size)
     b.src = from
     ref(b, "src", from)
     ref(b, "fly", col)
+    ref(TC.header, "f" .. i .. "_" .. j, b)                  -- (the Shift snippet finds the one the mouse is on)
     b:SetFrameLevel((col:GetFrameLevel() or 1) + 1)
     b:ClearAllPoints()
     b:SetPoint("BOTTOM", col, "BOTTOM", 0, gap + (j - 1) * (size + gap))      -- (the first nearest its icon, the game's way)
@@ -456,6 +485,35 @@ function TC.OpenFly(from)
   col:Show()
   TC.watch:Show()
   note(("opened: %d to pick"):format(#from.item.fly))
+end
+
+--- Shift let go on a pop-out icon, out of a fight: that one onto the row (the phone's own word for it), nothing cast.
+function TC.Select(b)
+  local it = b and b.inFly and b.item
+  if fighting() or not it then return false end
+  local a = it.act
+  if type(a) == "table" then
+    if type(a.fn) == "function" then pcall(a.fn) elseif type(a.ok) == "function" then pcall(a.ok) end
+  end
+  note("picked (Shift let go): " .. tostring(it.word))
+  TC.flyHover = nil
+  TC.CloseFly()
+  TC.Soon()
+  return true
+end
+
+--- The same in a fight, told by the Shift snippet (which already re-aimed the row's icon): its picture now, the phone after.
+function TC.FightPick(i, j)
+  local f = TC.frame
+  local col = f and f.cols[i]
+  local b = col and col.b[j]
+  local it = b and b.item
+  if not it then return end
+  if b.src then pcall(b.src.pic.SetTexture, b.src.pic, it.pic) end
+  TC.queue = TC.queue or {}
+  TC.queue[#TC.queue + 1] = it
+  TC.flyHover = nil
+  note("picked in a fight (Shift let go): " .. tostring(it.word))
 end
 
 function TC.CloseFly(why)
@@ -569,6 +627,8 @@ ev:SetScript("OnEvent", function(_, e, a1, a2)
   if e == "MODIFIER_STATE_CHANGED" then                       -- (Shift pressed with the mouse already on an icon)
     if (a1 == "LSHIFT" or a1 == "RSHIFT") and a2 == 1 then
       if TC.hover then TC.OpenFly(TC.hover) else note("Shift pressed, but the mouse was on no totem of the card") end
+    elseif (a1 == "LSHIFT" or a1 == "RSHIFT") and a2 == 0 and TC.flyHover and not fighting() then
+      TC.Select(TC.flyHover)                                -- (let go on a pop-out icon: picked, not dropped; a fight's is the snippet's)
     end
     return
   end

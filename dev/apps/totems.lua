@@ -190,7 +190,8 @@ return function(H)
         return { Show = function() fr.shown = true end, Hide = function() fr.shown = false end, IsShown = function() return fr.shown end,
           IsVisible = function() return fr.shown end, IsUnderMouse = function() return fr.under and true or false end,
           GetFrameRef = function(_, k) return handle(fr.refs and fr.refs[k]) end,
-          SetAttribute = function(_, k, v) fr.attrs[k] = v end, GetAttribute = function(_, k) return fr.attrs[k] end }
+          SetAttribute = function(_, k, v) fr.attrs[k] = v end, GetAttribute = function(_, k) return fr.attrs[k] end,
+          CallMethod = function(_, m, ...) return fr[m](fr, ...) end }
       end
       local function snip(code, fr, newstate, down)
         local fn = assert(loadstring(code))
@@ -275,6 +276,37 @@ return function(H)
       TC.events.scripts.OnEvent(TC.events, "MODIFIER_STATE_CHANGED", "LSHIFT", 1)
       ok(f.cols[1]:IsShown() and f.cols[1].b[1].attrs["*spell1"] == row()[1].fly[1].act.spell, "Shift pressed over the imbue: the imbues pop out")
       top[1]:GetScript("OnLeave")(top[1])
+      -- LET GO OF SHIFT = PICK IT (Arn, 26 Nov: "when i let go of shift it selects and not drop it but if i hold shift and click i
+      -- drop"): the mouse on a pop-out icon, Shift up -> onto the row, nothing cast, the pop-out away
+      local function flyNamed(n) for _, b in ipairs(fb) do if b:IsShown() and b.attrs["*spell1"] == n then return b end end end
+      local clicked = false
+      for _, b in ipairs(fb) do local pc = b:GetScript("PostClick") b.__pc = pc b:SetScript("PostClick", function(...) clicked = true return pc(...) end) end
+      W.shift = true
+      top[2]:GetScript("OnEnter")(top[2])
+      local mg = flyNamed("Magma Totem")
+      ok(col:IsShown() and mg, "Shift over the fire totem: Magma in its pop-out")
+      top[2]:GetScript("OnLeave")(top[2])
+      mg:GetScript("OnEnter")(mg)
+      ok(TC.Tip(mg):find("Let go of Shift: onto the row only", 1, true), "its words say what letting go does", TC.Tip(mg))
+      W.shift = false
+      TC.events.scripts.OnEvent(TC.events, "MODIFIER_STATE_CHANGED", "LSHIFT", 0)
+      ok(row()[2].word == "Magma" and not col:IsShown() and not clicked and TC.flyHover == nil, "Shift let go on Magma: onto the row, the pop-out away, nothing clicked", row()[2].word)
+      W.runAfters(1)
+      ok(top[2].attrs["*spell1"] == "Magma Totem", "and the card's fire totem drops Magma from now on", top[2].attrs["*spell1"])
+      W.shift = true
+      top[2]:GetScript("OnEnter")(top[2])
+      top[2]:GetScript("OnLeave")(top[2])
+      local fl = flyNamed("Flametongue Totem")
+      fl:GetScript("OnEnter")(fl)
+      fl:GetScript("OnLeave")(fl)
+      TC.events.scripts.OnEvent(TC.events, "MODIFIER_STATE_CHANGED", "LSHIFT", 0)
+      ok(row()[2].word == "Magma" and col:IsShown(), "let go after the mouse left the icon: nothing picked, still open", row()[2].word)
+      fl:GetScript("OnEnter")(fl)
+      TC.events.scripts.OnEvent(TC.events, "MODIFIER_STATE_CHANGED", "LSHIFT", 0)
+      W.runAfters(1)
+      ok(row()[2].word == "Flametongue" and top[2].attrs["*spell1"] == "Flametongue Totem" and not clicked, "and back to Flametongue the same way", row()[2].word)
+      for _, b in ipairs(fb) do b:SetScript("PostClick", b.__pc) b.__pc = nil end
+      W.shift = false
       -- out of a fight the snippets stand aside (the plain code does it)
       W.shift = true
       TC.CloseFly()
@@ -311,6 +343,24 @@ return function(H)
       pick:GetScript("PostClick")(pick, "LeftButton", false)
       ok(top[2].pic.file == pick.item.pic and pick.item.pic ~= nil, "its picture onto the row at once", tostring(top[2].pic.file))
       ok(TC.queue and TC.queue[1] == pick.item and row()[2].word == "Flametongue", "the phone hears of it after the fight, not now")
+      -- Shift let go on a pop-out icon IN A FIGHT: the header's snippet re-aims the row's icon, closes the column, tells the plain code
+      top[2].attrs["*spell1"] = "Flametongue Totem"
+      top[2].pic.file = nil
+      snip(TC.SNIP_ENTER, top[2])
+      ok(col:IsShown(), "in a fight, the column open again")
+      ok(TC.header.refs["f2_" .. 1] == fb[1], "the header knows every pop-out icon")
+      for _, b in ipairs(fb) do b.under = (b == pick) end
+      snip(TC.SNIP_SHIFT, TC.header, "up")
+      ok(top[2].attrs["*spell1"] == "Magma Totem" and top[2].attrs["*type1"] == "spell" and not col:IsShown(),
+        "in a fight, Shift let go on Magma: the row's icon drops Magma now, the column away", top[2].attrs["*spell1"])
+      ok(TC.queue[#TC.queue] == pick.item and top[2].pic.file == pick.item.pic and row()[2].word == "Flametongue",
+        "its picture now, the phone after the fight")
+      pick.under = false
+      snip(TC.SNIP_ENTER, top[2])
+      snip(TC.SNIP_SHIFT, TC.header, "up")
+      ok(col:IsShown() and top[2].attrs["*spell1"] == "Magma Totem", "let go with the mouse on no icon: nothing changes")
+      snip(TC.SNIP_LEAVE, top[2])
+      col.shown = false
       -- Shift pressed with the mouse already on it: the state driver
       local dr
       for _, x in ipairs(drivers) do if x.fr == TC.header and x.state == "shift" then dr = x end end
