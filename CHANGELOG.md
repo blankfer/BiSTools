@@ -1,3 +1,7 @@
+## 1.8.1
+
+- **Totem card: let go of Shift to pick.** Hold Shift over a totem on the card, move onto another one in the pop-out and let go of Shift: it goes on the row and nothing is cast. Shift + click still drops it. In a fight too.
+
 ## 1.8.0
 
 - **Every tool is an app on the BiS deck.** Open the deck and each tool has its icon; a click opens it right there. Apps open straight to themselves - no cards to click through first.
